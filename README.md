@@ -1,0 +1,43 @@
+# FreeDesign
+
+App web para diseñar ropa sobre un avatar 3D: ajusta las medidas del cuerpo, elige prenda, ajuste, tela y color, y gira el modelo 360° para ver cómo queda.
+
+## Empezar (para cada uno de nosotros, una sola vez)
+
+1. **Git configurado** con tu nombre y email:
+   ```bash
+   git config --global user.name "Tu Nombre"
+   git config --global user.email "tu@email.com"
+   ```
+2. **Clave SSH en GitHub**: crea una con `ssh-keygen -t ed25519 -C "tu@email.com"` y pega el contenido de `~/.ssh/id_ed25519.pub` en GitHub → Settings → SSH and GPG keys.
+3. **Clonar e instalar**:
+   ```bash
+   git clone git@github.com:quimfuentes28code/freedesign.git
+   cd freedesign
+   npm install
+   npm run dev
+   ```
+   Abre http://localhost:5173.
+
+> Más fácil: abre la carpeta clonada con Claude Code y pídele "prepara el proyecto para que funcione en mi ordenador".
+
+## Flujo de trabajo diario
+
+```text
+git checkout main && git pull        # partir de lo último
+git checkout -b feature/mi-tarea     # rama nueva
+# ... trabajar (con Claude) ...
+npm run build                        # comprobar que compila
+git push -u origin feature/mi-tarea  # subir la rama
+# abrir Pull Request en GitHub → el otro revisa la preview → merge
+```
+
+Al fusionar en `main`, Cloudflare despliega automáticamente a producción. Cada rama tiene su propia URL de preview.
+
+## Despliegue en Cloudflare (configuración inicial, una vez)
+
+1. En el panel de Cloudflare: **Workers & Pages → Create → Import a repository** y elige `freedesign`.
+2. Comando de build: `npm run build`. Comando de deploy: `npx wrangler deploy`.
+3. Invita a tu compañero a la cuenta en **Manage Account → Members**.
+
+Las normas detalladas para trabajar (y para Claude) están en [CLAUDE.md](CLAUDE.md).
