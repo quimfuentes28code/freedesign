@@ -90,7 +90,7 @@ export function Mannequin({ measurements, design, animate }: Props) {
   return (
     <group scale={fit.scale}>
       <primitive object={model.root} />
-      <Garment model={model} fit={fit} cloud={cloud} design={design} />
+      <Garment model={model} fit={fit} cloud={cloud} measurements={measurements} design={design} />
     </group>
   )
 }

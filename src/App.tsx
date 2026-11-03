@@ -4,7 +4,16 @@ import { Scene } from './three/Scene'
 import type { Design, Measurements } from './types'
 
 const DEFAULT_MEASUREMENTS: Measurements = { height: 172, chest: 92, waist: 76, hips: 98 }
-const DEFAULT_DESIGN: Design = { garment: 'camiseta', fit: 'normal', fabric: 'algodon', color: '#c4643a' }
+const DEFAULT_DESIGN: Design = {
+  garment: 'sudadera',
+  fit: 'holgado',
+  fabric: 'felpa',
+  color: '#c9b89f',
+  hood: true,
+  pocket: true,
+  bodyLength: 70,
+  sleeveLength: 64,
+}
 
 export default function App() {
   const [measurements, setMeasurements] = useState(DEFAULT_MEASUREMENTS)

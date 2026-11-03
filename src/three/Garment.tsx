@@ -1,17 +1,19 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import * as THREE from 'three'
 import { FABRICS, type Fabric } from '../data/fabrics'
-import type { Design } from '../types'
+import type { Design, Measurements } from '../types'
 import type { Model } from './Avatar'
 import { FIT_EASE, jointPosition, type BodyFit } from './body'
+import { dressInWorker } from './cloth/dressClient'
+import { knitNormalMap } from './cloth/textures'
 import { Part, referencePose, type ReferencePose } from './pose'
 import { CloudGrid, computeTubeNormals, skinFromCloud, wrapTube, type Cloud, type TubeSpec } from './wrap'
 
-/** Material de la prenda según la tela y el color elegidos. Se comparte entre todas las piezas. */
-function useFabricMaterial(design: Design) {
+/** Materiales de la prenda: la tela elegida y el canalé de puños, bajo y cuello (mismo color). */
+function useFabricMaterials(design: Design) {
   const fabric = FABRICS[design.fabric]
-  const material = useMemo(
-    () =>
+  const materials = useMemo(() => {
+    const make = (knit: Fabric['knit'], depth: number) =>
       new THREE.MeshPhysicalMaterial({
         color: design.color,
         roughness: fabric.roughness,
@@ -19,12 +21,14 @@ function useFabricMaterial(design: Design) {
         sheenRoughness: fabric.sheenRoughness,
         sheenColor: new THREE.Color(design.color).lerp(new THREE.Color('#ffffff'), 0.25),
         clearcoat: fabric.clearcoat,
+        normalMap: depth > 0 ? knitNormalMap(knit) : null,
+        normalScale: new THREE.Vector2(depth, depth),
         side: THREE.DoubleSide,
-      }),
-    [fabric, design.color],
-  )
-  useEffect(() => () => material.dispose(), [material])
-  return material
+      })
+    return [make(fabric.knit, fabric.knitDepth), make('canale', 0.9)]
+  }, [fabric, design.color])
+  useEffect(() => () => materials.forEach((m) => m.dispose()), [materials])
+  return materials
 }
 
 interface Props {
@@ -32,39 +36,86 @@ interface Props {
   fit: BodyFit
   /** Cuerpo ya ajustado a las medidas (postura en T, unidades del modelo). */
   cloud: Cloud
+  measurements: Measurements
   design: Design
 }
 
+/** Prendas que se construyen con patrón de costura (piezas cosidas y asentadas sobre el cuerpo). */
+const PATTERN_GARMENTS = new Set<Design['garment']>(['sudadera'])
+
 /**
- * Prenda puesta sobre el maniquí. Cada pieza es una tela que envuelve el cuerpo (torso, mangas, perneras)
- * y usa el mismo esqueleto que el maniquí: así se mueve exactamente con la animación.
+ * Prenda puesta sobre el maniquí. Usa el mismo esqueleto que el maniquí, así se mueve con la animación.
+ * - Sudadera: patrón de costura real (ver cloth/).
+ * - Resto: tubos de tela que envuelven torso, mangas y perneras (versión sencilla, pendiente de pasar a patrón).
  */
-export function Garment({ model, fit, cloud, design }: Props) {
-  const material = useFabricMaterial(design)
+export function Garment({ model, fit, cloud, measurements, design }: Props) {
+  const materials = useFabricMaterials(design)
   const fabric = FABRICS[design.fabric]
   const pose = useMemo(() => referencePose(model, cloud), [model, cloud])
-  const grid = useMemo(() => new CloudGrid(pose.points), [pose])
+  const pattern = PATTERN_GARMENTS.has(design.garment)
 
-  const geometries = useMemo(
-    () => buildGarment(model, cloud, pose, grid, fit, design, fabric),
-    [model, cloud, pose, grid, fit, design.garment, design.fit, fabric], // eslint-disable-line react-hooks/exhaustive-deps
-  )
-  useEffect(() => () => geometries.forEach((g) => g.dispose()), [geometries])
+  // Prendas de patrón: se calculan en segundo plano y se muestran al terminar (la anterior sigue visible mientras)
+  const [patternGeom, setPatternGeom] = useState<THREE.BufferGeometry | null>(null)
+  useEffect(() => {
+    if (!pattern) return
+    let alive = true
+    dressInWorker({
+      info: model.info,
+      cloud,
+      pose: {
+        boneMatrices: pose.boneMatrices,
+        bindMatrix: pose.bindMatrix,
+        bindInverse: pose.bindInverse,
+        points: pose.points,
+        normals: pose.normals,
+        parts: pose.parts,
+      },
+      scale: fit.scale,
+      measurements,
+      design,
+      fabric,
+    })
+      .then((g) => {
+        if (!alive || !g) return
+        setPatternGeom((prev) => {
+          prev?.dispose()
+          return g
+        })
+      })
+      .catch((err) => console.error('No se ha podido calcular la prenda', err))
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.pocket, design.bodyLength, design.sleeveLength, fabric])
+  useEffect(() => () => patternGeom?.dispose(), [patternGeom])
+
+  // Resto de prendas: tubos que envuelven el cuerpo (cálculo rápido, al momento)
+  const wrapGeoms = useMemo(() => {
+    if (pattern) return []
+    const grid = new CloudGrid(pose.points)
+    return buildGarment(model, cloud, pose, grid, fit, design, fabric)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model, cloud, pose, fit, pattern, design.garment, design.fit, fabric])
+  useEffect(() => () => wrapGeoms.forEach((g) => g.dispose()), [wrapGeoms])
 
   useEffect(() => {
+    const geometries = pattern ? (patternGeom ? [patternGeom] : []) : wrapGeoms
     const meshes = geometries.map((g) => {
-      const mesh = new THREE.SkinnedMesh(g, material)
+      const mesh = new THREE.SkinnedMesh(g, pattern ? materials : materials[0])
       mesh.castShadow = true
+      mesh.receiveShadow = true
       mesh.frustumCulled = false
       mesh.bind(model.body.skeleton, model.body.bindMatrix)
       model.root.add(mesh)
       return mesh
     })
     return () => meshes.forEach((m) => model.root.remove(m))
-  }, [geometries, material, model])
+  }, [patternGeom, wrapGeoms, materials, model, pattern])
 
   return null
 }
+
 
 /** Unidades del modelo (cm del modelo original) para una distancia real en metros. */
 const toModel = (meters: number, fit: BodyFit) => meters / fit.scale

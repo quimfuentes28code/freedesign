@@ -191,3 +191,16 @@ section {
     padding: 16px;
   }
 }
+
+.busy {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  color: var(--muted);
+}

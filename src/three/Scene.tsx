@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber'
 import { Suspense } from 'react'
 import type { Design, Measurements } from '../types'
 import { Mannequin } from './Avatar'
+import { useDressing } from './cloth/dressClient'
 
 interface Props {
   measurements: Measurements
@@ -16,10 +17,12 @@ export function Scene({ measurements, design, autoRotate, animate }: Props) {
   const H = measurements.height / 100
   // Aviso de carga fuera de la escena 3D (el modelo pesa varios MB)
   const { active } = useProgress()
+  const dressing = useDressing()
 
   return (
     <>
       {active && <span className="loading">Cargando maniquí…</span>}
+      {!active && dressing && <span className="busy">Ajustando prenda…</span>}
       <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 1.2, 3.6], fov: 36 }}>
         <color attach="background" args={['#e4dfd6']} />
         <fog attach="fog" args={['#e4dfd6', 6, 14]} />
