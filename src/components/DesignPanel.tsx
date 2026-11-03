@@ -41,7 +41,7 @@ export function DesignPanel(props: Props) {
   return (
     <aside className="panel">
       <header className="panel-header">
-        <h1>FreeDesign</h1>
+        <h1>Vista previa 3D</h1>
         <div className="toggles">
           <label className="toggle">
             <input type="checkbox" checked={props.animate} onChange={(e) => props.onAnimateChange(e.target.checked)} />

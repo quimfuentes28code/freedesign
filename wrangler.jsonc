@@ -1,11 +1,30 @@
-// Configuración de Cloudflare Workers. La app se sirve como sitio estático desde ./dist.
+// Configuración de Cloudflare Workers.
+// - La web (React) se sirve como sitio estático desde ./dist.
+// - Las rutas /api/* las atiende el Worker (worker/index.ts), que guarda los datos en la base de datos D1.
 // Los secretos NO van aquí: en local usad .dev.vars y en producción `wrangler secret put`.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "freedesign",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "freedesign",
+      // En local no hace falta un id real. Para publicar: `npx wrangler d1 create freedesign`
+      // y poner aquí el id que devuelve (ver README).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    // Correos que pueden usar la app en producción (protegida con Cloudflare Access), separados por comas.
+    // Vacío = sin comprobación (solo para desarrollo local).
+    "ALLOWED_EMAILS": ""
   }
 }

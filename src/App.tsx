@@ -1,43 +1,30 @@
-import { useState } from 'react'
-import { DesignPanel } from './components/DesignPanel'
-import { Scene } from './three/Scene'
-import type { Design, Measurements } from './types'
+import { BrowserRouter, Route, Routes } from 'react-router'
+import { AppLayout } from './layout/AppLayout'
+import { ClientForm } from './pages/clients/ClientForm'
+import { ClientsList } from './pages/clients/ClientsList'
+import { Dashboard } from './pages/Dashboard'
+import { Preview3D } from './pages/designer/Preview3D'
+import { Designer, Economy, Library, NotFound, Production, Projects } from './pages/Sections'
 
-const DEFAULT_MEASUREMENTS: Measurements = { height: 172, chest: 92, waist: 76, hips: 98 }
-const DEFAULT_DESIGN: Design = {
-  garment: 'sudadera',
-  fit: 'holgado',
-  fabric: 'felpa',
-  color: '#c9b89f',
-  hood: true,
-  pocket: true,
-  bodyLength: 70,
-  sleeveLength: 64,
-}
-
+/** Rutas de la app. Cada apartado del menú es una página. */
 export default function App() {
-  const [measurements, setMeasurements] = useState(DEFAULT_MEASUREMENTS)
-  const [design, setDesign] = useState(DEFAULT_DESIGN)
-  const [autoRotate, setAutoRotate] = useState(true)
-  // Animación activada salvo que el sistema pida reducir el movimiento
-  const [animate, setAnimate] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
-
   return (
-    <div className="layout">
-      <main className="viewport">
-        <Scene measurements={measurements} design={design} autoRotate={autoRotate} animate={animate} />
-        <p className="hint">Arrastra para girar · Rueda o pellizca para acercar</p>
-      </main>
-      <DesignPanel
-        measurements={measurements}
-        onMeasurementsChange={setMeasurements}
-        design={design}
-        onDesignChange={setDesign}
-        autoRotate={autoRotate}
-        onAutoRotateChange={setAutoRotate}
-        animate={animate}
-        onAnimateChange={setAnimate}
-      />
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="clientes" element={<ClientsList />} />
+          <Route path="clientes/nuevo" element={<ClientForm />} />
+          <Route path="clientes/:id" element={<ClientForm />} />
+          <Route path="disenador" element={<Designer />} />
+          <Route path="disenador/3d" element={<Preview3D />} />
+          <Route path="proyectos" element={<Projects />} />
+          <Route path="produccion" element={<Production />} />
+          <Route path="biblioteca" element={<Library />} />
+          <Route path="economia" element={<Economy />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }

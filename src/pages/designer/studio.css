@@ -1,0 +1,187 @@
+/* Vista previa 3D (estudio): todo va dentro de .studio para no afectar al resto de la app. */
+
+.studio {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  overflow: hidden;
+  height: 100%;
+}
+
+.studio .viewport {
+  position: relative;
+  min-height: 0;
+}
+
+.studio .hint {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.studio .panel {
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.studio .panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.studio h1 {
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.studio h2 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+.studio section {
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+
+.studio .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.studio .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.studio .chip:hover {
+  border-color: var(--muted);
+}
+
+.studio .chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.studio .swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgb(0 0 0 / 0.15);
+}
+
+.studio .color {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.studio .color input {
+  width: 40px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+  background: none;
+  cursor: pointer;
+}
+
+.studio .slider {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.studio .slider span {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.studio .slider strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.studio .slider input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.studio .loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.studio .toggles {
+  display: flex;
+  gap: 14px;
+}
+
+.studio .toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .studio {
+    grid-template-columns: 1fr;
+    grid-template-rows: 55dvh auto;
+    height: auto;
+  }
+
+  .studio .panel {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: 16px;
+  }
+}
+
+.studio .busy {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  color: var(--muted);
+}
