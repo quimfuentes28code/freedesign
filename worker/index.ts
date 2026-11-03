@@ -2,6 +2,7 @@
  * API de FreeDesign (Cloudflare Worker). Atiende /api/*; el resto de rutas las sirve la web estática.
  * Los datos se guardan en la base de datos D1 (binding DB) y los archivos en R2 (binding FILES).
  */
+import { artworksRoute } from './artworks'
 import { clientsRoute } from './clients'
 import { designsRoute } from './designs'
 import { filesRoute } from './files'
@@ -46,6 +47,8 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
       return materialsRoute(request, env, id, url)
     case 'suppliers':
       return suppliersRoute(request, env, id)
+    case 'artworks':
+      return artworksRoute(request, env, id)
     case 'designs':
       return designsRoute(request, env, id)
     case 'files':

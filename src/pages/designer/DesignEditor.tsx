@@ -4,9 +4,10 @@ import { api, useApi } from '../../api/client'
 import { Field, Status } from '../../components/ui'
 import { getTemplate } from '../../designer/templates'
 import { OPTION_GROUPS, opt, type GarmentTemplate, type PieceDef } from '../../designer/types'
-import type { DesignData, DesignInput, PieceStyle } from '../../shared/designs'
+import type { DesignData, DesignInput, PieceStyle, Print } from '../../shared/designs'
 import type { Material } from '../../shared/library'
-import { Canvas } from './Canvas'
+import { Canvas, type CanvasView } from './Canvas'
+import { PrintsPanel } from './PrintsPanel'
 import './designer.css'
 
 /** Colores rápidos habituales en streetwear (además del selector libre). */
@@ -28,6 +29,9 @@ export function DesignEditor() {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [highlight, setHighlight] = useState<string | null>(null)
+  const [view, setView] = useState<CanvasView>('front')
+  const [selectedPrint, setSelectedPrint] = useState<string | null>(null)
+  const artworks = useApi(() => api.listArtworks(), [])
 
   useEffect(() => {
     if (!id) return
@@ -56,12 +60,17 @@ export function DesignEditor() {
     }
   }
 
-  // Ctrl/Cmd + S guarda
+  // Ctrl/Cmd + S guarda; Supr quita el estampado seleccionado (si no se está escribiendo en un campo)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault()
         save()
+      }
+      const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedPrint && design && !typing) {
+        setDesign({ ...design, data: { ...design.data, prints: (design.data.prints ?? []).filter((p) => p.id !== selectedPrint) } })
+        setSelectedPrint(null)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -85,6 +94,9 @@ export function DesignEditor() {
   const setPiece = (piece: string, patch: Partial<PieceStyle>) =>
     setData({ pieces: { ...design.data.pieces, [piece]: { ...pieceStyle(template, design.data, piece), ...patch } } })
   const setOption = (key: string, value: string | boolean) => setData({ options: { ...design.data.options, [key]: value } })
+  const prints = design.data.prints ?? []
+  const setPrints = (next: Print[]) => setData({ prints: next })
+  const changePrint = (p: Print) => setPrints(prints.map((x) => (x.id === p.id ? p : x)))
 
   const remove = async () => {
     if (!id || !confirm(`¿Eliminar el diseño «${design.name}»? No se puede deshacer.`)) return
@@ -115,7 +127,17 @@ export function DesignEditor() {
           </div>
         </header>
         {error && <p className="status error">{error}</p>}
-        <Canvas template={template} data={design.data} materials={materials} highlight={highlight} />
+        <Canvas
+          template={template}
+          data={design.data}
+          materials={materials}
+          highlight={highlight}
+          view={view}
+          onViewChange={setView}
+          selectedPrint={selectedPrint}
+          onSelectPrint={setSelectedPrint}
+          onChangePrint={changePrint}
+        />
       </div>
 
       <aside className="editor-panel">
@@ -146,6 +168,18 @@ export function DesignEditor() {
             Usar el color y tejido del {template.pieces[0].label.toLowerCase()} en todas las piezas de tela
           </button>
         </section>
+
+        <PrintsPanel
+          template={template}
+          prints={prints}
+          onChange={setPrints}
+          view={view === 'all' ? 'front' : view}
+          onViewChange={setView}
+          selected={selectedPrint}
+          onSelect={setSelectedPrint}
+          artworks={artworks.data ?? []}
+          onArtworksChange={artworks.reload}
+        />
 
         {OPTION_GROUPS.map((g) => {
           const options = template.options.filter((o) => o.group === g.id)

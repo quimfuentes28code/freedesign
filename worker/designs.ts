@@ -1,4 +1,6 @@
-import type { Design, DesignData, DesignInput } from '../src/shared/designs'
+import { TECHNIQUES, type Technique } from '../src/shared/artworks'
+import type { Design, DesignData, DesignInput, Print } from '../src/shared/designs'
+import { isFileKey } from './files'
 import { HttpError, json, noContent, now, readBody, required, text, type Env } from './http'
 
 /** /api/designs — prendas diseñadas en el Diseñador. */
@@ -90,10 +92,43 @@ async function readDesign(request: Request): Promise<DesignInput> {
       }
     }
   }
+  const prints = Array.isArray(data.prints) ? data.prints.slice(0, 50).map(readPrint).filter((p): p is Print => !!p) : []
   return {
     name: required(b.name, 'El nombre'),
     template: required(b.template, 'La prenda base'),
     clientId: text(b.clientId) || null,
-    data: { options, pieces, notes: text(data.notes) },
+    data: { options, pieces, prints, notes: text(data.notes) },
+  }
+}
+
+const VIEWS = ['front', 'back', 'side'] as const
+
+/** Valida un estampado (descarta los que no tengan sentido). */
+function readPrint(raw: unknown): Print | null {
+  if (!raw || typeof raw !== 'object') return null
+  const p = raw as Record<string, unknown>
+  const n = (v: unknown, def: number) => (typeof v === 'number' && Number.isFinite(v) ? v : def)
+  const kind = p.kind === 'text' ? 'text' : 'artwork'
+  const file = text(p.file)
+  if (kind === 'artwork' && !isFileKey(file)) return null
+  const color = text(p.color)
+  return {
+    id: text(p.id) || crypto.randomUUID(),
+    view: VIEWS.includes(p.view as (typeof VIEWS)[number]) ? (p.view as Print['view']) : 'front',
+    kind,
+    artworkId: text(p.artworkId) || null,
+    file: kind === 'artwork' ? file : '',
+    aspect: Math.max(0.05, n(p.aspect, 1)),
+    w: Math.max(2, n(p.w, 60)),
+    text: text(p.text).slice(0, 200),
+    font: text(p.font).slice(0, 80),
+    size: Math.max(2, n(p.size, 20)),
+    color: /^#[0-9a-f]{6}$/i.test(color) ? color : '#1d1d1f',
+    bold: p.bold === true,
+    x: n(p.x, 200),
+    y: n(p.y, 200),
+    rotation: n(p.rotation, 0),
+    technique: TECHNIQUES.some((t) => t.id === p.technique) ? (p.technique as Technique) : 'serigrafia',
+    clip: p.clip !== false,
   }
 }

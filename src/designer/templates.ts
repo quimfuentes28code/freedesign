@@ -1,4 +1,5 @@
 import { drawPants, PANTS_PIECES, type PantsCfg } from './pants'
+import { CX } from './geometry'
 import { drawTop, TOP_PIECES, type TopCfg } from './top'
 import { opt, type GarmentTemplate, type OptionDef, type Options, type PieceDef } from './types'
 
@@ -7,6 +8,32 @@ import { opt, type GarmentTemplate, type OptionDef, type Options, type PieceDef 
 const T = TOP_PIECES
 const FABRIC = ['tejido'] as PieceDef['materials']
 const TRIM = ['fornitura'] as PieceDef['materials']
+
+
+/** Posiciones de estampado habituales en prendas de torso. */
+const TOP_ZONES: GarmentTemplate['printZones'] = {
+  front: [
+    { id: 'pecho-izq', label: 'Pecho izquierdo', x: CX + 34, y: 152, w: 30 },
+    { id: 'pecho', label: 'Centro pecho', x: CX, y: 162, w: 70 },
+    { id: 'frontal', label: 'Frontal grande', x: CX, y: 196, w: 112 },
+  ],
+  back: [
+    { id: 'nuca', label: 'Nuca', x: CX, y: 124, w: 30 },
+    { id: 'espalda-alta', label: 'Espalda alta', x: CX, y: 150, w: 92 },
+    { id: 'espalda', label: 'Espalda completa', x: CX, y: 206, w: 140 },
+  ],
+  side: [{ id: 'manga', label: 'Manga', x: CX + 6, y: 210, w: 28 }],
+}
+
+/** Posiciones de estampado habituales en pantalones. */
+const PANTS_ZONES: GarmentTemplate['printZones'] = {
+  front: [
+    { id: 'muslo-izq', label: 'Muslo izquierdo', x: CX + 44, y: 170, w: 32 },
+    { id: 'bajo-izq', label: 'Bajo de la pierna', x: CX + 46, y: 400, w: 28 },
+  ],
+  back: [{ id: 'bolsillo', label: 'Encima del bolsillo', x: CX + 46, y: 130, w: 34 }],
+  side: [{ id: 'lateral', label: 'Lateral de la pierna', x: CX, y: 340, w: 28 }],
+}
 
 const stitchOption: OptionDef = {
   id: 'costuras',
@@ -37,6 +64,7 @@ const sudadera: GarmentTemplate = {
   id: 'sudadera',
   name: 'Sudadera',
   description: 'Con o sin capucha, bolsillo canguro, cremallera, cordones y canalé.',
+  printZones: TOP_ZONES,
   pieces: [
     { id: T.body, label: 'Cuerpo', defaultColor: '#c9b89f', materials: FABRIC },
     { id: T.sleeves, label: 'Mangas', defaultColor: '#c9b89f', materials: FABRIC },
@@ -137,6 +165,7 @@ const camiseta: GarmentTemplate = {
   id: 'camiseta',
   name: 'Camiseta',
   description: 'Cuello redondo o de pico, manga corta o larga, cortes regular, boxy u oversize.',
+  printZones: TOP_ZONES,
   pieces: [
     { id: T.body, label: 'Cuerpo', defaultColor: '#f2efe8', materials: FABRIC },
     { id: T.sleeves, label: 'Mangas', defaultColor: '#f2efe8', materials: FABRIC },
@@ -204,6 +233,7 @@ const pantalon: GarmentTemplate = {
   id: 'pantalon',
   name: 'Pantalón jogger / cargo',
   description: 'Cintura elástica con cordón, bolsillos laterales, cargo y traseros, bajo con puño o recto.',
+  printZones: PANTS_ZONES,
   pieces: [
     { id: PANTS_PIECES.legs, label: 'Perneras', defaultColor: '#4b4f45', materials: FABRIC },
     { id: PANTS_PIECES.waistband, label: 'Cinturilla', defaultColor: '#4b4f45', materials: FABRIC },
@@ -282,6 +312,7 @@ const bomber: GarmentTemplate = {
   id: 'bomber',
   name: 'Chaqueta bomber',
   description: 'Cremallera completa, cuello, puños y bajo de canalé, bolsillos de ojal o con solapa.',
+  printZones: TOP_ZONES,
   pieces: [
     { id: T.body, label: 'Cuerpo', defaultColor: '#3c4a3a', materials: FABRIC },
     { id: T.sleeves, label: 'Mangas', defaultColor: '#3c4a3a', materials: FABRIC },

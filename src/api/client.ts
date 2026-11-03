@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type DependencyList } from 'react'
 import type { Client, ClientInput } from '../shared/clients'
+import type { Artwork, ArtworkInput } from '../shared/artworks'
 import type { Design, DesignInput } from '../shared/designs'
 import type { Material, MaterialInput, Supplier, SupplierInput } from '../shared/library'
 
@@ -45,6 +46,20 @@ export const api = {
   createDesign: (d: DesignInput) => request<Design>('/designs', send('POST', d)),
   updateDesign: (id: string, d: DesignInput) => request<Design>(`/designs/${id}`, send('PUT', d)),
   deleteDesign: (id: string) => request<void>(`/designs/${id}`, send('DELETE')),
+
+  listArtworks: () => request<Artwork[]>('/artworks'),
+  getArtwork: (id: string) => request<Artwork>(`/artworks/${id}`),
+  createArtwork: (a: ArtworkInput) => request<Artwork>('/artworks', send('POST', a)),
+  updateArtwork: (id: string, a: ArtworkInput) => request<Artwork>(`/artworks/${id}`, send('PUT', a)),
+  deleteArtwork: (id: string) => request<void>(`/artworks/${id}`, send('DELETE')),
+
+  /** Sube una imagen subida por el usuario como gráfico nuevo de la Biblioteca. */
+  uploadArtwork: async (file: File) => {
+    const { width, height } = await imageSize(file)
+    const { key } = await api.uploadImage(file)
+    const name = file.name.replace(/\.[^.]+$/, '') || 'Gráfico'
+    return api.createArtwork({ name, file: key, width, height, data: null, tags: '' })
+  },
 
   /** Sube una imagen (reducida antes en el navegador) y devuelve su clave. */
   uploadImage: async (file: File) => {
@@ -94,4 +109,17 @@ export function useApi<T>(load: () => Promise<T>, deps: DependencyList) {
 
   useEffect(() => reload(), [reload])
   return { data, error, loading, reload }
+}
+
+/** Tamaño natural de una imagen (también de un SVG). */
+export async function imageSize(file: Blob): Promise<{ width: number; height: number }> {
+  const url = URL.createObjectURL(file)
+  try {
+    const img = new Image()
+    img.src = url
+    await img.decode()
+    return { width: img.naturalWidth || 500, height: img.naturalHeight || 500 }
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }

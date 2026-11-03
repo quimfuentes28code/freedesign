@@ -71,6 +71,16 @@ export interface GarmentTemplate {
   activePieces: (o: Options) => string[]
   /** Dibujo técnico de una vista. */
   draw: (view: View, o: Options) => Shape[]
+  /** Posiciones habituales de estampado en cada vista (centro y ancho, en unidades del lienzo). */
+  printZones: Partial<Record<View, PrintZone[]>>
+}
+
+export interface PrintZone {
+  id: string
+  label: string
+  x: number
+  y: number
+  w: number
 }
 
 /** Valor de una opción, con su valor por defecto si no está puesta. */

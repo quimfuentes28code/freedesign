@@ -6,6 +6,8 @@ import { Dashboard } from './pages/Dashboard'
 import { DesignEditor } from './pages/designer/DesignEditor'
 import { DesignsList, NewDesign } from './pages/designer/Designs'
 import { Preview3D } from './pages/designer/Preview3D'
+import { ArtworkCreator } from './pages/library/ArtworkCreator'
+import { ArtworksList } from './pages/library/Artworks'
 import { MaterialForm } from './pages/library/MaterialForm'
 import { MaterialsCatalog } from './pages/library/MaterialsCatalog'
 import { SupplierForm, SuppliersList } from './pages/library/Suppliers'
@@ -29,6 +31,9 @@ export default function App() {
           <Route path="produccion" element={<Production />} />
           <Route path="biblioteca" element={<MaterialsCatalog />} />
           <Route path="biblioteca/nuevo" element={<MaterialForm />} />
+          <Route path="biblioteca/graficos" element={<ArtworksList />} />
+          <Route path="biblioteca/graficos/nuevo" element={<ArtworkCreator />} />
+          <Route path="biblioteca/graficos/:id" element={<ArtworkCreator />} />
           <Route path="biblioteca/proveedores" element={<SuppliersList />} />
           <Route path="biblioteca/proveedores/nuevo" element={<SupplierForm />} />
           <Route path="biblioteca/proveedores/:id" element={<SupplierForm />} />

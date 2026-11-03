@@ -379,3 +379,141 @@ button.design-card {
     border-top: 1px solid var(--border);
   }
 }
+
+/* --- Estampados --- */
+
+.print-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.print-actions .button {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.artwork-picker {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.artwork-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 6px;
+}
+
+.artwork-tile {
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background:
+    repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 12px 12px;
+  padding: 4px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font: inherit;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.artwork-tile.upload {
+  background: var(--soft);
+}
+
+.artwork-tile:hover {
+  border-color: var(--muted);
+}
+
+.artwork-tile img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.print-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.print-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.print-row.active {
+  border-color: #3b82f6;
+  background: color-mix(in srgb, #3b82f6 6%, var(--panel));
+}
+
+.print-thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--soft);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 12px;
+  overflow: hidden;
+}
+
+.print-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.print-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.print-editor {
+  border: 1px solid #3b82f6;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.print-editor .fields {
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.print-editor input[type='range'] {
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.print-editor input[type='color'] {
+  height: 36px;
+  padding: 2px;
+}

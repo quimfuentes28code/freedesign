@@ -1,24 +1,29 @@
 import { useRef, useState, type PointerEvent, type WheelEvent } from 'react'
 import { FlatView } from '../../designer/FlatView'
 import { VIEWS, type GarmentTemplate, type View } from '../../designer/types'
-import type { DesignData } from '../../shared/designs'
+import type { DesignData, Print } from '../../shared/designs'
 import type { Material } from '../../shared/library'
 
-type CanvasView = View | 'all'
+export type CanvasView = View | 'all'
 
 interface Props {
   template: GarmentTemplate
   data: DesignData
   materials: Map<string, Material>
   highlight: string | null
+  view: CanvasView
+  onViewChange: (v: CanvasView) => void
+  selectedPrint: string | null
+  onSelectPrint: (id: string | null) => void
+  onChangePrint: (p: Print) => void
 }
 
 /**
  * Lienzo del editor: vista delantera, espalda, lateral o las tres a la vez.
- * Con la rueda o los botones se acerca para ver detalles, y arrastrando se mueve.
+ * Con la rueda o los botones se acerca para ver detalles, y arrastrando el fondo se mueve.
+ * Los estampados se arrastran, se escalan desde la esquina y se giran con el asa de arriba.
  */
-export function Canvas({ template, data, materials, highlight }: Props) {
-  const [view, setView] = useState<CanvasView>('front')
+export function Canvas({ template, data, materials, highlight, view, onViewChange, selectedPrint, onSelectPrint, onChangePrint }: Props) {
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null)
@@ -39,7 +44,7 @@ export function Canvas({ template, data, materials, highlight }: Props) {
   const onDown = (e: PointerEvent) => {
     if (zoom === 1) return
     drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y }
-    ;(e.target as Element).setPointerCapture(e.pointerId)
+    ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
   }
   const onMove = (e: PointerEvent) => {
     if (!drag.current) return
@@ -56,7 +61,7 @@ export function Canvas({ template, data, materials, highlight }: Props) {
               key={v.id}
               className={view === v.id ? 'active' : ''}
               onClick={() => {
-                setView(v.id)
+                onViewChange(v.id)
                 reset()
               }}
             >
@@ -93,13 +98,18 @@ export function Canvas({ template, data, materials, highlight }: Props) {
                 materials={materials}
                 highlight={highlight}
                 frame={view === 'all' ? 'comun' : 'ajustado'}
+                selectedPrint={selectedPrint}
+                onSelectPrint={onSelectPrint}
+                onChangePrint={onChangePrint}
               />
               {view === 'all' && <figcaption>{VIEWS.find((x) => x.id === v)?.label}</figcaption>}
             </figure>
           ))}
         </div>
       </div>
-      <p className="canvas-hint">Rueda del ratón o botones para acercar y ver detalles · Arrastra para moverte</p>
+      <p className="canvas-hint">
+        Rueda del ratón o botones para acercar · Arrastra el fondo para moverte · Arrastra un estampado para colocarlo
+      </p>
     </div>
   )
 }
