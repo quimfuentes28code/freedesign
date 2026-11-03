@@ -82,7 +82,11 @@ export function Transformable({ value, aspect, selected, onSelect, onChange, chi
     onSelect()
     const p = toSvg(e)
     start.current = { mode, px: p.x, py: p.y, t: value, d0: Math.hypot(p.x - x, p.y - y) || 1 }
-    ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
+    try {
+      ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
+    } catch {
+      // Sin puntero activo (p. ej. eventos simulados): se sigue funcionando sin captura
+    }
   }
   const move = (e: ReactPointerEvent) => {
     const s = start.current

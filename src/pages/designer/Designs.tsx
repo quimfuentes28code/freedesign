@@ -45,6 +45,7 @@ export function DesignsList() {
                   <strong>{d.name}</strong>
                   <span className="muted small">
                     {t?.name ?? d.template} · {d.clientName ?? 'Marca propia'}
+                    {d.projectName ? ` · ${d.projectName}` : ''}
                   </span>
                   <span className="muted small">Editado el {new Date(d.updatedAt).toLocaleDateString('es-ES')}</span>
                 </div>
@@ -73,6 +74,7 @@ export function NewDesign() {
         name: `${t.name} sin título`,
         template: t.id,
         clientId: params.get('cliente'),
+        projectId: params.get('proyecto'),
         data: defaultDesign(t),
       })
       navigate(`/disenador/${d.id}`, { replace: true })

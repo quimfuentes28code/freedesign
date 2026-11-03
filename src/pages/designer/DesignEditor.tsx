@@ -21,6 +21,7 @@ export function DesignEditor() {
   const { id } = useParams()
   const navigate = useNavigate()
   const clients = useApi(() => api.listClients(), [])
+  const projects = useApi(() => api.listProjects(), [])
   const library = useApi(() => api.listMaterials(), [])
   const materials = useMemo(() => new Map((library.data ?? []).map((m) => [m.id, m])), [library.data])
 
@@ -38,7 +39,7 @@ export function DesignEditor() {
     api
       .getDesign(id)
       .then((d) => {
-        const input: DesignInput = { name: d.name, template: d.template, clientId: d.clientId, data: d.data }
+        const input: DesignInput = { name: d.name, template: d.template, clientId: d.clientId, projectId: d.projectId, data: d.data }
         setDesign(input)
         setSaved(JSON.stringify(input))
       })
@@ -226,6 +227,21 @@ export function DesignEditor() {
               ))}
             </select>
           </Field>
+          <Field label="Proyecto">
+            <select value={design.projectId ?? ''} onChange={(e) => setDesign({ ...design, projectId: e.target.value || null })}>
+              <option value="">Sin proyecto</option>
+              {projects.data?.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {design.projectId && (
+            <Link to={`/proyectos/${design.projectId}`} className="link">
+              Ir al proyecto
+            </Link>
+          )}
           <Field label="Notas">
             <textarea rows={4} value={design.data.notes} onChange={(e) => setData({ notes: e.target.value })} placeholder="Ideas, referencias, cambios pedidos por el cliente…" />
           </Field>

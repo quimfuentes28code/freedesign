@@ -11,7 +11,10 @@ import { ArtworksList } from './pages/library/Artworks'
 import { MaterialForm } from './pages/library/MaterialForm'
 import { MaterialsCatalog } from './pages/library/MaterialsCatalog'
 import { SupplierForm, SuppliersList } from './pages/library/Suppliers'
-import { Economy, NotFound, Production, Projects } from './pages/Sections'
+import { CollectionsPage } from './pages/projects/Collections'
+import { ProjectDetail } from './pages/projects/ProjectDetail'
+import { ProjectsPage } from './pages/projects/ProjectsPage'
+import { Economy, NotFound, Production } from './pages/Sections'
 
 /** Rutas de la app. Cada apartado del menú es una página. */
 export default function App() {
@@ -27,7 +30,10 @@ export default function App() {
           <Route path="disenador/nuevo" element={<NewDesign />} />
           <Route path="disenador/3d" element={<Preview3D />} />
           <Route path="disenador/:id" element={<DesignEditor />} />
-          <Route path="proyectos" element={<Projects />} />
+          <Route path="proyectos" element={<ProjectsPage />} />
+          <Route path="proyectos/nuevo" element={<ProjectDetail />} />
+          <Route path="proyectos/colecciones" element={<CollectionsPage />} />
+          <Route path="proyectos/:id" element={<ProjectDetail />} />
           <Route path="produccion" element={<Production />} />
           <Route path="biblioteca" element={<MaterialsCatalog />} />
           <Route path="biblioteca/nuevo" element={<MaterialForm />} />

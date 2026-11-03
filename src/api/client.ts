@@ -3,6 +3,7 @@ import type { Client, ClientInput } from '../shared/clients'
 import type { Artwork, ArtworkInput } from '../shared/artworks'
 import type { Design, DesignInput } from '../shared/designs'
 import type { Material, MaterialInput, Supplier, SupplierInput } from '../shared/library'
+import type { Collection, CollectionInput, FileCategory, Project, ProjectInput, ProjectStatus, ProjectSummary } from '../shared/projects'
 
 /** Llamada a la API del Worker (/api/...). Lanza un Error con el mensaje del servidor si algo falla. */
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -20,7 +21,28 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const send = (method: string, body?: unknown): RequestInit => ({ method, body: body === undefined ? undefined : JSON.stringify(body) })
 
 export const api = {
-  stats: () => request<{ clients: number; materials: number; suppliers: number; designs: number }>('/stats'),
+  stats: () => request<Stats>('/stats'),
+  openTasks: () => request<{ id: string; title: string; dueDate: string; projectId: string; projectName: string }[]>('/tasks'),
+
+  listProjects: (f: { q?: string; status?: string; client?: string; collection?: string } = {}) =>
+    request<ProjectSummary[]>(`/projects?${new URLSearchParams(Object.entries(f).filter(([, v]) => v) as [string, string][])}`),
+  getProject: (id: string) => request<Project>(`/projects/${id}`),
+  createProject: (p: ProjectInput) => request<Project>('/projects', send('POST', p)),
+  updateProject: (id: string, p: ProjectInput) => request<Project>(`/projects/${id}`, send('PUT', p)),
+  setProjectStatus: (id: string, status: ProjectStatus) => request<Project>(`/projects/${id}`, send('PATCH', { status })),
+  deleteProject: (id: string) => request<void>(`/projects/${id}`, send('DELETE')),
+  /** Partes de un proyecto (archivos, materiales, costes, tareas): devuelven el proyecto actualizado. */
+  projectPart: (id: string, part: 'files' | 'materials' | 'costs' | 'tasks', method: 'POST' | 'PUT' | 'DELETE', body?: unknown, partId?: string) =>
+    request<Project>(`/projects/${id}/${part}${partId ? `/${partId}` : ''}`, send(method, body)),
+  addProjectFile: async (id: string, file: File, category: FileCategory) => {
+    const { key } = await api.uploadImage(file)
+    return api.projectPart(id, 'files', 'POST', { file: key, category, name: file.name })
+  },
+
+  listCollections: () => request<Collection[]>('/collections'),
+  createCollection: (c: CollectionInput) => request<Collection>('/collections', send('POST', c)),
+  updateCollection: (id: string, c: CollectionInput) => request<Collection>(`/collections/${id}`, send('PUT', c)),
+  deleteCollection: (id: string) => request<void>(`/collections/${id}`, send('DELETE')),
 
   listClients: (q = '') => request<Client[]>(`/clients?q=${encodeURIComponent(q)}`),
   getClient: (id: string) => request<Client>(`/clients/${id}`),
@@ -41,7 +63,7 @@ export const api = {
   updateSupplier: (id: string, s: SupplierInput) => request<Supplier>(`/suppliers/${id}`, send('PUT', s)),
   deleteSupplier: (id: string) => request<void>(`/suppliers/${id}`, send('DELETE')),
 
-  listDesigns: () => request<Design[]>('/designs'),
+  listDesigns: (project = '') => request<Design[]>(`/designs${project ? `?project=${project}` : ''}`),
   getDesign: (id: string) => request<Design>(`/designs/${id}`),
   createDesign: (d: DesignInput) => request<Design>('/designs', send('POST', d)),
   updateDesign: (id: string, d: DesignInput) => request<Design>(`/designs/${id}`, send('PUT', d)),
@@ -122,4 +144,14 @@ export async function imageSize(file: Blob): Promise<{ width: number; height: nu
   } finally {
     URL.revokeObjectURL(url)
   }
+}
+
+export interface Stats {
+  clients: number
+  materials: number
+  suppliers: number
+  designs: number
+  activeProjects: number
+  inProduction: number
+  openTasks: number
 }

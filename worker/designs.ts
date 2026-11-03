@@ -4,8 +4,8 @@ import { isFileKey } from './files'
 import { HttpError, json, noContent, now, readBody, required, text, type Env } from './http'
 
 /** /api/designs — prendas diseñadas en el Diseñador. */
-export async function designsRoute(request: Request, env: Env, id: string | undefined) {
-  if (!id && request.method === 'GET') return json(await listDesigns(env))
+export async function designsRoute(request: Request, env: Env, id: string | undefined, url: URL) {
+  if (!id && request.method === 'GET') return json(await listDesigns(env, url.searchParams.get('project') ?? ''))
   if (!id && request.method === 'POST') return json(await createDesign(env, await readDesign(request)), 201)
   if (id && request.method === 'GET') return json(await getDesign(env, id))
   if (id && request.method === 'PUT') return json(await updateDesign(env, id, await readDesign(request)))
@@ -22,12 +22,15 @@ interface DesignRow {
   template: string
   client_id: string | null
   client_name: string | null
+  project_id: string | null
+  project_name: string | null
   data: string
   created_at: string
   updated_at: string
 }
 
-const SELECT = `SELECT d.*, c.name AS client_name FROM designs d LEFT JOIN clients c ON c.id = d.client_id`
+const SELECT = `SELECT d.*, c.name AS client_name, p.name AS project_name FROM designs d
+  LEFT JOIN clients c ON c.id = d.client_id LEFT JOIN projects p ON p.id = d.project_id`
 
 function toDesign(r: DesignRow): Design {
   return {
@@ -36,14 +39,18 @@ function toDesign(r: DesignRow): Design {
     template: r.template,
     clientId: r.client_id,
     clientName: r.client_name ?? undefined,
+    projectId: r.project_id,
+    projectName: r.project_name ?? undefined,
     data: JSON.parse(r.data || '{}') as DesignData,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   }
 }
 
-async function listDesigns(env: Env) {
-  const { results } = await env.DB.prepare(`${SELECT} ORDER BY d.updated_at DESC`).all<DesignRow>()
+async function listDesigns(env: Env, project: string) {
+  const { results } = await env.DB.prepare(`${SELECT} WHERE (?1 = '' OR d.project_id = ?1) ORDER BY d.updated_at DESC`)
+    .bind(project)
+    .all<DesignRow>()
   return results.map(toDesign)
 }
 
@@ -57,18 +64,18 @@ async function createDesign(env: Env, d: DesignInput) {
   const id = crypto.randomUUID()
   const t = now()
   await env.DB.prepare(
-    'INSERT INTO designs (id, name, template, client_id, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO designs (id, name, template, client_id, project_id, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
   )
-    .bind(id, d.name, d.template, d.clientId, JSON.stringify(d.data), t, t)
+    .bind(id, d.name, d.template, d.clientId, d.projectId, JSON.stringify(d.data), t, t)
     .run()
   return getDesign(env, id)
 }
 
 async function updateDesign(env: Env, id: string, d: DesignInput) {
   const { meta } = await env.DB.prepare(
-    'UPDATE designs SET name = ?, template = ?, client_id = ?, data = ?, updated_at = ? WHERE id = ?',
+    'UPDATE designs SET name = ?, template = ?, client_id = ?, project_id = ?, data = ?, updated_at = ? WHERE id = ?',
   )
-    .bind(d.name, d.template, d.clientId, JSON.stringify(d.data), now(), id)
+    .bind(d.name, d.template, d.clientId, d.projectId, JSON.stringify(d.data), now(), id)
     .run()
   if (meta.changes === 0) throw new HttpError(404, 'Diseño no encontrado')
   return getDesign(env, id)
@@ -97,6 +104,7 @@ async function readDesign(request: Request): Promise<DesignInput> {
     name: required(b.name, 'El nombre'),
     template: required(b.template, 'La prenda base'),
     clientId: text(b.clientId) || null,
+    projectId: text(b.projectId) || null,
     data: { options, pieces, prints, notes: text(data.notes) },
   }
 }

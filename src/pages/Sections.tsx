@@ -3,21 +3,6 @@ import { ComingSoon, PageHeader } from '../components/ui'
 
 /** Apartados aún por construir. Cada uno explica lo que tendrá. */
 
-export function Projects() {
-  return (
-    <ComingSoon
-      title="Proyectos"
-      intro="Cada prenda será un proyecto propio, agrupado por cliente o por colección, con todo lo que necesitas en un sitio."
-      items={[
-        'Estado del proyecto (en qué fase está)',
-        'Bocetos, diseños finales, fotos y referencias',
-        'Materiales utilizados, coste y notas',
-        'Organización por clientes o colecciones',
-      ]}
-    />
-  )
-}
-
 export function Production() {
   return (
     <ComingSoon

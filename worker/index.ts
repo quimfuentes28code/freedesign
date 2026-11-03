@@ -8,6 +8,8 @@ import { designsRoute } from './designs'
 import { filesRoute } from './files'
 import { HttpError, json, type Env } from './http'
 import { materialsRoute, suppliersRoute } from './library'
+import { collectionsRoute, openTasks, projectsRoute } from './projects'
+import { ACTIVE_STATUSES } from '../src/shared/projects'
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -39,7 +41,7 @@ function checkAccess(request: Request, env: Env) {
 }
 
 async function route(request: Request, env: Env, url: URL): Promise<Response> {
-  const [, resource, id] = url.pathname.split('/').filter(Boolean) // ['api', recurso, id?]
+  const [, resource, id, ...rest] = url.pathname.split('/').filter(Boolean) // ['api', recurso, id?, …]
   switch (resource) {
     case 'clients':
       return clientsRoute(request, env, id, url)
@@ -50,7 +52,14 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     case 'artworks':
       return artworksRoute(request, env, id)
     case 'designs':
-      return designsRoute(request, env, id)
+      return designsRoute(request, env, id, url)
+    case 'projects':
+      return projectsRoute(request, env, id ? [id, ...rest] : [], url)
+    case 'collections':
+      return collectionsRoute(request, env, id)
+    case 'tasks':
+      if (request.method !== 'GET') break
+      return json(await openTasks(env))
     case 'files':
       return filesRoute(request, env, id)
     case 'stats':
@@ -61,11 +70,26 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
 }
 
 async function stats(env: Env) {
+  const active = ACTIVE_STATUSES.map((s) => `'${s}'`).join(', ')
   const row = await env.DB.prepare(
     `SELECT (SELECT COUNT(*) FROM clients) AS clients,
             (SELECT COUNT(*) FROM materials) AS materials,
             (SELECT COUNT(*) FROM suppliers) AS suppliers,
-            (SELECT COUNT(*) FROM designs) AS designs`,
-  ).first<{ clients: number; materials: number; suppliers: number; designs: number }>()
-  return row ?? { clients: 0, materials: 0, suppliers: 0, designs: 0 }
+            (SELECT COUNT(*) FROM designs) AS designs,
+            (SELECT COUNT(*) FROM projects WHERE status IN (${active})) AS activeProjects,
+            (SELECT COUNT(*) FROM projects WHERE status = 'produccion') AS inProduction,
+            (SELECT COUNT(*) FROM project_tasks t JOIN projects p ON p.id = t.project_id
+              WHERE t.done = 0 AND p.status NOT IN ('entregado', 'cancelado')) AS openTasks`,
+  ).first<Stats>()
+  return row ?? { clients: 0, materials: 0, suppliers: 0, designs: 0, activeProjects: 0, inProduction: 0, openTasks: 0 }
+}
+
+interface Stats {
+  clients: number
+  materials: number
+  suppliers: number
+  designs: number
+  activeProjects: number
+  inProduction: number
+  openTasks: number
 }

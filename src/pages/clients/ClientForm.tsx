@@ -82,9 +82,14 @@ export function ClientForm() {
               Volver
             </Link>
             {!isNew && (
-              <Link to={`/disenador/nuevo?cliente=${id}`} className="button">
-                Nuevo diseño para este cliente
-              </Link>
+              <>
+                <Link to={`/proyectos?cliente=${id}`} className="button">
+                  Sus proyectos
+                </Link>
+                <Link to={`/proyectos/nuevo?cliente=${id}`} className="button">
+                  Nuevo proyecto
+                </Link>
+              </>
             )}
             <button type="submit" className="button primary" disabled={saving}>
               {saving ? 'Guardando…' : isNew ? 'Crear cliente' : 'Guardar cambios'}

@@ -44,7 +44,11 @@ export function Canvas({ template, data, materials, highlight, view, onViewChang
   const onDown = (e: PointerEvent) => {
     if (zoom === 1) return
     drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y }
-    ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
+    try {
+      ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
+    } catch {
+      // Sin puntero activo (p. ej. eventos simulados): se sigue funcionando sin captura
+    }
   }
   const onMove = (e: PointerEvent) => {
     if (!drag.current) return

@@ -1,28 +1,99 @@
 import { Link } from 'react-router'
 import { api, useApi } from '../api/client'
 import { PageHeader } from '../components/ui'
+import { ACTIVE_STATUSES, PROJECT_STATUSES } from '../shared/projects'
 import { initials } from './clients/ClientsList'
+import { isOverdue, shortDate } from './projects/common'
+import './projects/projects.css'
 
-/** Resumen general. De momento muestra los clientes; se irá llenando con cada apartado nuevo. */
+/** Resumen general del taller: proyectos, tareas, entregas y clientes. */
 export function Dashboard() {
   const stats = useApi(() => api.stats(), [])
   const clients = useApi(() => api.listClients(), [])
-  const recent = [...(clients.data ?? [])].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5)
+  const projects = useApi(() => api.listProjects(), [])
+  const tasks = useApi(() => api.openTasks(), [])
+  const s = stats.data
+
+  const recentClients = [...(clients.data ?? [])].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5)
+  const active = (projects.data ?? []).filter((p) => ACTIVE_STATUSES.includes(p.status))
+  const deliveries = active.filter((p) => p.dueDate).sort((a, b) => a.dueDate.localeCompare(b.dueDate)).slice(0, 6)
+  const byStatus = PROJECT_STATUSES.slice(0, 7).map((st) => ({ ...st, n: (projects.data ?? []).filter((p) => p.status === st.id).length }))
+  const maxN = Math.max(1, ...byStatus.map((b) => b.n))
 
   return (
     <div className="page">
       <PageHeader title="Dashboard" subtitle="Resumen de tu taller" />
 
       <div className="stats">
-        <Stat label="Clientes" value={stats.data?.clients} to="/clientes" />
-        <Stat label="Diseños" value={stats.data?.designs} to="/disenador" />
-        <Stat label="Materiales en la biblioteca" value={stats.data?.materials} to="/biblioteca" />
-        <Stat label="Proveedores" value={stats.data?.suppliers} to="/biblioteca/proveedores" />
-        <Stat label="Proyectos activos" soon />
-        <Stat label="En fabricación" soon />
+        <Stat label="Proyectos activos" value={s?.activeProjects} to="/proyectos" />
+        <Stat label="En fabricación" value={s?.inProduction} to="/proyectos" />
+        <Stat label="Tareas pendientes" value={s?.openTasks} />
+        <Stat label="Clientes" value={s?.clients} to="/clientes" />
+        <Stat label="Diseños" value={s?.designs} to="/disenador" />
+        <Stat label="Materiales" value={s?.materials} to="/biblioteca" />
       </div>
 
       <div className="dashboard-grid">
+        <section className="card">
+          <div className="card-title">
+            <h2>Tareas pendientes</h2>
+          </div>
+          {tasks.data?.length === 0 ? (
+            <p className="muted small">No hay tareas pendientes. Se añaden desde cada proyecto.</p>
+          ) : (
+            <ul className="list">
+              {tasks.data?.map((t) => (
+                <li key={t.id}>
+                  <Link to={`/proyectos/${t.projectId}`} className="list-row">
+                    <span className={t.dueDate && isOverdue(t.dueDate) ? 'tag late' : 'tag muted'}>{t.dueDate ? shortDate(t.dueDate) : 'Sin fecha'}</span>
+                    <span>{t.title}</span>
+                    <span className="muted small">{t.projectName}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="card">
+          <div className="card-title">
+            <h2>Próximas entregas</h2>
+            <Link to="/proyectos" className="link">
+              Ver proyectos
+            </Link>
+          </div>
+          {deliveries.length === 0 ? (
+            <p className="muted small">Ningún proyecto activo con fecha de entrega.</p>
+          ) : (
+            <ul className="list">
+              {deliveries.map((p) => (
+                <li key={p.id}>
+                  <Link to={`/proyectos/${p.id}`} className="list-row">
+                    <span className={isOverdue(p.dueDate) ? 'tag late' : 'tag'}>{shortDate(p.dueDate)}</span>
+                    <span>{p.name}</span>
+                    <span className={`status-badge s-${p.status}`}>{PROJECT_STATUSES.find((x) => x.id === p.status)?.label}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="card">
+          <h2>Proyectos por fase</h2>
+          <div className="phase-bars">
+            {byStatus.map((b) => (
+              <div key={b.id} className={`phase-bar s-${b.id}`}>
+                <span>{b.label}</span>
+                <div>
+                  <i style={{ width: `${(b.n / maxN) * 100}%` }} />
+                </div>
+                <strong>{b.n}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <section className="card">
           <div className="card-title">
             <h2>Clientes recientes</h2>
@@ -30,13 +101,13 @@ export function Dashboard() {
               Ver todos
             </Link>
           </div>
-          {recent.length === 0 ? (
-            <p className="muted">
+          {recentClients.length === 0 ? (
+            <p className="muted small">
               Aún no hay clientes. <Link to="/clientes/nuevo">Crea el primero</Link>.
             </p>
           ) : (
             <ul className="list">
-              {recent.map((c) => (
+              {recentClients.map((c) => (
                 <li key={c.id}>
                   <Link to={`/clientes/${c.id}`} className="list-row">
                     <span className="avatar small">{initials(c.name)}</span>
@@ -48,27 +119,16 @@ export function Dashboard() {
             </ul>
           )}
         </section>
-
-        <section className="card">
-          <h2>Próximamente aquí</h2>
-          <ul className="soon-list">
-            <li>Proyectos por estado (boceto, diseño, muestra, fabricación, entregado)</li>
-            <li>Prendas en fabricación y fechas de entrega</li>
-            <li>Tareas pendientes</li>
-            <li>Costes e ingresos del mes</li>
-          </ul>
-        </section>
       </div>
     </div>
   )
 }
 
-function Stat({ label, value, to, soon }: { label: string; value?: number; to?: string; soon?: boolean }) {
+function Stat({ label, value, to }: { label: string; value?: number; to?: string }) {
   const body = (
     <>
-      <span className="stat-value">{soon ? '—' : (value ?? '…')}</span>
+      <span className="stat-value">{value ?? '…'}</span>
       <span className="stat-label">{label}</span>
-      {soon && <span className="tag muted">Próximamente</span>}
     </>
   )
   return to ? (

@@ -57,9 +57,12 @@ export interface Design {
   clientId: string | null
   /** Nombre del cliente (solo lectura, lo añade la API). */
   clientName?: string
+  /** Proyecto al que pertenece (o null). */
+  projectId: string | null
+  projectName?: string
   data: DesignData
   createdAt: string
   updatedAt: string
 }
 
-export type DesignInput = Pick<Design, 'name' | 'template' | 'clientId' | 'data'>
+export type DesignInput = Pick<Design, 'name' | 'template' | 'clientId' | 'projectId' | 'data'>

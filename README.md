@@ -2,7 +2,7 @@
 
 Herramienta de taller para diseñar y fabricar prendas personalizadas: clientes con sus medidas, diseñador de prendas, proyectos, producción (fichas técnicas y tech packs), biblioteca de materiales y economía. Incluye una vista previa 3D de la prenda sobre un maniquí animado.
 
-Apartados: **Dashboard · Clientes · Diseñador · Proyectos · Producción · Biblioteca · Economía** (de momento están hechos el Dashboard básico, Clientes, la Biblioteca, el Diseñador 2D y la vista previa 3D; el resto se irá construyendo por fases).
+Apartados: **Dashboard · Clientes · Diseñador · Proyectos · Producción · Biblioteca · Economía** (de momento están hechos el Dashboard, Clientes, el Diseñador 2D con estampados, Proyectos, la Biblioteca y la vista previa 3D; el resto se irá construyendo por fases).
 
 ## Empezar (para cada uno de nosotros, una sola vez)
 
