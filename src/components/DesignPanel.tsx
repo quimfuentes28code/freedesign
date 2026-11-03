@@ -28,6 +28,8 @@ interface Props {
   onDesignChange: (d: Design) => void
   autoRotate: boolean
   onAutoRotateChange: (v: boolean) => void
+  animate: boolean
+  onAnimateChange: (v: boolean) => void
 }
 
 export function DesignPanel(props: Props) {
@@ -38,14 +40,20 @@ export function DesignPanel(props: Props) {
     <aside className="panel">
       <header className="panel-header">
         <h1>FreeDesign</h1>
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={props.autoRotate}
-            onChange={(e) => props.onAutoRotateChange(e.target.checked)}
-          />
-          Girar 360°
-        </label>
+        <div className="toggles">
+          <label className="toggle">
+            <input type="checkbox" checked={props.animate} onChange={(e) => props.onAnimateChange(e.target.checked)} />
+            Animación
+          </label>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={props.autoRotate}
+              onChange={(e) => props.onAutoRotateChange(e.target.checked)}
+            />
+            Girar 360°
+          </label>
+        </div>
       </header>
 
       <section>

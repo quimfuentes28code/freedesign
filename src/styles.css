@@ -153,6 +153,22 @@ section {
   accent-color: var(--accent);
 }
 
+.loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.toggles {
+  display: flex;
+  gap: 14px;
+}
+
 .toggle {
   display: flex;
   align-items: center;

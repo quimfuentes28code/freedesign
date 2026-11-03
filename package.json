@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "model": "node scripts/convert-model.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

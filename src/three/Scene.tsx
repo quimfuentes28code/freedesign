@@ -1,41 +1,63 @@
-import { ContactShadows, OrbitControls } from '@react-three/drei'
+import { ContactShadows, Environment, Lightformer, OrbitControls, useProgress } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
-import { useMemo } from 'react'
+import { Suspense } from 'react'
 import type { Design, Measurements } from '../types'
-import { Avatar } from './Avatar'
-import { Garment } from './Garment'
-import { bodyDims } from './body'
+import { Mannequin } from './Avatar'
 
 interface Props {
   measurements: Measurements
   design: Design
   autoRotate: boolean
+  animate: boolean
 }
 
-/** Escena 3D: maniquí + prenda, con cámara orbital para verlo en 360°. */
-export function Scene({ measurements, design, autoRotate }: Props) {
-  const d = useMemo(() => bodyDims(measurements), [measurements])
+/** Escena 3D: maniquí con la prenda, en un estudio con luces suaves y cámara orbital para verlo en 360°. */
+export function Scene({ measurements, design, autoRotate, animate }: Props) {
+  const H = measurements.height / 100
+  // Aviso de carga fuera de la escena 3D (el modelo pesa varios MB)
+  const { active } = useProgress()
 
   return (
-    <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 1.3, 3.4], fov: 38 }}>
-      <color attach="background" args={['#ecebe7']} />
-      <hemisphereLight args={['#ffffff', '#b9b4aa', 1.1]} />
-      <directionalLight position={[2.5, 4, 3]} intensity={1.8} castShadow shadow-mapSize={[2048, 2048]} />
-      <directionalLight position={[-3, 2, -2]} intensity={0.6} />
+    <>
+      {active && <span className="loading">Cargando maniquí…</span>}
+      <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 1.2, 3.6], fov: 36 }}>
+        <color attach="background" args={['#e4dfd6']} />
+        <fog attach="fog" args={['#e4dfd6', 6, 14]} />
 
-      <Avatar d={d} />
-      <Garment d={d} design={design} />
+        <hemisphereLight args={['#ffffff', '#b7ae9f', 0.7]} />
+        <directionalLight
+          position={[2.5, 4.5, 3]}
+          intensity={1.6}
+          castShadow
+          shadow-mapSize={[2048, 2048]}
+          shadow-bias={-0.0004}
+        >
+          <orthographicCamera attach="shadow-camera" args={[-1.5, 1.5, 2.5, -0.5, 0.1, 12]} />
+        </directionalLight>
+        <directionalLight position={[-3, 2, -2]} intensity={0.5} />
 
-      <ContactShadows position={[0, 0, 0]} opacity={0.45} scale={4} blur={2.4} far={2} />
-      <OrbitControls
-        target={[0, d.H * 0.55, 0]}
-        enablePan={false}
-        minDistance={1.2}
-        maxDistance={6}
-        maxPolarAngle={Math.PI * 0.85}
-        autoRotate={autoRotate}
-        autoRotateSpeed={1.5}
-      />
-    </Canvas>
+        {/* Luz de estudio suave generada en local (sin descargar mapas de entorno) */}
+        <Environment resolution={128} frames={1}>
+          <Lightformer intensity={1.5} position={[0, 5, 1]} rotation-x={Math.PI / 2} scale={[6, 3, 1]} />
+          <Lightformer intensity={1.2} position={[-4, 1.6, 2]} rotation-y={Math.PI / 2.5} scale={[2, 5, 1]} />
+          <Lightformer intensity={0.8} position={[4, 1.6, 1]} rotation-y={-Math.PI / 2.5} scale={[2, 5, 1]} />
+        </Environment>
+
+        <Suspense fallback={null}>
+          <Mannequin measurements={measurements} design={design} animate={animate} />
+        </Suspense>
+
+        <ContactShadows position={[0, 0.001, 0]} opacity={0.5} scale={4} blur={2.2} far={2} resolution={512} />
+        <OrbitControls
+          target={[0, H * 0.53, 0]}
+          enablePan={false}
+          minDistance={1.2}
+          maxDistance={6}
+          maxPolarAngle={Math.PI * 0.85}
+          autoRotate={autoRotate}
+          autoRotateSpeed={1.2}
+        />
+      </Canvas>
+    </>
   )
 }

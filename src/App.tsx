@@ -10,11 +10,13 @@ export default function App() {
   const [measurements, setMeasurements] = useState(DEFAULT_MEASUREMENTS)
   const [design, setDesign] = useState(DEFAULT_DESIGN)
   const [autoRotate, setAutoRotate] = useState(true)
+  // Animación activada salvo que el sistema pida reducir el movimiento
+  const [animate, setAnimate] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
 
   return (
     <div className="layout">
       <main className="viewport">
-        <Scene measurements={measurements} design={design} autoRotate={autoRotate} />
+        <Scene measurements={measurements} design={design} autoRotate={autoRotate} animate={animate} />
         <p className="hint">Arrastra para girar · Rueda o pellizca para acercar</p>
       </main>
       <DesignPanel
@@ -24,6 +26,8 @@ export default function App() {
         onDesignChange={setDesign}
         autoRotate={autoRotate}
         onAutoRotateChange={setAutoRotate}
+        animate={animate}
+        onAnimateChange={setAnimate}
       />
     </div>
   )
