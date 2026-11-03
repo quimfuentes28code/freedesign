@@ -30,6 +30,22 @@ export function ComingSoon({ title, intro, items }: { title: string; intro: stri
   )
 }
 
+/** Campo de formulario con su etiqueta. `wide` ocupa toda la fila. */
+export function Field({ label, wide, children }: { label: string; wide?: boolean; children: ReactNode }) {
+  return (
+    <label className={wide ? 'field wide' : 'field'}>
+      <span>{label}</span>
+      {children}
+    </label>
+  )
+}
+
+/** Precio con su unidad, p. ej. «4,50 € / metro». */
+export function formatPrice(price: number | null, unit: string) {
+  if (price === null) return 'Sin precio'
+  return `${price.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € / ${unit}`
+}
+
 /** Mensajes de estado de carga y error. */
 export function Status({ loading, error }: { loading?: boolean; error?: string | null }) {
   if (error) return <p className="status error">No se ha podido cargar: {error}</p>

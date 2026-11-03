@@ -22,6 +22,14 @@
       "migrations_dir": "migrations"
     }
   ],
+  // Archivos (fotos de materiales y, más adelante, bocetos, estampados…). Para publicar:
+  // `npx wrangler r2 bucket create freedesign-files`
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "freedesign-files"
+    }
+  ],
   "vars": {
     // Correos que pueden usar la app en producción (protegida con Cloudflare Access), separados por comas.
     // Vacío = sin comprobación (solo para desarrollo local).

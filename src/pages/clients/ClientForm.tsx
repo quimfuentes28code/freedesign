@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { api } from '../../api/client'
-import { PageHeader, Status } from '../../components/ui'
+import { Field, PageHeader, Status } from '../../components/ui'
 import { EMPTY_CLIENT, MEASUREMENT_GROUPS, type ClientInput, type MeasurementKey } from '../../shared/clients'
 
 /** Ficha de cliente: crear uno nuevo (/clientes/nuevo) o ver y editar uno existente (/clientes/:id). */
@@ -173,14 +173,5 @@ export function ClientForm() {
         </div>
       )}
     </form>
-  )
-}
-
-function Field({ label, wide, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
-  return (
-    <label className={wide ? 'field wide' : 'field'}>
-      <span>{label}</span>
-      {children}
-    </label>
   )
 }

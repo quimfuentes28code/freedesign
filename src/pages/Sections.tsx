@@ -54,16 +54,6 @@ export function Production() {
   )
 }
 
-export function Library() {
-  return (
-    <ComingSoon
-      title="Biblioteca"
-      intro="Tus materiales y recursos, cada uno con nombre, fotografía, descripción, proveedor y precio aproximado."
-      items={['Tejidos y acabados', 'Fornituras: cremalleras, botones, cordones…', 'Estampados y logotipos', 'Proveedores']}
-    />
-  )
-}
-
 export function Economy() {
   return (
     <ComingSoon

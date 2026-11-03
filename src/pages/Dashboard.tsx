@@ -15,9 +15,10 @@ export function Dashboard() {
 
       <div className="stats">
         <Stat label="Clientes" value={stats.data?.clients} to="/clientes" />
+        <Stat label="Materiales en la biblioteca" value={stats.data?.materials} to="/biblioteca" />
+        <Stat label="Proveedores" value={stats.data?.suppliers} to="/biblioteca/proveedores" />
         <Stat label="Proyectos activos" soon />
         <Stat label="En fabricación" soon />
-        <Stat label="Tareas pendientes" soon />
       </div>
 
       <div className="dashboard-grid">

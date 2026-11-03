@@ -23,11 +23,11 @@ Herramienta de taller para diseñar y fabricar prendas personalizadas (outfits p
 ### App y datos
 
 - `src/App.tsx` — rutas de cada apartado; `src/layout/AppLayout.tsx` — menú lateral
-- `src/pages/` — una página por apartado (`Dashboard.tsx`, `clients/`, `designer/`, y `Sections.tsx` con los que aún están por hacer)
-- `src/components/ui.tsx` — piezas comunes (cabecera de página, estados de carga)
-- `src/api/client.ts` — llamadas a la API y `useApi` para cargar datos
-- `src/shared/` — tipos compartidos por la web y la API (p. ej. `clients.ts` con la lista de medidas)
-- `worker/index.ts` — API (`/api/clients`, `/api/stats`) sobre D1
+- `src/pages/` — una página por apartado (`Dashboard.tsx`, `clients/`, `library/`, `designer/`, y `Sections.tsx` con los que aún están por hacer)
+- `src/components/ui.tsx` — piezas comunes (cabecera de página, campos, precio, estados de carga)
+- `src/api/client.ts` — llamadas a la API, `useApi` para cargar datos y subida de imágenes (se reducen antes de subirlas)
+- `src/shared/` — tipos compartidos por la web y la API (`clients.ts` con la lista de medidas, `library.ts` con categorías y unidades de precio)
+- `worker/` — API: `index.ts` (rutas y acceso), `clients.ts`, `library.ts` (materiales y proveedores), `files.ts` (imágenes en R2), `http.ts` (utilidades)
 - `migrations/` — tablas de la base de datos (una migración nueva por cada cambio; nunca editar las ya aplicadas)
 
 ### Vista previa 3D (`/disenador/3d`)
@@ -65,5 +65,5 @@ Herramienta de taller para diseñar y fabricar prendas personalizadas (outfits p
 
 - La configuración pública va en `wrangler.jsonc` (sí se sube).
 - Los secretos (API keys, tokens) **nunca** van en el repo: en local en `.dev.vars` (está en `.gitignore`) y en producción con `npx wrangler secret put NOMBRE` o desde el panel de Cloudflare.
-- D1 ya guarda los datos (ver README para crear la base de datos de producción). Futuro previsto: R2 para fotos, bocetos, estampados y modelos 3D.
+- D1 guarda los datos y R2 (binding `FILES`) las imágenes; ver README para crearlos en producción. Al quitar o cambiar una foto, la API borra la anterior de R2.
 - La app es solo para nosotros dos: en producción va detrás de **Cloudflare Access**, y el Worker comprueba además `ALLOWED_EMAILS`.
