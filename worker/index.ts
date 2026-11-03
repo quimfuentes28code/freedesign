@@ -3,6 +3,7 @@
  * Los datos se guardan en la base de datos D1 (binding DB) y los archivos en R2 (binding FILES).
  */
 import { clientsRoute } from './clients'
+import { designsRoute } from './designs'
 import { filesRoute } from './files'
 import { HttpError, json, type Env } from './http'
 import { materialsRoute, suppliersRoute } from './library'
@@ -45,6 +46,8 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
       return materialsRoute(request, env, id, url)
     case 'suppliers':
       return suppliersRoute(request, env, id)
+    case 'designs':
+      return designsRoute(request, env, id)
     case 'files':
       return filesRoute(request, env, id)
     case 'stats':
@@ -58,7 +61,8 @@ async function stats(env: Env) {
   const row = await env.DB.prepare(
     `SELECT (SELECT COUNT(*) FROM clients) AS clients,
             (SELECT COUNT(*) FROM materials) AS materials,
-            (SELECT COUNT(*) FROM suppliers) AS suppliers`,
-  ).first<{ clients: number; materials: number; suppliers: number }>()
-  return row ?? { clients: 0, materials: 0, suppliers: 0 }
+            (SELECT COUNT(*) FROM suppliers) AS suppliers,
+            (SELECT COUNT(*) FROM designs) AS designs`,
+  ).first<{ clients: number; materials: number; suppliers: number; designs: number }>()
+  return row ?? { clients: 0, materials: 0, suppliers: 0, designs: 0 }
 }

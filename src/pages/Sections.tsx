@@ -3,27 +3,6 @@ import { ComingSoon, PageHeader } from '../components/ui'
 
 /** Apartados aún por construir. Cada uno explica lo que tendrá. */
 
-export function Designer() {
-  return (
-    <div className="page">
-      <PageHeader title="Diseñador" subtitle="Editor de prendas · Próximamente" />
-      <div className="card coming-soon">
-        <p>Aquí elegirás una prenda base y la irás personalizando sobre su dibujo técnico, viéndola de frente, espalda, lado y en detalle.</p>
-        <ul>
-          <li>Catálogo de prendas base</li>
-          <li>Colores por pieza y materiales (tejidos, texturas y acabados)</li>
-          <li>Estampados: imágenes, gráficos, textos, logotipos e ilustraciones</li>
-          <li>Creador de estampados y logotipos</li>
-          <li>Detalles: cremalleras, bolsillos, botones, costuras…</li>
-        </ul>
-        <Link to="/disenador/3d" className="button">
-          Abrir la vista previa 3D (en pruebas)
-        </Link>
-      </div>
-    </div>
-  )
-}
-
 export function Projects() {
   return (
     <ComingSoon

@@ -3,11 +3,13 @@ import { AppLayout } from './layout/AppLayout'
 import { ClientForm } from './pages/clients/ClientForm'
 import { ClientsList } from './pages/clients/ClientsList'
 import { Dashboard } from './pages/Dashboard'
+import { DesignEditor } from './pages/designer/DesignEditor'
+import { DesignsList, NewDesign } from './pages/designer/Designs'
 import { Preview3D } from './pages/designer/Preview3D'
 import { MaterialForm } from './pages/library/MaterialForm'
 import { MaterialsCatalog } from './pages/library/MaterialsCatalog'
 import { SupplierForm, SuppliersList } from './pages/library/Suppliers'
-import { Designer, Economy, NotFound, Production, Projects } from './pages/Sections'
+import { Economy, NotFound, Production, Projects } from './pages/Sections'
 
 /** Rutas de la app. Cada apartado del menú es una página. */
 export default function App() {
@@ -19,8 +21,10 @@ export default function App() {
           <Route path="clientes" element={<ClientsList />} />
           <Route path="clientes/nuevo" element={<ClientForm />} />
           <Route path="clientes/:id" element={<ClientForm />} />
-          <Route path="disenador" element={<Designer />} />
+          <Route path="disenador" element={<DesignsList />} />
+          <Route path="disenador/nuevo" element={<NewDesign />} />
           <Route path="disenador/3d" element={<Preview3D />} />
+          <Route path="disenador/:id" element={<DesignEditor />} />
           <Route path="proyectos" element={<Projects />} />
           <Route path="produccion" element={<Production />} />
           <Route path="biblioteca" element={<MaterialsCatalog />} />

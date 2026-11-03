@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type DependencyList } from 'react'
 import type { Client, ClientInput } from '../shared/clients'
+import type { Design, DesignInput } from '../shared/designs'
 import type { Material, MaterialInput, Supplier, SupplierInput } from '../shared/library'
 
 /** Llamada a la API del Worker (/api/...). Lanza un Error con el mensaje del servidor si algo falla. */
@@ -18,7 +19,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const send = (method: string, body?: unknown): RequestInit => ({ method, body: body === undefined ? undefined : JSON.stringify(body) })
 
 export const api = {
-  stats: () => request<{ clients: number; materials: number; suppliers: number }>('/stats'),
+  stats: () => request<{ clients: number; materials: number; suppliers: number; designs: number }>('/stats'),
 
   listClients: (q = '') => request<Client[]>(`/clients?q=${encodeURIComponent(q)}`),
   getClient: (id: string) => request<Client>(`/clients/${id}`),
@@ -38,6 +39,12 @@ export const api = {
   createSupplier: (s: SupplierInput) => request<Supplier>('/suppliers', send('POST', s)),
   updateSupplier: (id: string, s: SupplierInput) => request<Supplier>(`/suppliers/${id}`, send('PUT', s)),
   deleteSupplier: (id: string) => request<void>(`/suppliers/${id}`, send('DELETE')),
+
+  listDesigns: () => request<Design[]>('/designs'),
+  getDesign: (id: string) => request<Design>(`/designs/${id}`),
+  createDesign: (d: DesignInput) => request<Design>('/designs', send('POST', d)),
+  updateDesign: (id: string, d: DesignInput) => request<Design>(`/designs/${id}`, send('PUT', d)),
+  deleteDesign: (id: string) => request<void>(`/designs/${id}`, send('DELETE')),
 
   /** Sube una imagen (reducida antes en el navegador) y devuelve su clave. */
   uploadImage: async (file: File) => {

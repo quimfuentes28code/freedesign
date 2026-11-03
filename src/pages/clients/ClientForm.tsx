@@ -81,6 +81,11 @@ export function ClientForm() {
             <Link to="/clientes" className="button">
               Volver
             </Link>
+            {!isNew && (
+              <Link to={`/disenador/nuevo?cliente=${id}`} className="button">
+                Nuevo diseño para este cliente
+              </Link>
+            )}
             <button type="submit" className="button primary" disabled={saving}>
               {saving ? 'Guardando…' : isNew ? 'Crear cliente' : 'Guardar cambios'}
             </button>
