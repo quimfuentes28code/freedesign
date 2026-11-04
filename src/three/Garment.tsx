@@ -9,37 +9,127 @@ import { knitNormalMap } from './cloth/textures'
 import { Part, referencePose, type ReferencePose } from './pose'
 import { CloudGrid, computeTubeNormals, skinFromCloud, wrapTube, type Cloud, type TubeSpec } from './wrap'
 
+/** Cordones (algodón crudo) y ojales (metal plateado) si el diseño no dice otra cosa. */
+const TRIM_DEFAULTS: Partial<Record<GarmentSlot, SlotStyle>> = {
+  cordones: { color: '#f4f1ea', look: { roughness: 0.9, sheen: 0.3, sheenRoughness: 0.9, clearcoat: 0, knit: 'canale', knitDepth: 0.6, stiffness: 1 } },
+  ojales: { color: '#b8b8b8', look: { roughness: 0.28, sheen: 0, sheenRoughness: 1, clearcoat: 0, metalness: 1, knit: 'liso', knitDepth: 0, stiffness: 1 } },
+}
+
 /** Color y material de cada zona: el que venga del Diseñador o, si no, la tela y el color de la prenda (canalé en puños, bajo y cuello). */
 export function slotStyle(design: Design, slot: GarmentSlot): SlotStyle {
   const own = design.pieces?.[slot]
   if (own) return own
+  if (TRIM_DEFAULTS[slot]) return TRIM_DEFAULTS[slot]
   const fabric = FABRICS[design.fabric]
   const body = design.pieces?.cuerpo ?? { color: design.color, look: fabric }
   return RIB_SLOTS.includes(slot) ? { color: body.color, look: { ...body.look, knit: 'canale', knitDepth: 0.9 } } : body
 }
 
 /**
- * Recorta el material del bolsillo canguro a su forma exacta (un trapecio en las UV del delantero, en cm),
- * así su borde sale recto aunque la malla sea de triángulos. La forma se pone en `userData.pocket` al tener la prenda.
+ * Detalle de confección en el material de la tela (solo prendas de patrón, que traen el atributo `edge`):
+ * - costuras: hendidura en la unión y el relieve del margen de costura planchado debajo
+ * - pespuntes: puntadas sueltas del color de la tela un poco más claro u oscuro (simples o dobles)
+ * - rebordes: bordes doblados y redondeados (canalé de puños y bajo) y el canal del cordón en la capucha
+ * - el interior de la prenda (las caras de dentro) un poco más oscuro, como en una prenda de verdad
+ * El bolsillo canguro además se recorta a su forma exacta y dibuja sus propios bordes.
  */
-function clipToPocket(m: THREE.MeshPhysicalMaterial) {
-  const uniforms = { uPocket: { value: new THREE.Vector4(0, 0, 0, 0) } }
-  m.userData.pocket = uniforms.uPocket
+const SEAM_GLSL = /* glsl */ `
+varying vec3 vEdge;
+uniform float uSeams;
+#ifdef POCKET
+varying vec2 vPocketUv;
+uniform vec4 uPocket;
+#endif
+
+// Puntadas a la distancia "at" del borde: trazos de unos 2 mm cada 3,2 mm
+float stitchLine(float d, float at, float along) {
+  float line = 1.0 - smoothstep(0.035, 0.085, abs(d - at));
+  float ph = fract(along / 0.32);
+  float dash = smoothstep(0.03, 0.08, ph) * (1.0 - smoothstep(0.6, 0.66, ph));
+  return line * dash;
+}
+
+// Relieve (cm), hilo (0-1) y sombra (0-1) según la distancia al borde y su acabado
+void seamDetail(vec3 e, out float h, out float thread, out float shade) {
+  float d = e.x;
+  float al = e.y;
+  int k = int(e.z + 0.5);
+  h = 0.0; thread = 0.0; shade = 0.0;
+  if (k == 9 || d > 3.2) return;
+  if (k <= 2) {
+    float groove = 1.0 - smoothstep(0.0, 0.25, d);
+    h += -0.3 * groove + 0.12 * exp(-pow((d - 0.75) / 0.45, 2.0));
+    shade += 0.35 * groove;
+    if (k == 1) thread += stitchLine(d, 0.6, al);
+    if (k == 2) thread += stitchLine(d, 0.55, al) + stitchLine(d, 1.2, al + 0.16);
+  } else {
+    // Doblez: borde redondeado (el canto queda un poco en sombra)
+    h += 0.3 * sqrt(clamp(d / 0.7, 0.0, 1.0));
+    shade += 0.28 * (1.0 - smoothstep(0.0, 0.3, d));
+    // Jareta: pespunte del canal del cordón; 5: abertura del bolsillo con su pespunte
+    if (k == 4) { thread += stitchLine(d, 2.4, al); h -= 0.1 * (1.0 - smoothstep(0.0, 0.18, abs(d - 2.4))); }
+    if (k == 5) thread += stitchLine(d, 0.9, al);
+  }
+  h += 0.05 * thread;
+}
+
+vec3 perturbSeamNormal(vec3 surfPos, vec3 surfNorm, vec2 dHdxy, float faceDir) {
+  vec3 sx = dFdx(surfPos);
+  vec3 sy = dFdy(surfPos);
+  vec3 r1 = cross(sy, surfNorm);
+  vec3 r2 = cross(surfNorm, sx);
+  float det = dot(sx, r1) * faceDir;
+  vec3 grad = sign(det) * (dHdxy.x * r1 + dHdxy.y * r2);
+  return normalize(abs(det) * surfNorm - grad);
+}
+`
+
+/** Prepara un material de tela con el detalle de confección (ver SEAM_GLSL). */
+function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean) {
+  const uniforms = { uSeams: { value: 0 }, uPocket: { value: new THREE.Vector4(0, 0, 0, 0) } }
+  m.userData.seams = uniforms.uSeams
+  if (pocket) m.userData.pocket = uniforms.uPocket
+  m.defines = { ...m.defines, ...(pocket ? { POCKET: '' } : {}) }
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms)
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec2 vPocketUv;')
-      .replace('#include <uv_vertex>', '#include <uv_vertex>\nvPocketUv = uv;')
+      .replace('#include <common>', `#include <common>\nattribute vec3 edge;\nvarying vec3 vEdge;${pocket ? '\nvarying vec2 vPocketUv;' : ''}`)
+      .replace('#include <uv_vertex>', `#include <uv_vertex>\nvEdge = edge;${pocket ? '\nvPocketUv = uv;' : ''}`)
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec2 vPocketUv;\nuniform vec4 uPocket;')
+      .replace('#include <common>', `#include <common>\n${SEAM_GLSL}`)
       .replace(
-        'void main() {',
-        `void main() {
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        vec3 seamEdge = vEdge;
+        #ifdef POCKET
+          // Bolsillo: fuera del trapecio no hay tela; sus bordes salen de la forma
           float pt = (vPocketUv.y - uPocket.x) / max(uPocket.y, 0.001);
-          if (pt < 0.0 || pt > 1.0 || abs(vPocketUv.x) > mix(uPocket.z, uPocket.w, pt)) discard;`,
+          float halfW = mix(uPocket.z, uPocket.w, clamp(pt, 0.0, 1.0));
+          if (pt < 0.0 || pt > 1.0 || abs(vPocketUv.x) > halfW) discard;
+          float slope = uPocket.y / length(vec2(uPocket.y, uPocket.z - uPocket.w));
+          float dSide = (halfW - abs(vPocketUv.x)) * slope;
+          float dBottom = vPocketUv.y - uPocket.x;
+          float dTop = uPocket.x + uPocket.y - vPocketUv.y;
+          if (dSide < min(dBottom, dTop)) seamEdge = vec3(dSide, vPocketUv.y, 5.0);
+          else if (dBottom < dTop) seamEdge = vec3(dBottom, vPocketUv.x, 2.0);
+          else seamEdge = vec3(dTop, vPocketUv.x, 2.0);
+        #endif
+        float seamH, seamThread, seamShade;
+        seamDetail(seamEdge, seamH, seamThread, seamShade);
+        seamH *= uSeams; seamThread *= uSeams; seamShade *= uSeams;
+        float seamLum = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+        vec3 threadColor = seamLum < 0.35 ? mix(diffuseColor.rgb, vec3(1.0), 0.22) : diffuseColor.rgb * 0.72;
+        diffuseColor.rgb *= 1.0 - seamShade * 0.45;
+        diffuseColor.rgb = mix(diffuseColor.rgb, threadColor, clamp(seamThread, 0.0, 1.0));`,
       )
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+        if (uSeams > 0.5) normal = perturbSeamNormal(-vViewPosition, normal, vec2(dFdx(seamH), dFdy(seamH)) * 0.01, faceDirection);`,
+      )
+      .replace('#include <opaque_fragment>', `outgoingLight *= gl_FrontFacing ? 1.0 : 0.72;\n#include <opaque_fragment>`)
   }
-  m.customProgramCacheKey = () => 'bolsillo'
+  m.customProgramCacheKey = () => (pocket ? 'tela-bolsillo' : 'tela')
 }
 
 /** Un material de Three.js por zona (en el orden de GARMENT_SLOTS), que solo se rehace si cambia algún color o tela. */
@@ -74,8 +164,8 @@ function useSlotMaterials(design: Design) {
           m.polygonOffset = true
           m.polygonOffsetFactor = -2
           m.polygonOffsetUnits = -6
-          clipToPocket(m)
         }
+        if (slot !== 'cordones' && slot !== 'ojales') withSeams(m, slot === 'bolsillo')
         return m
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -148,7 +238,7 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.pocket, design.bodyLength, design.sleeveLength, fabric])
+  }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.hoodUp, design.pocket, design.cords, design.bodyLength, design.sleeveLength, fabric])
   useEffect(() => () => patternGeom?.dispose(), [patternGeom])
 
   // Resto de prendas: tubos que envuelven el cuerpo (cálculo rápido, al momento)
@@ -166,6 +256,8 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
     const shape = patternGeom?.userData.pocket as { y0: number; h: number; w0: number; w1: number } | null | undefined
     const pocketUniform = materials[slotIndex('bolsillo')].userData.pocket as { value: THREE.Vector4 } | undefined
     if (shape && pocketUniform) pocketUniform.value.set(shape.y0, shape.h, shape.w0, shape.w1)
+    // Costuras y rebordes solo en las prendas de patrón (las demás no saben dónde están sus bordes)
+    for (const m of materials) if (m.userData.seams) (m.userData.seams as { value: number }).value = pattern ? 1 : 0
     const meshes = geometries.map(({ g, slot }) => {
       const mesh = new THREE.SkinnedMesh(g, slot ? materials[slotIndex(slot)] : materials)
       mesh.castShadow = true
