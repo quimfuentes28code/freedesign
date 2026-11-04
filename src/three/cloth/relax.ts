@@ -232,6 +232,40 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
     }
 
     // 3. Distancias del patrón
+    satisfyLinks()
+
+    // 4. Choque con el cuerpo (con rozamiento para que la tela se quede apoyada en hombros y pecho)
+    // La piel más cercana cambia poco de un paso a otro: se recalcula de vez en cuando
+    if (step % 20 === 0) refresh()
+    collideBody()
+
+    // 5. Capas de la propia prenda (cada pocos pasos: es más caro y cambia poco)
+    if (opts.layers && step % 2 === 0 && t > 0.15) separateLayers(pos, prev, opts.layers, skinNormal, opts.cell)
+  }
+
+  // Al terminar, varias pasadas sin movimiento para que ninguna capa quede atravesada. Tras cada empujón,
+  // las distancias del patrón y el choque con el cuerpo reparten el movimiento por la tela (si no, salen picos)
+  if (opts.layers) {
+    refresh()
+    for (let it = 0; it < 10; it++) {
+      separateLayers(pos, prev, opts.layers, skinNormal, opts.cell)
+      for (let k = 0; k < 3; k++) {
+        satisfyLinks()
+        collideBody()
+      }
+    }
+  }
+  return pos
+
+  /** Normal de la piel bajo un punto de la tela (hacia fuera del cuerpo). */
+  function skinNormal(i: number): [number, number, number] | null {
+    const k = nearest[i]
+    if (k < 0) return null
+    return [body.normals[k * 3], body.normals[k * 3 + 1], body.normals[k * 3 + 2]]
+  }
+
+  /** Cada par de puntos unidos intenta recuperar su distancia del patrón. */
+  function satisfyLinks() {
     for (let l = 0; l < la.length; l++) {
       const a = la[l] * 3
       const b = lb[l] * 3
@@ -251,10 +285,10 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
       pos[b + 1] -= dy * corr
       pos[b + 2] -= dz * corr
     }
+  }
 
-    // 4. Choque con el cuerpo (con rozamiento para que la tela se quede apoyada en hombros y pecho)
-    // La piel más cercana cambia poco de un paso a otro: se recalcula de vez en cuando
-    if (step % 20 === 0) refresh()
+  /** Saca la tela de la piel (con rozamiento, para que se quede apoyada en hombros y pecho). */
+  function collideBody() {
     for (let i = 0; i < n; i++) {
       const k = nearest[i]
       if (k < 0) continue
@@ -276,22 +310,5 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
       pos[p + 2] += nz * push
       for (let c = 0; c < 3; c++) prev[p + c] += (pos[p + c] - prev[p + c]) * 0.6
     }
-
-    // 5. Capas de la propia prenda (cada pocos pasos: es más caro y cambia poco)
-    if (opts.layers && step % 2 === 0 && t > 0.15) separateLayers(pos, prev, opts.layers, skinNormal, opts.cell)
-  }
-
-  // Al terminar, varias pasadas más sin movimiento para que ninguna capa quede atravesada
-  if (opts.layers) {
-    refresh()
-    for (let it = 0; it < 8; it++) separateLayers(pos, prev, opts.layers, skinNormal, opts.cell)
-  }
-  return pos
-
-  /** Normal de la piel bajo un punto de la tela (hacia fuera del cuerpo). */
-  function skinNormal(i: number): [number, number, number] | null {
-    const k = nearest[i]
-    if (k < 0) return null
-    return [body.normals[k * 3], body.normals[k * 3 + 1], body.normals[k * 3 + 2]]
   }
 }

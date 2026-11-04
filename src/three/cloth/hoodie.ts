@@ -77,7 +77,8 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const sleeveLen = design.sleeveLength - 6
   const cuffC = 19 * s
   const ribH = 7 * s
-  const bandC = bodyC * 0.9
+  // El bajo de canalé es algo más estrecho que el cuerpo (la tela se ahueca un poco encima, sin fruncirse de más)
+  const bandC = bodyC * 0.94
 
   // --- Referencias del cuerpo (unidades del modelo, postura en T) ---
   const topY = info.neckY + 1.5 * unit
@@ -307,7 +308,12 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
           nv: nt,
           // Abertura con el canal del cordón; costura central y de arriba pespunteadas
           edges: { u0: 'jareta', u1: 'pespunte', v1: 'pespunte' },
-          flat: (u, v, out) => out.set(side * u * width(v), v * hoodH),
+          // Esquina de la coronilla (donde se juntan la costura de la nuca y la de arriba) redondeada, como en un patrón
+          // de verdad: si fuera en ángulo recto, la capucha acabaría en pico
+          flat: (u, v, out) => {
+            const c = THREE.MathUtils.smoothstep(u, 0.55, 1) * THREE.MathUtils.smoothstep(v, 0.55, 1)
+            out.set(side * (u * width(v) - c * 5 * s), v * hoodH - c * 5 * s)
+          },
           place: (u, v, out) => {
             const p = base(u)
             if (design.hoodUp) {
@@ -379,7 +385,8 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   // --- Bolsillo canguro (trapecio en el delantero, con las aberturas inclinadas a los lados) ---
   const pw = Math.min(38 * s, W * 0.62)
   const ph = 21 * s
-  const py = 1.5 * s
+  // Empieza unos cm por encima del bajo: justo encima del canalé la tela se frunce y el bolsillo se levantaría
+  const py = 3.5 * s
   const pocket = design.pocket
     ? {
         panel: front.id,
@@ -396,10 +403,10 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const all = (p: Panel) => Array.from({ length: p.nu * p.nv }, (_, k) => p.index(k % p.nu, Math.floor(k / p.nu)))
   const torsoAll = [...all(front), ...all(back)]
   // Por debajo de la axila (con un margen) el cuerpo roza con las mangas de los brazos bajados
-  const torsoLow = torsoAll.filter((_, k) => Math.floor((k % (nu * nv)) / nu) < armpitRow - 2)
+  const torsoLow = torsoAll.filter((_, k) => Math.floor((k % (nu * nv)) / nu) < armpitRow - 4)
   // De la manga, lo que queda lejos de la sisa (cerca de ella están cosidas al cuerpo)
   const sleevesLow = sleevePanels.flatMap(({ panel, len }) =>
-    all(panel).filter((_, k) => (Math.floor(k / panel.nu) / (panel.nv - 1)) * len > 9 * s),
+    all(panel).filter((_, k) => (Math.floor(k / panel.nu) / (panel.nv - 1)) * len > 14 * s),
   )
   // De la capucha, lo que queda lejos del escote (junto a él está cosida al cuerpo y no se puede separar)
   const hoodH = 34 * s
