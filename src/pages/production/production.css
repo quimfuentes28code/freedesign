@@ -396,6 +396,34 @@ textarea.cell-input.boxed {
   vertical-align: -2px;
 }
 
+.color-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.colorway-flats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.colorway-flats figure {
+  margin: 0;
+  text-align: center;
+}
+
+.colorway-flats svg {
+  width: 100%;
+  aspect-ratio: 320 / 480;
+}
+
+.colorway-flats figcaption {
+  font-size: 11px;
+  color: #74706a;
+}
+
 .print-cell {
   width: 44px;
 }

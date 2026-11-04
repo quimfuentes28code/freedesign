@@ -8,6 +8,27 @@ export interface PieceStyle {
   color: string
   /** Material de la Biblioteca (o null si aún no se ha elegido). */
   materialId: string | null
+  /** Nombre del color (p. ej. «Negro carbón») y su código (de la carta de colores o un Pantone). */
+  colorName?: string
+  colorCode?: string
+}
+
+/** Variante de color (colorway) del mismo diseño: color y material de cada pieza. */
+export interface Colorway {
+  id: string
+  name: string
+  pieces: Record<string, PieceStyle>
+}
+
+/** Nota sobre el dibujo técnico: un punto señalado (x, y) y su texto, colocado en (lx, ly). En unidades del lienzo. */
+export interface Callout {
+  id: string
+  view: 'front' | 'back' | 'side'
+  x: number
+  y: number
+  lx: number
+  ly: number
+  text: string
 }
 
 /**
@@ -42,10 +63,18 @@ export interface Print {
 export interface DesignData {
   /** Opciones de la prenda base (corte, largos, detalles…), por id de opción. */
   options: Record<string, string | boolean>
-  /** Color y material de cada pieza, por id de pieza. */
+  /** Color y material de cada pieza, por id de pieza (los de la variante de color activa). */
   pieces: Record<string, PieceStyle>
+  /**
+   * Variantes de color. La activa (`activeColorway`) es siempre la que está en `pieces`; el resto se guarda aquí.
+   * Si no hay, el diseño tiene una sola variante («Principal»).
+   */
+  colorways?: Colorway[]
+  activeColorway?: string
   /** Estampados y logos colocados sobre la prenda (de abajo arriba). */
   prints?: Print[]
+  /** Notas con flecha sobre el dibujo técnico. */
+  callouts?: Callout[]
   notes: string
 }
 

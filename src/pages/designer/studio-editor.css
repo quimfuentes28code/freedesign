@@ -1,0 +1,493 @@
+/* Editor tipo estudio: cabecera arriba y, debajo, capas | lienzo | inspector. */
+
+.editor.studio-editor {
+  grid-template-columns: 230px minmax(0, 1fr) 320px;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    'head head head'
+    'layers main panel';
+}
+
+.studio-editor .editor-header {
+  grid-area: head;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.studio-editor .editor-error {
+  grid-column: 1 / -1;
+  margin: 8px 16px 0;
+}
+
+.studio-editor .editor-main {
+  grid-area: main;
+  padding: 12px 16px;
+  gap: 10px;
+}
+
+.studio-editor .editor-panel {
+  grid-area: panel;
+  padding: 0 16px 32px;
+}
+
+.history-buttons {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.history-buttons .tool {
+  font-size: 16px;
+  line-height: 1;
+  padding: 5px 9px;
+}
+
+/* Botones de herramienta (cotas, cuadrícula, notas, deshacer…) */
+.tool {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.tool:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.tool:disabled {
+  color: var(--border);
+  cursor: default;
+}
+
+.tool.active {
+  background: color-mix(in srgb, #2563eb 10%, var(--panel));
+  border-color: color-mix(in srgb, #2563eb 45%, transparent);
+  color: #1d4ed8;
+}
+
+.tool.adding {
+  background: #c2410c;
+  border-color: #c2410c;
+  color: #fff;
+}
+
+.canvas-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.canvas-stage.line-mode {
+  background: #fff;
+}
+
+/* --- Capas --- */
+
+.editor-layers {
+  grid-area: layers;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 12px 10px 24px;
+}
+
+.editor-layers h2 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 14px 6px 6px;
+}
+
+.editor-layers h2:first-child {
+  margin-top: 2px;
+}
+
+.editor-layers > p {
+  margin: 0 6px;
+}
+
+.layer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.layer:hover {
+  background: var(--soft);
+}
+
+.layer.active {
+  background: color-mix(in srgb, #2563eb 8%, var(--panel));
+  border-color: color-mix(in srgb, #2563eb 35%, transparent);
+}
+
+.layer-swatch {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid rgb(0 0 0 / 0.15);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--soft);
+  font-size: 12px;
+}
+
+.layer-swatch.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.layer-swatch.note {
+  border-radius: 50%;
+  background: #c2410c;
+  border-color: #c2410c;
+  color: #fff;
+  font-weight: 700;
+  width: 22px;
+  height: 22px;
+}
+
+.layer-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.layer-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layer-text .muted {
+  font-size: 11px;
+}
+
+/* --- Inspector --- */
+
+.inspector-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  margin: 0 -16px 4px;
+  padding: 10px 12px 0;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.inspector-tabs button {
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 7px 10px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.inspector-tabs button.active {
+  color: var(--text);
+  border-bottom-color: var(--text);
+}
+
+.inspector-piece {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 14px 0;
+}
+
+.inspector-color {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.inspector-color > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.big-swatch {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  cursor: pointer;
+  flex: none;
+}
+
+.big-swatch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.big-swatch span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  border: 1px solid rgb(0 0 0 / 0.18);
+}
+
+.inspector-fields {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 8px;
+}
+
+.inspector-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.inspector-fields label:nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+.inspector-fields input {
+  font-size: 13px;
+  padding: 6px 8px;
+}
+
+.inspector-block h3 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.chart-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.inspector-block .palette {
+  grid-template-columns: repeat(9, 1fr);
+  gap: 5px;
+}
+
+.piece-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  border: 1px solid rgb(0 0 0 / 0.15);
+}
+
+.note-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  margin-top: 6px;
+}
+
+.note-row.active {
+  border-color: color-mix(in srgb, #2563eb 35%, transparent);
+  background: color-mix(in srgb, #2563eb 6%, var(--panel));
+}
+
+.note-row input {
+  font-size: 13px;
+  padding: 6px 8px;
+}
+
+.inline-links {
+  display: flex;
+  gap: 14px;
+  margin: 8px 0 0;
+}
+
+/* --- Variantes de color --- */
+
+.colorways-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.colorway-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+}
+
+.colorway-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 10px 5px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.colorway-chip:hover {
+  border-color: var(--muted);
+}
+
+.colorway-chip.active {
+  border-color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--text);
+}
+
+.colorway-chip.add {
+  padding-left: 10px;
+  color: var(--muted);
+  border-style: dashed;
+}
+
+.colorway-dots {
+  display: inline-flex;
+}
+
+.colorway-dots i {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--panel);
+  margin-left: -5px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.12);
+}
+
+.colorway-dots i:first-child {
+  margin-left: 0;
+}
+
+.colorway-remove {
+  margin-left: 2px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.colorway-remove:hover {
+  color: var(--danger);
+}
+
+.colorway-rename {
+  width: 150px;
+  font-size: 13px;
+  padding: 5px 10px;
+  border-radius: 999px;
+}
+
+.colorways-compare {
+  overflow: auto;
+  padding: 16px;
+}
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.compare-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--soft);
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.compare-card:hover {
+  border-color: var(--muted);
+}
+
+.compare-card.active {
+  border-color: var(--text);
+}
+
+.compare-card svg {
+  width: 100%;
+  aspect-ratio: 320 / 480;
+}
+
+@media (max-width: 1280px) {
+  .editor.studio-editor {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-areas:
+      'head head'
+      'main panel';
+  }
+
+  .editor-layers {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .editor.studio-editor {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 70dvh auto;
+    grid-template-areas:
+      'head'
+      'main'
+      'panel';
+  }
+}

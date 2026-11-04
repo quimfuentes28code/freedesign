@@ -1,5 +1,5 @@
 import { TECHNIQUES, type Technique } from '../src/shared/artworks'
-import type { Design, DesignData, DesignInput, Print } from '../src/shared/designs'
+import type { Callout, Colorway, Design, DesignData, DesignInput, Print } from '../src/shared/designs'
 import { isFileKey } from './files'
 import { HttpError, json, noContent, now, ownedRef, readBody, required, text, type Env } from './http'
 
@@ -91,23 +91,64 @@ async function readDesign(request: Request, env: Env, uid: string): Promise<Desi
   for (const [k, v] of Object.entries(data.options ?? {})) {
     if (typeof v === 'string' || typeof v === 'boolean') options[k] = v
   }
-  const pieces: DesignData['pieces'] = {}
-  for (const [k, v] of Object.entries(data.pieces ?? {})) {
-    if (v && typeof v === 'object') {
-      const color = text((v as { color?: unknown }).color)
-      pieces[k] = {
-        color: /^#[0-9a-f]{6}$/i.test(color) ? color : '#cccccc',
-        materialId: text((v as { materialId?: unknown }).materialId) || null,
-      }
-    }
-  }
+  const pieces = readPieces(data.pieces)
   const prints = Array.isArray(data.prints) ? data.prints.slice(0, 50).map(readPrint).filter((p): p is Print => !!p) : []
+  const colorways: Colorway[] = Array.isArray(data.colorways)
+    ? data.colorways.slice(0, 20).flatMap((c) => {
+        if (!c || typeof c !== 'object') return []
+        const x = c as unknown as Record<string, unknown>
+        return [{ id: text(x.id) || crypto.randomUUID(), name: text(x.name).slice(0, 60) || 'Variante', pieces: readPieces(x.pieces) }]
+      })
+    : []
+  const activeColorway = text(data.activeColorway)
+  const callouts = Array.isArray(data.callouts) ? data.callouts.slice(0, 60).map(readCallout).filter((c): c is Callout => !!c) : []
   return {
     name: required(b.name, 'El nombre'),
     template: required(b.template, 'La prenda base'),
     clientId: await ownedRef(env, 'clients', text(b.clientId) || null, uid, 'El cliente'),
     projectId: await ownedRef(env, 'projects', text(b.projectId) || null, uid, 'El proyecto'),
-    data: { options, pieces, prints, notes: text(data.notes) },
+    data: {
+      options,
+      pieces,
+      prints,
+      notes: text(data.notes),
+      ...(colorways.length ? { colorways, activeColorway: colorways.some((c) => c.id === activeColorway) ? activeColorway : colorways[0].id } : {}),
+      ...(callouts.length ? { callouts } : {}),
+    },
+  }
+}
+
+function readPieces(raw: unknown): DesignData['pieces'] {
+  const pieces: DesignData['pieces'] = {}
+  if (!raw || typeof raw !== 'object') return pieces
+  for (const [k, v] of Object.entries(raw)) {
+    if (!v || typeof v !== 'object') continue
+    const s = v as Record<string, unknown>
+    const color = text(s.color)
+    pieces[k] = {
+      color: /^#[0-9a-f]{6}$/i.test(color) ? color : '#cccccc',
+      materialId: text(s.materialId) || null,
+      ...(text(s.colorName) ? { colorName: text(s.colorName).slice(0, 60) } : {}),
+      ...(text(s.colorCode) ? { colorCode: text(s.colorCode).slice(0, 40) } : {}),
+    }
+  }
+  return pieces
+}
+
+function readCallout(raw: unknown): Callout | null {
+  if (!raw || typeof raw !== 'object') return null
+  const c = raw as Record<string, unknown>
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+  const [x, y, lx, ly] = [n(c.x), n(c.y), n(c.lx), n(c.ly)]
+  if (x === null || y === null || lx === null || ly === null) return null
+  return {
+    id: text(c.id) || crypto.randomUUID(),
+    view: VIEWS.includes(c.view as (typeof VIEWS)[number]) ? (c.view as Callout['view']) : 'front',
+    x,
+    y,
+    lx,
+    ly,
+    text: text(c.text).slice(0, 200),
   }
 }
 

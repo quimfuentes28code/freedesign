@@ -7,7 +7,7 @@ import { SIZES, type Size } from '../shared/production'
  * (las del cliente o las de una talla estándar) más la holgura que pide cada corte. Todo en cm.
  */
 
-type Body = Record<MeasurementKey, number>
+export type Body = Record<MeasurementKey, number>
 
 /** Cuerpo de la talla M (unisex) y cuánto cambia cada medida de una talla a la siguiente. */
 const BASE_M: Body = {

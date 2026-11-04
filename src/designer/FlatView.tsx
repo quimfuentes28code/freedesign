@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { DesignData, Print } from '../shared/designs'
 import { fileUrl, type Material } from '../shared/library'
 import { VIEW_H, VIEW_W } from './geometry'
@@ -25,40 +25,90 @@ interface Props {
   selectedPrint?: string | null
   onSelectPrint?: (id: string | null) => void
   onChangePrint?: (p: Print) => void
+  /** «color» con colores y tejidos; «linea» en blanco y negro, como un plano de taller. */
+  mode?: 'color' | 'linea'
+  /** Pieza seleccionada (se marca con un contorno) y qué hacer al hacer clic en una pieza. */
+  selectedPiece?: string | null
+  onPickPiece?: (piece: string) => void
+  /** Capa encima del dibujo (cotas, notas, escala), en las mismas unidades que el dibujo. */
+  overlay?: (ctx: FlatContext) => ReactNode
+  /** Margen alrededor del dibujo en el encuadre ajustado (más si hay cotas). */
+  pad?: number
+}
+
+export interface Box {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/** Lo que sabe la capa de encima: el encuadre y dónde queda cada pieza. */
+export interface FlatContext {
+  box: Box
+  pieces: Record<string, Box>
 }
 
 /** Dibujo técnico (flat) de una prenda en una vista, con los colores y materiales de cada pieza y sus estampados. */
 export function FlatView(props: Props) {
   const { template, data, view, materials, highlight, className, frame = 'ajustado', selectedPrint, onSelectPrint, onChangePrint } = props
+  const { mode = 'color', selectedPiece, onPickPiece, overlay, pad = 12 } = props
+  const line = mode === 'linea'
   const uid = useId().replace(/:/g, '')
   const shapes = template.draw(view, data.options)
   const prints = (data.prints ?? []).filter((p) => p.view === view)
 
   // Encuadre: el lienzo se ajusta al dibujo (con un margen), así la prenda ocupa todo el espacio disponible
   const group = useRef<SVGGElement>(null)
-  const [box, setBox] = useState(`0 0 ${VIEW_W} ${VIEW_H}`)
+  const [box, setBox] = useState<Box>({ x: 0, y: 0, w: VIEW_W, h: VIEW_H })
+  const [pieceBoxes, setPieceBoxes] = useState<Record<string, Box>>({})
   const key = shapes.map((s) => s.d).join('|')
   useLayoutEffect(() => {
+    // Dónde queda cada pieza (para las cotas)
+    if (overlay && group.current) {
+      const boxes: Record<string, Box> = {}
+      for (const el of group.current.querySelectorAll<SVGGraphicsElement>('[data-piece]')) {
+        const id = el.dataset.piece!
+        const b = el.getBBox()
+        const prev = boxes[id]
+        if (!prev) boxes[id] = { x: b.x, y: b.y, w: b.width, h: b.height }
+        else {
+          const x = Math.min(prev.x, b.x)
+          const y = Math.min(prev.y, b.y)
+          boxes[id] = { x, y, w: Math.max(prev.x + prev.w, b.x + b.width) - x, h: Math.max(prev.y + prev.h, b.y + b.height) - y }
+        }
+      }
+      setPieceBoxes(boxes)
+    }
     if (frame === 'comun') {
-      setBox(`40 0 ${VIEW_W - 80} ${VIEW_H}`)
+      setBox({ x: 40, y: 0, w: VIEW_W - 80, h: VIEW_H })
       return
     }
     const b = group.current?.getBBox()
     if (!b || !b.width) return
-    const pad = 12
-    setBox(`${b.x - pad} ${b.y - pad} ${b.width + pad * 2} ${b.height + pad * 2}`)
-  }, [key, frame])
+    setBox({ x: b.x - pad, y: b.y - pad, w: b.width + pad * 2, h: b.height + pad * 2 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, frame, pad, !!overlay])
 
-  // Material de cada pieza: foto si es de la Biblioteca y la tiene; si no, textura y brillo del catálogo
+  // Material de cada pieza: foto si es de la Biblioteca y la tiene; si no, textura y brillo del catálogo.
+  // En modo línea no hay ni color ni textura: todo blanco con su contorno.
   const textured = new Map<string, string>()
   const looks = new Map<string, CatalogMaterial>()
-  for (const p of template.pieces) {
-    const r = resolveMaterial(template.id, p.id, data.pieces[p.id]?.materialId, materials)
-    if (r.library?.photo) textured.set(p.id, fileUrl(r.library.photo))
-    else looks.set(p.id, r.catalog)
+  if (!line) {
+    for (const p of template.pieces) {
+      const r = resolveMaterial(template.id, p.id, data.pieces[p.id]?.materialId, materials)
+      if (r.library?.photo) textured.set(p.id, fileUrl(r.library.photo))
+      else looks.set(p.id, r.catalog)
+    }
   }
   const colorOf = (piece?: string) =>
-    (piece && data.pieces[piece]?.color) || template.pieces.find((p) => p.id === piece)?.defaultColor || '#d9d6cf'
+    line ? '#ffffff' : (piece && data.pieces[piece]?.color) || template.pieces.find((p) => p.id === piece)?.defaultColor || '#d9d6cf'
+  const pick = onPickPiece
+    ? (piece?: string) => ({
+        onClick: () => piece && onPickPiece(piece),
+        style: { cursor: 'pointer' },
+      })
+    : () => ({})
   const weaveOf = (piece?: string) => {
     const m = piece ? looks.get(piece) : undefined
     return m && hasWeave(m.weave) ? `url(#${uid}-w-${piece})` : undefined
@@ -74,7 +124,7 @@ export function FlatView(props: Props) {
       case 'fill':
       case 'shade':
         return (
-          <g key={i}>
+          <g key={i} data-piece={s.kind === 'fill' ? s.piece : undefined} {...pick(s.piece)}>
             <path d={s.d} fill={color} />
             {tex && <path d={s.d} fill={`url(#${uid}-${s.piece})`} style={{ mixBlendMode: 'multiply' }} opacity={0.55} />}
             {weave && <path d={s.d} fill={weave} />}
@@ -86,7 +136,7 @@ export function FlatView(props: Props) {
         )
       case 'hardware':
         return (
-          <g key={i}>
+          <g key={i} data-piece={s.piece} {...pick(s.piece)}>
             <path d={s.d} fill={color} />
             {weave && <path d={s.d} fill={weave} />}
             {gloss > 0.05 && <path d={s.d} fill={`url(#${uid}-${looks.get(s.piece!)?.weave === 'metal' ? 'metal' : 'gloss'})`} opacity={Math.min(1, gloss)} />}
@@ -119,7 +169,7 @@ export function FlatView(props: Props) {
   return (
     <svg
       className={className}
-      viewBox={box}
+      viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
       role="img"
       aria-label={`${template.name}: vista ${view}`}
       onPointerDown={editable ? () => onSelectPrint?.(null) : undefined}
@@ -142,9 +192,18 @@ export function FlatView(props: Props) {
         </clipPath>
       </defs>
       <g ref={group}>{shapes.map(renderShape)}</g>
+      {selectedPiece && (
+        <g pointerEvents="none">
+          {shapes
+            .filter((s) => s.piece === selectedPiece && (s.kind === 'fill' || s.kind === 'hardware'))
+            .map((s, i) => (
+              <path key={i} d={s.d} fill="#2563eb" fillOpacity={0.08} stroke="#2563eb" strokeWidth={2.4} strokeLinejoin="round" />
+            ))}
+        </g>
+      )}
       {prints.map((p) => {
         const shape = (
-          <g clipPath={p.clip ? `url(#${uid}-garment)` : undefined}>
+          <g clipPath={p.clip ? `url(#${uid}-garment)` : undefined} style={line ? { filter: 'grayscale(1)' } : undefined}>
             <PrintShape p={p} />
           </g>
         )
@@ -172,6 +231,7 @@ export function FlatView(props: Props) {
         )
       })}
       <g pointerEvents="none">{shapes.filter(onTop).map(renderShape)}</g>
+      {overlay?.({ box, pieces: pieceBoxes })}
     </svg>
   )
 }

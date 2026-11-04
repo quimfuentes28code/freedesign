@@ -3,6 +3,9 @@ import { Link, useParams } from 'react-router'
 import { api } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { Status } from '../../components/ui'
+import { Callouts, Dimensions } from '../../designer/annotations'
+import { colorLabel } from '../../designer/colors'
+import { activeColorwayId, colorwaysOf, withColorway } from '../../designer/colorways'
 import { FlatView } from '../../designer/FlatView'
 import { CX } from '../../designer/geometry'
 import { resolveMaterial } from '../../designer/materials'
@@ -13,7 +16,7 @@ import { defaultAssembly, defaultConstruction } from '../../production/construct
 import { clientBody, garmentPoms, measurementLabel, standardBody } from '../../production/measurements'
 import { TECHNIQUES, type Artwork } from '../../shared/artworks'
 import type { Client } from '../../shared/clients'
-import type { Design, Print } from '../../shared/designs'
+import type { Design, PieceStyle, Print } from '../../shared/designs'
 import { fileUrl, MATERIAL_CATEGORIES, type Material } from '../../shared/library'
 import { EMPTY_TECH_PACK, SIZES, type ConstructionRow, type Size, type SpecColumn, type TechPack, type TechPackData } from '../../shared/production'
 import type { Project } from '../../shared/projects'
@@ -246,6 +249,10 @@ function Document(props: {
   const options = design.data.options
   const prints = design.data.prints ?? []
   const sheets = 4
+  const custom = pack.mode === 'cliente' && client
+  const body = custom ? clientBody(client.measurements).body : standardBody(pack.baseSize)
+  const bodyLabel = custom ? `la medida de ${client.name}` : `la talla ${pack.baseSize}`
+  const colorways = colorwaysOf(design.data)
   const head = (title: string, page: number) => (
     <SheetHeader brand={brand} project={project} design={design} template={template} title={title} page={page} pages={sheets} version={version} />
   )
@@ -258,11 +265,24 @@ function Document(props: {
         <div className="sheet-flats">
           {VIEWS.map((v) => (
             <figure key={v.id} className={v.id === 'side' ? 'flat side' : 'flat'}>
-              <FlatView template={template} data={design.data} view={v.id} materials={materials} frame="comun" />
+              <FlatView
+                template={template}
+                data={design.data}
+                view={v.id}
+                materials={materials}
+                frame="comun"
+                overlay={(ctx) => (
+                  <>
+                    {v.id === 'front' && <Dimensions ctx={ctx} template={template} options={options} body={body} />}
+                    <Callouts ctx={ctx} callouts={design.data.callouts ?? []} view={v.id} />
+                  </>
+                )}
+              />
               <figcaption>{v.label}</figcaption>
             </figure>
           ))}
         </div>
+        <p className="muted small">Las letras de las cotas corresponden a la tabla de medidas (hoja 3); valores de {bodyLabel}.</p>
         <div className="sheet-cols">
           <section>
             <h3>Prenda</h3>
@@ -299,8 +319,9 @@ function Document(props: {
       {/* 2. Materiales y estampados */}
       <article className="sheet">
         {head('Materiales, colores y estampados', 2)}
-        <h3>Piezas</h3>
+        <h3>Piezas{colorways.length > 1 ? ` · variante ${colorways.find((c) => c.id === activeColorwayId(design.data))?.name}` : ''}</h3>
         <PiecesTable template={template} design={design} materials={materials} />
+        {colorways.length > 1 && <ColorwaysTable template={template} design={design} />}
         {project.materials.length > 0 && (
           <>
             <h3>Lista de materiales (BOM)</h3>
@@ -453,7 +474,7 @@ function PiecesTable({ template, design, materials }: { template: GarmentTemplat
                 <td>{lib?.composition || r.catalog.composition}</td>
                 <td>{lib?.weightGsm ? `${lib.weightGsm} g/m²` : r.catalog.weight}</td>
                 <td>
-                  <span className="color-chip" style={{ background: color }} /> {color.toUpperCase()}
+                  <ColorCell style={style ?? { color, materialId: null }} />
                 </td>
                 <td>{lib?.supplierName ?? '—'}</td>
               </tr>
@@ -461,6 +482,63 @@ function PiecesTable({ template, design, materials }: { template: GarmentTemplat
           })}
       </tbody>
     </table>
+  )
+}
+
+/** Color con su muestra, nombre y código (o el hex si no tiene nombre). */
+function ColorCell({ style }: { style: PieceStyle }) {
+  const l = colorLabel(style)
+  return (
+    <span className="color-cell">
+      <span className="color-chip" style={{ background: style.color }} />
+      <span>
+        {l.name || style.color.toUpperCase()}
+        {l.name && <span className="muted"> · {[l.code, style.color.toUpperCase()].filter(Boolean).join(' · ')}</span>}
+        {!l.name && l.code && <span className="muted"> · {l.code}</span>}
+      </span>
+    </span>
+  )
+}
+
+/** Variantes de color: cada pieza en cada variante, con la vista delantera de cada una. */
+function ColorwaysTable({ template, design }: { template: GarmentTemplate; design: Design }) {
+  const list = colorwaysOf(design.data)
+  const active = template.activePieces(design.data.options)
+  const pieces = template.pieces.filter((p) => active.includes(p.id))
+  return (
+    <>
+      <h3>Variantes de color</h3>
+      <div className="colorway-flats">
+        {list.map((c) => (
+          <figure key={c.id}>
+            <FlatView template={template} data={withColorway(design.data, c)} view="front" frame="comun" />
+            <figcaption>{c.name}</figcaption>
+          </figure>
+        ))}
+      </div>
+      <table className="spec-table">
+        <thead>
+          <tr>
+            <th>Pieza</th>
+            {list.map((c) => (
+              <th key={c.id}>{c.name}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {pieces.map((p) => (
+            <tr key={p.id}>
+              <td>{p.label}</td>
+              {list.map((c) => (
+                <td key={c.id}>
+                  <ColorCell style={c.pieces[p.id] ?? { color: p.defaultColor, materialId: null }} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   )
 }
 
