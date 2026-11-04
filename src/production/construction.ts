@@ -1,4 +1,4 @@
-import { opt, type GarmentTemplate, type Options } from '../designer/types'
+import { isPants, opt, type GarmentTemplate, type Options } from '../designer/types'
 import type { ConstructionRow } from '../shared/production'
 
 /**
@@ -55,22 +55,75 @@ export function defaultConstruction(t: GarmentTemplate, o: Options): Constructio
     add('Forro', 'Forro completo unido por la vista y el canalé', FLAT, 'Pliegue de holgura de 2 cm en el centro de la espalda')
   }
 
-  if (t.id === 'pantalon') {
-    if (get<boolean>('laterales')) add('Bolsillos laterales', 'Bolsillo de costado con vista y bolsa', FLAT, 'Remallar las bolsas')
-    if (get<boolean>('traseros')) add('Bolsillos traseros', 'Bolsillos de parche en la espalda', FLAT, 'Presillas en las esquinas')
-    if (get<boolean>('cargo')) add('Bolsillos cargo', 'Bolsillo de fuelle con solapa aplicado al costado', FLAT, 'Presillas y cierre (velcro o automático)')
-    add('Costados', 'Cerrar los costados', OVERLOCK, 'Pespunte de carga hacia atrás')
-    add('Tiro', 'Unir tiro delantero y trasero', OVERLOCK, 'Doble costura de refuerzo en la entrepierna')
-    add('Entrepierna', 'Cerrar la entrepierna de un bajo al otro', OVERLOCK)
-    add('Cinturilla', 'Cinturilla con elástico de 4 cm encanalado', `${OVERLOCK} + ${COVER}`, get<boolean>('cordon') ? 'Dos ojales para el cordón en el centro delantero' : '')
-    if (get('bajo') === 'puno') add('Bajos', 'Puño de canalé doblado y montado', OVERLOCK)
-    else add('Bajos', 'Dobladillo de 3 cm', COVER)
+  if (t.id === 'polo' || t.id === 'camisa') {
+    const shirt = t.id === 'camisa'
+    const neck = get<string>('cuello')
+    if (shirt && get<boolean>('canesu')) add('Canesú', 'Canesú doble (con vista) que une delanteros y espalda', FLAT, 'Pespunte de carga a 0,2 cm')
+    else add('Hombros', 'Unir delantero y espalda', shirt ? FLAT : OVERLOCK, shirt ? 'Costura cargada' : 'Cinta de refuerzo en el hombro')
+    add(
+      'Tapeta',
+      shirt ? 'Tapeta delantera entretelada y doblada, de arriba al bajo' : `Abrir el corte de la tapeta y montar la tapeta doble (${get('botones')} botones)`,
+      FLAT,
+      'Entretela termoadhesiva ligera',
+    )
+    add('Ojales y botones', shirt ? 'Ojales verticales en la tapeta derecha; botones en la izquierda' : 'Ojales horizontales en la tapeta', 'Ojaladora + botonadora', 'Botón extra de repuesto en el costado')
+    add(
+      'Cuello',
+      neck === 'mao'
+        ? 'Tira de cuello entretelada montada al escote'
+        : neck === 'cubano'
+          ? 'Cuello abierto de una pieza con vista, montado al escote'
+          : neck === 'polo'
+            ? 'Cuello de punto tricotado montado al escote, con vista en la nuca'
+            : 'Cuello con pie, los dos entretelados y pespunteados',
+      FLAT,
+      neck === 'polo' ? 'Remallar la vista' : 'Volver las puntas y planchar',
+    )
+    add('Mangas', 'Montar las mangas a la sisa (en plano)', shirt ? `${FLAT} + remalladora 3 hilos` : OVERLOCK)
+    add('Costados', 'Cerrar costados y bajo de manga de una vez', shirt ? `${FLAT} (costura francesa o cargada)` : OVERLOCK)
+    if (get('manga') === 'larga' && shirt) add('Puños', 'Abertura con tapetilla y puño entretelado con ojal y botón', FLAT)
+    else if (get('punos') === 'canale') add('Puños', 'Puño de canalé doblado y montado', OVERLOCK)
+    else add('Bajo de manga', 'Dobladillo de 2 cm', shirt ? FLAT : COVER)
+    if (get<boolean>('bolsillo')) add('Bolsillo de pecho', 'Bolsillo de parche en el delantero izquierdo', FLAT, 'Presillas arriba')
+    add('Bajo', shirt && get('bajo') === 'curvo' ? 'Dobladillo estrecho de 0,6 cm siguiendo la curva' : 'Dobladillo de 2 cm', shirt ? `${FLAT} con prensatelas dobladillador` : COVER, shirt ? '' : 'Aberturas laterales opcionales de 4 cm')
   }
 
-  rows.push({ ...topstitch, notes: t.id === 'pantalon' ? 'En costados, bolsillos y cinturilla' : 'En hombros, sisas y escote' })
+  if (t.id === 'puffer') {
+    const step = get('canales') === 'estrechos' ? 11 : 17
+    add('Acolchado', `Pespuntear los canales: exterior, guata y forro juntos, cada ${step} cm`, FLAT, 'Guata de 120–160 g/m² (o plumón en canales cerrados)')
+    if (get('bolsillos') === 'ojal') add('Bolsillos', 'Bolsillos de ojal con cremallera o vivo', FLAT, 'Entretela en la boca; bolsas de forro')
+    add('Hombros y mangas', 'Unir hombros y montar mangas haciendo coincidir los canales', FLAT, 'Casar los canales del cuerpo y la manga')
+    add('Costados', 'Cerrar costados y bajo de manga', FLAT, 'Acabar los márgenes con remalladora de 3 hilos')
+    add(get('cuello') === 'capucha' ? 'Capucha' : 'Cuello alto', get('cuello') === 'capucha' ? 'Capucha acolchada con vista de forro' : 'Cuello alto acolchado con vista de forro', FLAT)
+    add('Cremallera', 'Cremallera separable con solapa interior contra el viento', `${FLAT} con prensatelas de cremallera`)
+    add('Puños y bajo', get('punos') === 'canale' ? 'Canalé doblado y montado' : 'Ribete elástico de 1,5 cm', get('punos') === 'canale' ? OVERLOCK : FLAT)
+    add('Forro', 'Forro de nylon unido por la vista y el bajo', FLAT)
+  }
+
+  if (isPants(t)) {
+    const fixed = get('cintura') === 'trabillas'
+    if (get<boolean>('pinzas')) add('Pinzas', 'Dos pinzas en cada delantero, planchadas hacia el costado', FLAT)
+    if (get<boolean>('laterales')) add('Bolsillos laterales', 'Bolsillo de costado con vista y bolsa', FLAT, 'Remallar las bolsas')
+    if (get<boolean>('traseros')) add('Bolsillos traseros', fixed ? 'Bolsillos de ojal con vivo y botón' : 'Bolsillos de parche en la espalda', FLAT, 'Presillas en las esquinas')
+    if (get<boolean>('cargo')) add('Bolsillos cargo', 'Bolsillo de fuelle con solapa aplicado al costado', FLAT, 'Presillas y cierre (velcro o automático)')
+    if (fixed) add('Bragueta', 'Bragueta con cremallera y vista', `${FLAT} con prensatelas de cremallera`, 'Pespunte en J')
+    add('Costados', 'Cerrar los costados', fixed ? `${FLAT} + remalladora 3 hilos` : OVERLOCK, fixed ? 'Costuras abiertas y planchadas' : 'Pespunte de carga hacia atrás')
+    add('Tiro', 'Unir tiro delantero y trasero', OVERLOCK, 'Doble costura de refuerzo en la entrepierna')
+    add('Entrepierna', 'Cerrar la entrepierna de un bajo al otro', OVERLOCK)
+    if (fixed) {
+      add('Cinturilla', 'Cinturilla entretelada con 5 o 6 trabillas, ojal y botón', FLAT, 'Trabillas de 1 × 5 cm con presillas')
+    } else {
+      add('Cinturilla', 'Cinturilla con elástico de 4 cm encanalado', `${OVERLOCK} + ${COVER}`, get<boolean>('cordon') ? 'Dos ojales para el cordón en el centro delantero' : '')
+    }
+    if (get('bajo') === 'puno') add('Bajos', 'Puño de canalé doblado y montado', OVERLOCK)
+    else if (get('bajo') === 'vuelto') add('Bajos', 'Bajo vuelto de 4 cm, sujeto en las costuras', FLAT, 'Planchar el doblez hacia fuera')
+    else add('Bajos', 'Dobladillo de 3 cm', fixed ? 'Punto invisible' : COVER)
+  }
+
+  rows.push({ ...topstitch, notes: isPants(t) ? 'En costados, bolsillos y cinturilla' : 'En hombros, sisas y escote' })
   add(
     'Etiquetas',
-    t.id === 'pantalon'
+    isPants(t)
       ? 'Marca en el centro de la cinturilla trasera; talla y composición en el costado izquierdo'
       : 'Marca y talla en la nuca; composición y cuidados en el costado izquierdo, a 8 cm del bajo',
     FLAT,
@@ -85,18 +138,52 @@ export function defaultAssembly(t: GarmentTemplate, o: Options, withPrints: bool
   const start = ['Revisar el tejido y dejarlo reposar 24 h antes de cortar', 'Cortar todas las piezas al hilo, marcando piquetes', ...prints]
   const end = ['Coser etiquetas', 'Rematar hilos, planchar y control de calidad (medidas con tolerancia)']
 
-  if (t.id === 'pantalon') {
+  if (isPants(t)) {
+    const fixed = get('cintura') === 'trabillas'
     return [
       ...start,
+      ...(get<boolean>('pinzas') ? ['Coser y planchar las pinzas'] : []),
       ...(get<boolean>('laterales') ? ['Preparar y montar los bolsillos laterales'] : []),
-      ...(get<boolean>('traseros') ? ['Aplicar los bolsillos traseros'] : []),
+      ...(get<boolean>('traseros') ? ['Hacer los bolsillos traseros'] : []),
       ...(get<boolean>('cargo') ? ['Preparar los bolsillos cargo y aplicarlos a las perneras'] : []),
+      ...(fixed ? ['Montar la bragueta con cremallera'] : []),
       'Cerrar costados',
       'Unir el tiro delantero y el trasero',
       'Cerrar la entrepierna',
-      'Preparar y montar la cinturilla con el elástico',
-      ...(get<boolean>('cordon') ? ['Pasar el cordón y rematar sus puntas'] : []),
-      get('bajo') === 'puno' ? 'Montar los puños' : 'Hacer los dobladillos',
+      fixed ? 'Preparar las trabillas, montar la cinturilla, hacer el ojal y coser el botón' : 'Preparar y montar la cinturilla con el elástico',
+      ...(!fixed && get<boolean>('cordon') ? ['Pasar el cordón y rematar sus puntas'] : []),
+      get('bajo') === 'puno' ? 'Montar los puños' : get('bajo') === 'vuelto' ? 'Hacer el bajo vuelto y fijarlo en las costuras' : 'Hacer los dobladillos',
+      ...end,
+    ]
+  }
+  if (t.id === 'polo' || t.id === 'camisa') {
+    const shirt = t.id === 'camisa'
+    return [
+      ...start,
+      'Pegar entretelas en tapeta, cuello y puños',
+      ...(get<boolean>('bolsillo') ? ['Aplicar el bolsillo de pecho'] : []),
+      shirt ? 'Hacer la tapeta delantera' : 'Abrir y montar la tapeta del polo',
+      ...(shirt && get<boolean>('canesu') ? ['Montar el canesú (unir delanteros y espalda)'] : ['Unir hombros']),
+      'Preparar y montar el cuello',
+      'Montar las mangas',
+      'Cerrar costados y mangas',
+      shirt && get('manga') === 'larga' ? 'Hacer las aberturas de manga y montar los puños' : get('punos') === 'canale' ? 'Montar los puños de canalé' : 'Hacer los dobladillos de manga',
+      'Hacer el dobladillo del bajo',
+      'Hacer los ojales y coser los botones',
+      ...end,
+    ]
+  }
+  if (t.id === 'puffer') {
+    return [
+      ...start,
+      'Cortar exterior, guata y forro de cada pieza',
+      'Pespuntear los canales del acolchado',
+      ...(get('bolsillos') === 'ojal' ? ['Hacer los bolsillos del delantero'] : []),
+      'Unir hombros, montar mangas y cerrar costados (casando los canales)',
+      get('cuello') === 'capucha' ? 'Montar la capucha' : 'Montar el cuello alto',
+      'Montar la cremallera con su solapa',
+      'Montar puños y bajo',
+      'Unir el forro y volver la prenda',
       ...end,
     ]
   }

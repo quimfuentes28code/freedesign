@@ -64,6 +64,8 @@ export type Options = Record<string, string | boolean>
 /** Prenda base del catálogo. */
 export interface GarmentTemplate {
   id: string
+  /** Prenda de torso (sudadera, camisa, chaqueta…) o pantalón: decide medidas, cotas, ficha y vista 3D. */
+  family: 'top' | 'pants'
   name: string
   description: string
   pieces: PieceDef[]
@@ -83,6 +85,8 @@ export interface PrintZone {
   y: number
   w: number
 }
+
+export const isPants = (t: Pick<GarmentTemplate, 'family'>) => t.family === 'pants'
 
 /** Valor de una opción, con su valor por defecto si no está puesta. */
 export function opt<T extends string | boolean>(t: GarmentTemplate, o: Options, id: string): T {

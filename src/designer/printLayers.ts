@@ -4,7 +4,7 @@ import type { Body } from '../production/measurements'
 import { CX } from './geometry'
 import { drawScale } from './measures'
 import { printSize } from './prints'
-import type { GarmentTemplate, View } from './types'
+import { isPants, type GarmentTemplate, type View } from './types'
 
 /**
  * Estampados para la vista 3D: los de una vista del dibujo (delantero o espalda) pintados en una imagen que
@@ -21,7 +21,7 @@ export interface BodyFrame {
 }
 
 /** Piezas que forman el «cuerpo» de cada tipo de prenda (las mismas que en 3D llevan los estampados). */
-const BODY_PIECES = (t: GarmentTemplate) => (t.id === 'pantalon' ? ['perneras', 'cinturilla'] : ['cuerpo'])
+const BODY_PIECES = (t: GarmentTemplate) => (isPants(t) ? ['perneras', 'cinturilla'] : ['cuerpo'])
 
 /** Encuadre del cuerpo a partir de los puntos de sus trazados. */
 export function bodyFrame(t: GarmentTemplate, data: DesignData, view: View, body?: Body): BodyFrame | null {

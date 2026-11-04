@@ -125,6 +125,7 @@ async function readDesign(request: Request, env: Env, uid: string): Promise<Desi
       ...(Object.keys(measures).length ? { measures } : {}),
       ...(drawings.length ? { drawings } : {}),
       ...(tracings.length ? { tracings } : {}),
+      ...(data.brandTemplate === true ? { brandTemplate: true } : {}),
     },
   }
 }

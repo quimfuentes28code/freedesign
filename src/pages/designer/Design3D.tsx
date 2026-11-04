@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { printLayer } from '../../designer/printLayers'
 import { clientBody } from '../../production/measurements'
-import { designTo3D, mannequinMeasurements } from '../../designer/to3d'
+import { designTo3D, hasOwn3D, mannequinMeasurements } from '../../designer/to3d'
 import type { Design } from '../../types'
 import type { GarmentTemplate } from '../../designer/types'
 import type { Client } from '../../shared/clients'
@@ -63,7 +63,7 @@ export function Design3D({ template, data, materials, client }: Props) {
         </div>
         <p className="design-3d-note">
           {client && Object.keys(client.measurements).length ? `Medidas de ${client.name}` : 'Medidas estándar'}
-          {template.id === 'bomber' && ' · La bomber se ve de momento como una prenda de manga larga'}
+          {!hasOwn3D(template) && ` · ${template.name}: forma 3D aproximada (algunos detalles solo se ven en 2D)`}
           {sidePrints > 0 && ' · Los estampados del lateral aún no se ven en 3D'}
           {' · Arrastra para girar'}
         </p>

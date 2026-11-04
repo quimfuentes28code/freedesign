@@ -66,7 +66,7 @@ const half = (n: number) => Math.round(n * 2) / 2
 /** Puntos de medida de una prenda con sus opciones. */
 export function garmentPoms(t: GarmentTemplate, o: Options): Pom[] {
   const get = <T extends string | boolean>(id: string) => opt<T>(t, o, id)
-  return t.id === 'pantalon' ? pantsPoms(get) : topPoms(t.id, get)
+  return t.family === 'pants' ? pantsPoms(get) : topPoms(t.id, get)
 }
 
 type Get = <T extends string | boolean>(id: string) => T
@@ -77,11 +77,14 @@ function topPoms(id: string, get: Get): Pom[] {
   const drop = { ajustado: 0, regular: 1.5, boxy: 4, oversize: 8 }[fit] ?? 1.5
   const bicepsEase = { ajustado: 5, regular: 8, boxy: 12, oversize: 16 }[fit] ?? 8
   const lengthAdd = { crop: 2, normal: 20, largo: 28 }[get<string>('largo') ?? 'normal'] ?? 20
-  const shortSleeve = id === 'camiseta' && get('manga') === 'corta'
-  const rib = id === 'bomber' || (id === 'sudadera' && get('punos') === 'canale')
-  const hood = id === 'sudadera' && get<boolean>('capucha')
-  const zip = id === 'bomber' ? 'completa' : id === 'sudadera' ? get<string>('cremallera') : 'ninguna'
-  const neckDrop = id === 'camiseta' && get('cuello') === 'pico' ? 18 : id === 'bomber' ? 8 : 9
+  // Se leen de las opciones de cada prenda (las que no la tienen dan undefined)
+  const shortSleeve = get('manga') === 'corta'
+  const rib = id === 'bomber' || get('punos') === 'canale'
+  const shirtCuff = id === 'camisa' && !shortSleeve
+  const hood = (id === 'sudadera' && get<boolean>('capucha')) || get('cuello') === 'capucha'
+  const zip = id === 'puffer' || (id === 'bomber' && get('cierre') !== 'botones') ? 'completa' : (get<string>('cremallera') ?? 'ninguna')
+  const neck = get<string>('cuello')
+  const neckDrop = neck === 'pico' ? 18 : neck === 'cubano' ? 20 : neck === 'solapa' ? 32 : id === 'bomber' ? 8 : 9
 
   const chest = (b: Body) => b.pecho + chestEase
   const length = (b: Body) => b.talleEspalda + 2 + lengthAdd
@@ -102,11 +105,11 @@ function topPoms(id: string, get: Get): Pom[] {
       ? { id: 'boca-manga', label: 'Contorno boca de manga', how: 'En el bajo de la manga, ×2', tol: 1, uses: ['biceps'], value: (b) => b.biceps + bicepsEase - 4 }
       : {
           id: 'puno',
-          label: rib ? 'Contorno de puño (relajado)' : 'Contorno bajo de manga',
-          how: 'En el borde del puño, sin estirar, ×2',
+          label: rib ? 'Contorno de puño (relajado)' : shirtCuff ? 'Contorno de puño (abrochado)' : 'Contorno bajo de manga',
+          how: shirtCuff ? 'Con el puño abrochado, de lado a lado ×2' : 'En el borde del puño, sin estirar, ×2',
           tol: 0.5,
           uses: ['muneca'],
-          value: (b) => b.muneca + (rib ? 5 : id === 'camiseta' ? 10 : 12),
+          value: (b) => b.muneca + (rib ? 5 : shirtCuff ? 8 : id === 'camiseta' ? 10 : 12),
         },
     {
       id: 'bajo',
@@ -119,6 +122,9 @@ function topPoms(id: string, get: Get): Pom[] {
     { id: 'escote', label: 'Ancho de escote', how: 'De costura a costura del cuello, en línea recta', tol: 0.5, uses: ['cuello'], value: (b) => b.cuello * 0.46 + (fit === 'oversize' ? 1 : 0) },
     { id: 'caida-escote', label: 'Caída de escote delantero', how: 'Desde la línea de hombros hasta la costura del cuello', tol: 0.5, uses: [], value: () => neckDrop },
   ]
+  if (neck === 'alto' || (id === 'sudadera' && !hood && get('cuelloSin') === 'alto')) {
+    poms.push({ id: 'cuello-alto', label: 'Alto de cuello', how: 'Desde la costura del escote hasta el borde del cuello', tol: 0.5, uses: ['cuello'], value: (b) => 8 + (b.cuello - 39) * 0.2 })
+  }
   if (hood) {
     poms.push(
       { id: 'capucha-alto', label: 'Alto de capucha', how: 'Desde la costura del escote hasta lo más alto', tol: 1, uses: ['altura'], value: (b) => b.altura * 0.2 },
@@ -136,13 +142,37 @@ function pantsPoms(get: Get): Pom[] {
   const thighEase = { slim: 5, regular: 9, ancho: 14, baggy: 20 }[fit] ?? 9
   const kneeEase = { slim: 4, regular: 8, ancho: 14, baggy: 20 }[fit] ?? 8
   const riseAdd = { slim: 1, regular: 2, ancho: 3, baggy: 5 }[fit] ?? 2
-  const cut = get('largo') === 'tobillero' ? 6 : 0
+  const length = get<string>('largo')
+  const cut = length === 'tobillero' ? 6 : 0
   const cuff = get('bajo') === 'puno'
   const knee = (b: Body) => b.rodilla + kneeEase
+  // Cortos: la entrepierna se mide en cm propios (no sale del largo de pierna)
+  const shortInseam = length === 'corto' ? 16 : length === 'bermuda' ? 27 : null
+  const fixedWaist = get('cintura') === 'trabillas'
+
+  const waist: Pom[] = fixedWaist
+    ? [{ id: 'cintura', label: 'Contorno de cintura', how: 'Por el borde de la cinturilla, abrochada, ×2', tol: 1, uses: ['cintura'], value: (b) => b.cintura + 2 }]
+    : [
+        { id: 'cintura', label: 'Contorno de cintura (relajada)', how: 'Por el borde de la cinturilla, sin estirar, ×2', tol: 1, uses: ['cintura'], value: (b) => b.cintura - 6 },
+        { id: 'cintura-max', label: 'Contorno de cintura (estirada)', how: 'Por el borde de la cinturilla, estirada al máximo, ×2', tol: 1.5, uses: ['cadera'], value: (b) => b.cadera + hipEase + 2 },
+      ]
+  if (shortInseam !== null) {
+    const thigh = (b: Body) => b.muslo + thighEase
+    const poms: Pom[] = [
+      ...waist,
+      { id: 'cadera', label: 'Contorno de cadera', how: 'A 18 cm de la cinturilla, ×2', tol: 1.5, uses: ['cadera'], value: (b) => b.cadera + hipEase },
+      { id: 'tiro-del', label: 'Tiro delantero', how: 'Desde la cinturilla hasta la entrepierna, por delante', tol: 0.5, uses: ['tiro'], value: (b) => b.tiro + riseAdd },
+      { id: 'tiro-tra', label: 'Tiro trasero', how: 'Desde la cinturilla hasta la entrepierna, por detrás', tol: 0.5, uses: ['tiro'], value: (b) => b.tiro + riseAdd + 9 },
+      { id: 'muslo', label: 'Contorno de muslo', how: 'A 2,5 cm de la entrepierna, ×2', tol: 1, uses: ['muslo'], value: thigh },
+      { id: 'bajo', label: 'Contorno de bajo', how: 'En el borde del bajo, ×2', tol: 1, uses: ['muslo'], value: (b) => thigh(b) - (cuff ? 10 : 3) },
+      { id: 'entrepierna', label: 'Largo de entrepierna', how: 'Desde la entrepierna hasta el bajo', tol: 0.5, uses: ['entrepierna'], value: (b) => shortInseam + (b.entrepierna - 80) * 0.1 },
+      { id: 'largo', label: 'Largo exterior', how: 'Por el costado, desde el borde de la cinturilla hasta el bajo', tol: 1, uses: ['tiro'], value: (b) => shortInseam + b.tiro + riseAdd + 4 },
+    ]
+    return poms.map((p) => ({ ...p, value: (b: Body) => half(p.value(b)) }))
+  }
 
   const poms: Pom[] = [
-    { id: 'cintura', label: 'Contorno de cintura (relajada)', how: 'Por el borde de la cinturilla, sin estirar, ×2', tol: 1, uses: ['cintura'], value: (b) => b.cintura - 6 },
-    { id: 'cintura-max', label: 'Contorno de cintura (estirada)', how: 'Por el borde de la cinturilla, estirada al máximo, ×2', tol: 1.5, uses: ['cadera'], value: (b) => b.cadera + hipEase + 2 },
+    ...waist,
     { id: 'cadera', label: 'Contorno de cadera', how: 'A 18 cm de la cinturilla, ×2', tol: 1.5, uses: ['cadera'], value: (b) => b.cadera + hipEase },
     { id: 'tiro-del', label: 'Tiro delantero', how: 'Desde la cinturilla hasta la entrepierna, por delante', tol: 0.5, uses: ['tiro'], value: (b) => b.tiro + riseAdd },
     { id: 'tiro-tra', label: 'Tiro trasero', how: 'Desde la cinturilla hasta la entrepierna, por detrás', tol: 0.5, uses: ['tiro'], value: (b) => b.tiro + riseAdd + 9 },

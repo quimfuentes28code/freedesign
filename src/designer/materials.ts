@@ -166,6 +166,11 @@ export const CATALOG: CatalogMaterial[] = [
   F('cremallera-vislon', 'Cremalleras y metales', 'Cremallera de plástico (Vislon)', 'Poliacetal', 'Chaquetas, sudaderas', 'espiral', 0.35, look(0.4, 0, 'liso', 0, 1, { clearcoat: 0.4 })),
   F('cremallera-nylon', 'Cremalleras y metales', 'Cremallera de nylon (espiral)', 'Poliamida', 'Sudaderas, bolsillos', 'espiral', 0.2, look(0.5, 0, 'liso', 0, 1)),
   F('cremallera-invisible', 'Cremalleras y metales', 'Cremallera invisible', 'Poliéster', 'Vestidos, faldas', 'liso', 0.15, look(0.6, 0, 'liso', 0, 1)),
+  F('boton-resina', 'Botones', 'Botón de resina', 'Poliéster', 'Camisas, polos', 'liso', 0.45, look(0.35, 0, 'liso', 0, 1, { clearcoat: 0.5 })),
+  F('boton-nacar', 'Botones', 'Botón de nácar', 'Nácar natural', 'Camisas de vestir', 'liso', 0.7, look(0.25, 0.2, 'liso', 0, 1, { clearcoat: 0.8 }), '#ece6dc'),
+  F('boton-corozo', 'Botones', 'Botón de corozo', 'Corozo (tagua)', 'Chaquetas, abrigos', 'liso', 0.25, look(0.5, 0, 'liso', 0, 1, { clearcoat: 0.3 })),
+  F('boton-metal', 'Botones', 'Botón metálico (vaquero)', 'Latón', 'Vaqueros, pantalones, workwear', 'metal', 0.8, look(0.4, 0, 'liso', 0, 1, { metalness: 0.65, clearcoat: 0.3 }), '#9a8a6a'),
+  F('automatico', 'Botones', 'Botón automático (corchete)', 'Latón niquelado', 'Chaquetas, bombers', 'metal', 0.8, look(0.38, 0, 'liso', 0, 1, { metalness: 0.6, clearcoat: 0.3 }), '#c9c9c9'),
 ]
 
 const BY_ID = new Map(CATALOG.map((m) => [m.id, m]))
@@ -184,10 +189,15 @@ export function groupCatalog(items: CatalogMaterial[]) {
 
 /** Material con el que se ve cada pieza si aún no se ha elegido ninguno (según la prenda base). */
 const DEFAULTS: Record<string, Record<string, string>> = {
-  sudadera: { '*': 'cat:felpa-perchada', punos: 'cat:canale-2x2', bajo: 'cat:canale-2x2', cuello: 'cat:canale-2x2', cordones: 'cat:cordon-algodon', fornituras: 'cat:metal-niquel' },
-  camiseta: { '*': 'cat:jersey', cuello: 'cat:canale-1x1' },
+  sudadera: { '*': 'cat:felpa-perchada', punos: 'cat:canale-2x2', bajo: 'cat:canale-2x2', cuello: 'cat:canale-2x2', cordones: 'cat:cordon-algodon', fornituras: 'cat:metal-niquel', botones: 'cat:boton-resina' },
+  camiseta: { '*': 'cat:jersey', cuello: 'cat:canale-1x1', botones: 'cat:boton-resina' },
   pantalon: { '*': 'cat:french-terry', punos: 'cat:canale-2x2', cinturilla: 'cat:canale-2x2', cordon: 'cat:cordon-algodon' },
-  bomber: { '*': 'cat:nylon-bomber', cuello: 'cat:canale-2x2', punos: 'cat:canale-2x2', bajo: 'cat:canale-2x2', fornituras: 'cat:metal-niquel' },
+  bomber: { '*': 'cat:nylon-bomber', cuello: 'cat:canale-2x2', punos: 'cat:canale-2x2', bajo: 'cat:canale-2x2', fornituras: 'cat:metal-niquel', botones: 'cat:automatico' },
+  polo: { '*': 'cat:pique', cuello: 'cat:canale-1x1', punos: 'cat:canale-1x1', botones: 'cat:boton-resina' },
+  camisa: { '*': 'cat:popelin', botones: 'cat:boton-resina' },
+  puffer: { '*': 'cat:ripstop', punos: 'cat:licra', bajo: 'cat:licra', fornituras: 'cat:cremallera-vislon' },
+  'pantalon-ancho': { '*': 'cat:chino', cordon: 'cat:cordon-algodon', botones: 'cat:boton-corozo' },
+  'pantalon-corto': { '*': 'cat:french-terry', punos: 'cat:canale-2x2', cinturilla: 'cat:canale-2x2', cordon: 'cat:cordon-algodon', botones: 'cat:boton-metal' },
 }
 
 export function defaultMaterialFor(template: string, piece: string) {

@@ -799,5 +799,5 @@ function defaultLabels(design: Design, materials: Map<string, Material>) {
   if (!t || !main) return ''
   const r = resolveMaterial(t.id, main.id, design.data.pieces[main.id]?.materialId, materials)
   const composition = r.library?.composition || r.catalog.composition
-  return `Marca y talla: ${t.id === 'pantalon' ? 'centro de la cinturilla trasera' : 'nuca'}.\nComposición: ${composition}.\nCuidados: lavar a 30 °C del revés, no usar secadora, planchar a temperatura media.`
+  return `Marca y talla: ${t.family === 'pants' ? 'centro de la cinturilla trasera' : 'nuca'}.\nComposición: ${composition}.\nCuidados: lavar a 30 °C del revés, no usar secadora, planchar a temperatura media.`
 }

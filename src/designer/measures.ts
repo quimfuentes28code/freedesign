@@ -1,6 +1,6 @@
 import { garmentPoms, standardBody, type Body } from '../production/measurements'
 import type { DesignData } from '../shared/designs'
-import type { GarmentTemplate } from './types'
+import { isPants, type GarmentTemplate } from './types'
 
 /**
  * Medidas editables del diseño. Se guardan en cm (`DesignData.measures`, por punto de medida) y se comparan con las
@@ -30,7 +30,7 @@ const DRIVERS: Record<'top' | 'pants', Partial<Record<keyof DrawScale, string[]>
 
 /** Puntos de medida que cambian el dibujo (el resto solo cambia la ficha técnica). */
 export function drawingPoms(t: GarmentTemplate) {
-  return new Set(Object.values(DRIVERS[t.id === 'pantalon' ? 'pants' : 'top']).flat())
+  return new Set(Object.values(DRIVERS[isPants(t) ? 'pants' : 'top']).flat())
 }
 
 /** Medida que sale del corte y el cuerpo, sin tener en cuenta ninguna medida propia. */
@@ -62,7 +62,7 @@ export function defaultMeasures(t: GarmentTemplate, data: DesignData, body?: Bod
   const raw = rawMeasures(t, data, body)
   const own = data.measures ?? {}
   const out = new Map(raw)
-  for (const f of FOLLOW[t.id === 'pantalon' ? 'pants' : 'top']) {
+  for (const f of FOLLOW[isPants(t) ? 'pants' : 'top']) {
     const base = raw.get(f.from)
     const target = raw.get(f.to)
     if (own[f.from] === undefined || base === undefined || target === undefined) continue
@@ -90,7 +90,7 @@ export function drawScale(t: GarmentTemplate, data: DesignData, body?: Body): Dr
   if (!own || !Object.keys(own).length) return NO_SCALE
   const defs = rawMeasures(t, data, body)
   const s = { ...NO_SCALE }
-  for (const [k, ids] of Object.entries(DRIVERS[t.id === 'pantalon' ? 'pants' : 'top']) as [keyof DrawScale, string[]][]) {
+  for (const [k, ids] of Object.entries(DRIVERS[isPants(t) ? 'pants' : 'top']) as [keyof DrawScale, string[]][]) {
     const id = ids.find((i) => own[i] !== undefined && defs.has(i))
     if (id) s[k] = Math.min(1.8, Math.max(0.5, own[id] / defs.get(id)!))
   }

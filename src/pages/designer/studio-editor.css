@@ -449,6 +449,24 @@
   margin: 8px 0 0;
 }
 
+.block {
+  display: block;
+  margin-top: 2px;
+}
+
+.catalog-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 8px 0 10px;
+}
+
+.catalog-title + .design-grid {
+  margin-bottom: 24px;
+}
+
 /* --- Medidas --- */
 
 .section-head {

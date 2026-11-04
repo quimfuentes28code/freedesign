@@ -605,6 +605,13 @@ export function DesignEditor() {
             <Field label="Notas">
               <textarea rows={4} value={design.data.notes} onChange={(e) => setData({ notes: e.target.value })} placeholder="Ideas, referencias, cambios pedidos por el cliente…" />
             </Field>
+            <label className="toggle-row spaced-top">
+              <span>
+                Plantilla de la marca
+                <span className="muted small block">Sale al crear un diseño nuevo, para empezar desde aquí (con sus colores, medidas y estampados).</span>
+              </span>
+              <input type="checkbox" checked={!!design.data.brandTemplate} onChange={(e) => setData({ brandTemplate: e.target.checked || undefined })} />
+            </label>
             <button className="button danger spaced-top" onClick={remove}>
               Eliminar diseño
             </button>

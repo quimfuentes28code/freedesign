@@ -45,6 +45,8 @@ export interface Design {
   sleeveLength: number
   /** Ancho del cuerpo respecto al que toca por el corte (1 = el del corte), desde las medidas del Diseñador. */
   chestScale?: number
+  /** Pantalón: parte de la pierna que cubre, de la entrepierna (0) al tobillo (1). Para los cortos. */
+  legLength?: number
   /**
    * Color y material de cada zona (desde el Diseñador). Las que falten usan `color` y `fabric`
    * (y las de canalé, canalé del mismo color).

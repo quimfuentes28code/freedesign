@@ -11,11 +11,11 @@ Se marca cada fase al terminarla.
 - [x] Capas que se ocultan y se bloquean
 - [x] Guías, alinear y ajustar a la cuadrícula
 
-## 2. Plantillas y cuellos
+## 2. Plantillas y cuellos ✓
 
-- [ ] Prendas nuevas: polo, camisa de manga corta y larga, pantalón ancho, pantalón corto, chaqueta puffer; mejorar la bomber
-- [ ] Cuellos intercambiables: redondo, pico, polo, camisero, mao, alto o cisne, solapa de chaqueta y capucha
-- [ ] Plantillas propias: guardar un diseño como base de la marca
+- [x] Prendas nuevas: polo, camisa de manga corta y larga, pantalón ancho, pantalón corto, chaqueta puffer; mejorar la bomber
+- [x] Cuellos intercambiables: redondo, pico, polo, camisero, mao, alto o cisne, solapa de chaqueta y capucha
+- [x] Plantillas propias: guardar un diseño como base de la marca
 
 ## 3. Detalles
 

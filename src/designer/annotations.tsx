@@ -4,7 +4,7 @@ import type { Callout } from '../shared/designs'
 import type { Box, FlatContext } from './FlatView'
 import { CX } from './geometry'
 import { measureText, UNITS_PER_CM } from './prints'
-import type { GarmentTemplate, Options, View } from './types'
+import { isPants, type GarmentTemplate, type Options, type View } from './types'
 
 /**
  * Anotaciones del dibujo técnico, dibujadas encima del plano: cotas con la letra de cada punto de medida
@@ -33,7 +33,7 @@ interface DimLine {
 /** Qué cotas se dibujan y dónde, según las piezas de la vista delantera. */
 function dimLines(t: GarmentTemplate, pieces: Record<string, Box>): DimLine[] {
   const bottom = (...b: (Box | undefined)[]) => Math.max(...b.filter(Boolean).map((x) => x!.y + x!.h))
-  if (t.id === 'pantalon') {
+  if (isPants(t)) {
     const legs = pieces.perneras
     const band = pieces.cinturilla
     if (!legs || !band) return []

@@ -3,11 +3,19 @@ import { mirrorPath } from './top'
 import { NO_SCALE, type DrawScale } from './measures'
 import type { Shape, View } from './types'
 
-/** Pantalón jogger / cargo. */
+/** Pantalones: jogger, cargo, de vestir ancho y cortos. */
 export interface PantsCfg {
   fit: 'slim' | 'regular' | 'ancho' | 'baggy'
-  length: 'tobillero' | 'largo'
-  hem: 'puno' | 'recto'
+  /** Largo: hasta el tobillo o el suelo, o corto (por encima de la rodilla) o bermuda (a la rodilla). */
+  length: 'tobillero' | 'largo' | 'corto' | 'bermuda'
+  /** Bajo con puño de canalé, recto, o vuelto (dobladillo hacia fuera). */
+  hem: 'puno' | 'recto' | 'vuelto'
+  /** Cinturilla elástica (de canalé) o de pantalón de vestir, con trabillas y botón. */
+  waist?: 'elastica' | 'trabillas'
+  /** Pinzas en el delantero. */
+  pleats?: boolean
+  /** Pierna recta y ancha (wide leg): casi igual de ancha en la rodilla y el bajo que en la cadera. */
+  wide?: boolean
   sidePockets: boolean
   cargo: boolean
   backPockets: boolean
@@ -23,7 +31,11 @@ export const PANTS_PIECES = {
   pockets: 'bolsillos',
   cuffs: 'punos',
   cord: 'cordon',
+  buttons: 'botones',
 } as const
+
+/** Altura del bajo según el largo (unidades del lienzo). */
+const HEM_Y = { largo: 462, tobillero: 440, bermuda: 304, corto: 254 }
 
 const FIT = {
   slim: { hip: 82, knee: 34, hem: 26 },
@@ -41,14 +53,20 @@ const KNEE_Y = 310
 function frame(c: PantsCfg) {
   const k = c.scale ?? NO_SCALE
   const base = FIT[c.fit]
-  const F = { hip: base.hip * k.hip, knee: base.knee * k.knee, hem: base.hem * k.hem }
+  const short = c.length === 'corto' || c.length === 'bermuda'
+  // En los cortos la pernera apenas se estrecha: la «rodilla» es la mitad del muslo y el bajo es casi tan ancho
+  const F = short
+    ? { hip: base.hip * k.hip, knee: base.knee * 1.25 * k.knee, hem: base.knee * 1.18 * k.hem }
+    : c.wide
+      ? { hip: base.hip * k.hip, knee: base.hip * 0.74 * k.knee, hem: base.hip * 0.8 * k.hem }
+      : { hip: base.hip * k.hip, knee: base.knee * k.knee, hem: base.hem * k.hem }
   const jogger = c.hem === 'puno'
   // El puño recoge el bajo: la pernera se estrecha más
-  const hemW = jogger ? Math.min(F.hem, base.knee * 0.72 * k.hem) : F.hem
-  const hemY = TOP + ((c.length === 'largo' ? 462 : 440) - TOP) * k.length
-  const kneeY = TOP + (KNEE_Y - TOP) * k.length
-  const cuffH = jogger ? 22 : 0
+  const hemW = jogger ? Math.min(F.hem, base.knee * (short ? 1 : 0.72) * k.hem) : F.hem
+  const hemY = TOP + (HEM_Y[c.length] - TOP) * k.length
+  const cuffH = jogger ? (short ? 16 : 22) : c.hem === 'vuelto' ? 16 : 0
   const hemTop = hemY - cuffH
+  const kneeY = short ? CROTCH_Y + (hemTop - CROTCH_Y) * 0.5 : TOP + (KNEE_Y - TOP) * k.length
   const kneeC = CX + F.hip * 0.5
   const hemC = CX + F.hip * 0.52
   const outerAt = (y: number) => {
@@ -84,7 +102,13 @@ export function drawPants(view: View, c: PantsCfg): Shape[] {
 
   // Puño o bajo recto
   pair(
-    f.cuffH
+    c.hem === 'vuelto'
+      ? [
+          // Bajo vuelto: la misma tela doblada hacia fuera
+          { kind: 'fill', piece: P.legs, d: quad([f.hemC - f.hemW / 2 - 1, f.hemTop], [f.hemC + f.hemW / 2 + 1, f.hemTop], [f.hemC + f.hemW / 2 + 1, f.hemY], [f.hemC - f.hemW / 2 - 1, f.hemY]) },
+          { kind: 'line', piece: P.legs, d: line([f.hemC - f.hemW / 2, f.hemTop + 2], [f.hemC + f.hemW / 2, f.hemTop + 2]) },
+        ]
+      : f.cuffH
       ? [
           {
             kind: 'fill',
@@ -104,6 +128,15 @@ export function drawPants(view: View, c: PantsCfg): Shape[] {
     // Bragueta falsa (pespunte en J)
     for (const o of offs) out.push({ kind: 'stitch', piece: P.legs, d: `${line([CX + 10 + o, TOP + 2], [CX + 10 + o, 138])} ${curve([CX + 10 + o, 138], [CX + 10 + o, 156], [CX + 2, 160])}` })
     out.push({ kind: 'line', piece: P.legs, d: line([CX, TOP], [CX, 160]) })
+    // Pinzas: dos pliegues cortos bajo la cinturilla en cada pernera
+    if (c.pleats) {
+      pair([
+        { kind: 'line', piece: P.legs, d: line([CX + f.F.hip * 0.42, TOP], [CX + f.F.hip * 0.44, TOP + 46]) },
+        { kind: 'line', piece: P.legs, d: line([CX + f.F.hip * 0.58, TOP], [CX + f.F.hip * 0.59, TOP + 30]) },
+      ])
+    }
+    // Raya planchada en los pantalones de vestir
+    if (c.waist === 'trabillas' && c.length !== 'corto') pair([{ kind: 'line', piece: P.legs, d: line([CX + f.F.hip * 0.44, TOP + 50], [f.hemC, f.hemTop - 2]) }])
     // Bolsillos laterales: abertura inclinada
     if (c.sidePockets) {
       pair([
@@ -126,8 +159,9 @@ export function drawPants(view: View, c: PantsCfg): Shape[] {
 
   // Bolsillos cargo en el lateral del muslo
   if (c.cargo) {
-    const y0 = 226
-    const y1 = 296
+    // En los cortos el bolsillo sube para caber por encima del bajo
+    const y0 = Math.min(226, f.hemTop - 78)
+    const y1 = y0 + 70
     const x1 = f.outerAt(y0) - 3
     const x2 = f.outerAt(y1) - 3
     const w = 42
@@ -146,7 +180,27 @@ export function drawPants(view: View, c: PantsCfg): Shape[] {
 
 function waistband(c: PantsCfg, offs: number[], front: boolean): Shape[] {
   const P = PANTS_PIECES
-  const hip = FIT[c.fit].hip
+  const hip = FIT[c.fit].hip * (c.scale?.hip ?? 1)
+  if (c.waist === 'trabillas') {
+    // Cinturilla de pantalón de vestir: tira plana con trabillas y botón
+    const out: Shape[] = [
+      { kind: 'fill', piece: P.waistband, d: rect(CX - hip + 2, WAIST_Y + 6, (hip - 2) * 2, WB_H - 6, 2) },
+      ...offs.map((o): Shape => ({ kind: 'stitch', piece: P.waistband, d: line([CX - hip + 4, TOP - o + 1], [CX + hip - 4, TOP - o + 1]) })),
+      ...offs.map((o): Shape => ({ kind: 'stitch', piece: P.waistband, d: line([CX - hip + 4, WAIST_Y + 6 + o], [CX + hip - 4, WAIST_Y + 6 + o]) })),
+    ]
+    const loops = front ? [0.36, 0.86] : [0, 0.5, 0.9]
+    for (const t of loops) {
+      for (const s of t === 0 ? [1] : [1, -1]) {
+        const x = CX + s * hip * t
+        out.push({ kind: 'fill', piece: P.waistband, d: rect(x - 3, WAIST_Y + 3, 6, WB_H, 1.5) })
+      }
+    }
+    if (front) {
+      out.push({ kind: 'line', piece: P.waistband, d: line([CX, WAIST_Y + 6], [CX, TOP]) })
+      out.push({ kind: 'hardware', piece: P.buttons, d: rect(CX - 10, WAIST_Y + 12, 7, 7, 3.5) })
+    }
+    return out
+  }
   const out: Shape[] = [
     { kind: 'fill', piece: P.waistband, d: rect(CX - hip + 2, WAIST_Y, (hip - 2) * 2, WB_H, 2) },
     { kind: 'rib', piece: P.waistband, d: ribLines([CX - hip + 2, WAIST_Y], [CX + hip - 2, WAIST_Y], [CX - hip + 2, TOP], [CX + hip - 2, TOP], 5) },
@@ -197,12 +251,12 @@ function drawSide(c: PantsCfg, f: ReturnType<typeof frame>): Shape[] {
   if (f.cuffH) {
     const a: Pt = [backHem, f.hemTop]
     const b: Pt = [frontHem, f.hemTop]
-    out.push({ kind: 'fill', piece: P.cuffs, d: quad(a, b, [frontHem - 3, f.hemY], [backHem + 3, f.hemY]) })
-    out.push({ kind: 'rib', piece: P.cuffs, d: ribLines(a, b, [backHem + 3, f.hemY], [frontHem - 3, f.hemY]) })
+    out.push({ kind: 'fill', piece: c.hem === 'vuelto' ? P.legs : P.cuffs, d: quad(a, b, [frontHem - 3, f.hemY], [backHem + 3, f.hemY]) })
+    if (c.hem !== 'vuelto') out.push({ kind: 'rib', piece: P.cuffs, d: ribLines(a, b, [backHem + 3, f.hemY], [frontHem - 3, f.hemY]) })
   } else {
     for (const o of offs) out.push({ kind: 'stitch', piece: P.legs, d: line([backHem + 2, f.hemTop - o - 2], [frontHem - 2, f.hemTop - o - 2]) })
   }
   out.push({ kind: 'fill', piece: P.waistband, d: rect(CX - depth - 2, WAIST_Y, depth * 2 + 4, WB_H, 2) })
-  out.push({ kind: 'rib', piece: P.waistband, d: ribLines([CX - depth - 2, WAIST_Y], [CX + depth + 2, WAIST_Y], [CX - depth - 2, TOP], [CX + depth + 2, TOP], 5) })
+  if (c.waist !== 'trabillas') out.push({ kind: 'rib', piece: P.waistband, d: ribLines([CX - depth - 2, WAIST_Y], [CX + depth + 2, WAIST_Y], [CX - depth - 2, TOP], [CX + depth + 2, TOP], 5) })
   return out
 }

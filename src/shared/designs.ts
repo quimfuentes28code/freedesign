@@ -115,6 +115,8 @@ export interface DesignData {
   drawings?: Drawing[]
   /** Bocetos para calcar (como mucho uno por vista). */
   tracings?: Tracing[]
+  /** Plantilla de la marca: aparece al crear un diseño nuevo, como punto de partida. */
+  brandTemplate?: boolean
   notes: string
 }
 
