@@ -2,7 +2,9 @@ import type { DesignData } from '../shared/designs'
 import type { Material } from '../shared/library'
 import type { Design, Fit, GarmentSlot, GarmentType, Measurements, SlotStyle } from '../types'
 import type { Measurements as ClientMeasurements } from '../shared/clients'
+import type { Body } from '../production/measurements'
 import { resolveMaterial } from './materials'
+import { drawScale } from './measures'
 import { opt, type GarmentTemplate } from './types'
 
 /**
@@ -50,7 +52,9 @@ const SLOT_OF: Record<string, GarmentSlot> = {
   fornituras: 'ojales',
 }
 
-export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<string, Material>): Design {
+export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<string, Material>, body?: Body): Design {
+  // Medidas propias del diseño: estiran largo, mangas y ancho igual que en el dibujo
+  const s = drawScale(t, data, body)
   const active = t.activePieces(data.options)
   const pieces: Partial<Record<GarmentSlot, SlotStyle>> = {}
   for (const p of t.pieces) {
@@ -75,8 +79,9 @@ export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<s
     hood,
     pocket: t.id === 'sudadera' && opt(t, data.options, 'bolsillo') === 'canguro',
     cords: hood && opt<boolean>(t, data.options, 'cordones'),
-    bodyLength: BODY_LENGTH[String(opt(t, data.options, 'largo'))] ?? 70,
-    sleeveLength: 64,
+    bodyLength: (BODY_LENGTH[String(opt(t, data.options, 'largo'))] ?? 70) * s.length,
+    sleeveLength: 64 * s.sleeve,
+    chestScale: t.id === 'pantalon' ? s.hip : s.width,
     pieces,
   }
 }

@@ -1,5 +1,5 @@
 import { TECHNIQUES, type Technique } from '../src/shared/artworks'
-import type { Callout, Colorway, Design, DesignData, DesignInput, Print } from '../src/shared/designs'
+import type { Callout, Colorway, Design, DesignData, DesignInput, Drawing, Print, Tracing } from '../src/shared/designs'
 import { isFileKey } from './files'
 import { HttpError, json, noContent, now, ownedRef, readBody, required, text, type Env } from './http'
 
@@ -102,6 +102,14 @@ async function readDesign(request: Request, env: Env, uid: string): Promise<Desi
     : []
   const activeColorway = text(data.activeColorway)
   const callouts = Array.isArray(data.callouts) ? data.callouts.slice(0, 60).map(readCallout).filter((c): c is Callout => !!c) : []
+  const drawings = Array.isArray(data.drawings) ? data.drawings.slice(0, 300).map(readDrawing).filter((d): d is Drawing => !!d) : []
+  const tracings = Array.isArray(data.tracings) ? data.tracings.slice(0, 3).map(readTracing).filter((d): d is Tracing => !!d) : []
+  const measures: Record<string, number> = {}
+  if (data.measures && typeof data.measures === 'object') {
+    for (const [k, v] of Object.entries(data.measures).slice(0, 40)) {
+      if (typeof v === 'number' && Number.isFinite(v) && v > 0 && v < 400) measures[k.slice(0, 40)] = Math.round(v * 10) / 10
+    }
+  }
   return {
     name: required(b.name, 'El nombre'),
     template: required(b.template, 'La prenda base'),
@@ -114,6 +122,9 @@ async function readDesign(request: Request, env: Env, uid: string): Promise<Desi
       notes: text(data.notes),
       ...(colorways.length ? { colorways, activeColorway: colorways.some((c) => c.id === activeColorway) ? activeColorway : colorways[0].id } : {}),
       ...(callouts.length ? { callouts } : {}),
+      ...(Object.keys(measures).length ? { measures } : {}),
+      ...(drawings.length ? { drawings } : {}),
+      ...(tracings.length ? { tracings } : {}),
     },
   }
 }
@@ -135,6 +146,48 @@ function readPieces(raw: unknown): DesignData['pieces'] {
   return pieces
 }
 
+const finite = (v: unknown, def: number) => (typeof v === 'number' && Number.isFinite(v) ? v : def)
+const viewOf = (v: unknown) => (VIEWS.includes(v as (typeof VIEWS)[number]) ? (v as (typeof VIEWS)[number]) : 'front')
+
+function readDrawing(raw: unknown): Drawing | null {
+  if (!raw || typeof raw !== 'object') return null
+  const d = raw as Record<string, unknown>
+  const kinds = ['free', 'line', 'rect', 'ellipse'] as const
+  const points = Array.isArray(d.points) ? d.points.slice(0, 4000).map((n) => Math.round(finite(n, 0) * 10) / 10) : []
+  if (points.length < 4 || points.length % 2) return null
+  const color = text(d.color)
+  return {
+    id: text(d.id) || crypto.randomUUID(),
+    view: viewOf(d.view),
+    kind: kinds.includes(d.kind as (typeof kinds)[number]) ? (d.kind as Drawing['kind']) : 'free',
+    points,
+    color: /^#[0-9a-f]{6}$/i.test(color) ? color : '#1d1c1a',
+    width: Math.min(12, Math.max(0.3, finite(d.width, 1.2))),
+    dash: d.dash === true,
+    ...(d.hidden === true ? { hidden: true } : {}),
+    ...(d.locked === true ? { locked: true } : {}),
+  }
+}
+
+function readTracing(raw: unknown): Tracing | null {
+  if (!raw || typeof raw !== 'object') return null
+  const t = raw as Record<string, unknown>
+  const file = text(t.file)
+  if (!isFileKey(file)) return null
+  return {
+    id: text(t.id) || crypto.randomUUID(),
+    view: viewOf(t.view),
+    file,
+    aspect: Math.max(0.05, finite(t.aspect, 1)),
+    x: finite(t.x, 200),
+    y: finite(t.y, 240),
+    w: Math.max(10, finite(t.w, 300)),
+    opacity: Math.min(1, Math.max(0.05, finite(t.opacity, 0.5))),
+    ...(t.hidden === true ? { hidden: true } : {}),
+    ...(t.locked === true ? { locked: true } : {}),
+  }
+}
+
 function readCallout(raw: unknown): Callout | null {
   if (!raw || typeof raw !== 'object') return null
   const c = raw as Record<string, unknown>
@@ -149,6 +202,7 @@ function readCallout(raw: unknown): Callout | null {
     lx,
     ly,
     text: text(c.text).slice(0, 200),
+    ...(c.hidden === true ? { hidden: true } : {}),
   }
 }
 
@@ -181,5 +235,7 @@ function readPrint(raw: unknown): Print | null {
     rotation: n(p.rotation, 0),
     technique: TECHNIQUES.some((t) => t.id === p.technique) ? (p.technique as Technique) : 'serigrafia',
     clip: p.clip !== false,
+    ...(p.hidden === true ? { hidden: true } : {}),
+    ...(p.locked === true ? { locked: true } : {}),
   }
 }

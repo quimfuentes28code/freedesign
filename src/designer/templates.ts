@@ -142,7 +142,7 @@ const sudadera: GarmentTemplate = {
       ...(opt(sudadera, o, 'cremallera') !== 'ninguna' ? [T.hardware] : []),
     ]
   },
-  draw: (view, o) => {
+  draw: (view, o, s) => {
     const rib = opt(sudadera, o, 'punos') === 'canale' ? 'canale' : 'recto'
     const cfg: TopCfg = {
       fit: opt(sudadera, o, 'corte'),
@@ -156,6 +156,7 @@ const sudadera: GarmentTemplate = {
       cords: opt<boolean>(sudadera, o, 'cordones'),
       sleevePocket: false,
       stitch: opt(sudadera, o, 'costuras'),
+      scale: s,
     }
     return drawTop(view, cfg)
   },
@@ -213,7 +214,7 @@ const camiseta: GarmentTemplate = {
     stitchOption,
   ],
   activePieces: (o) => [T.body, T.sleeves, T.collar, ...(opt<boolean>(camiseta, o, 'bolsillo') ? [T.pocket] : [])],
-  draw: (view, o) =>
+  draw: (view, o, s) =>
     drawTop(view, {
       fit: opt(camiseta, o, 'corte'),
       length: opt(camiseta, o, 'largo'),
@@ -226,6 +227,7 @@ const camiseta: GarmentTemplate = {
       cords: false,
       sleevePocket: false,
       stitch: opt(camiseta, o, 'costuras'),
+      scale: s,
     }),
 }
 
@@ -293,7 +295,7 @@ const pantalon: GarmentTemplate = {
       ...(opt<boolean>(pantalon, o, 'cordon') ? [p.cord] : []),
     ]
   },
-  draw: (view, o) => {
+  draw: (view, o, s) => {
     const cfg: PantsCfg = {
       fit: opt(pantalon, o, 'corte'),
       length: opt(pantalon, o, 'largo'),
@@ -303,6 +305,7 @@ const pantalon: GarmentTemplate = {
       backPockets: opt(pantalon, o, 'traseros'),
       cord: opt(pantalon, o, 'cordon'),
       stitch: opt(pantalon, o, 'costuras'),
+      scale: s,
     }
     return drawPants(view, cfg)
   },
@@ -370,7 +373,7 @@ const bomber: GarmentTemplate = {
     ...(opt(bomber, o, 'bolsillos') !== 'ninguno' || opt<boolean>(bomber, o, 'bolsilloManga') ? [T.pocket] : []),
     T.hardware,
   ],
-  draw: (view, o) =>
+  draw: (view, o, s) =>
     drawTop(view, {
       fit: opt(bomber, o, 'corte'),
       length: opt(bomber, o, 'largo'),
@@ -383,6 +386,7 @@ const bomber: GarmentTemplate = {
       cords: false,
       sleevePocket: opt(bomber, o, 'bolsilloManga'),
       stitch: opt(bomber, o, 'costuras'),
+      scale: s,
       ribScale: 1.35,
     }),
 }

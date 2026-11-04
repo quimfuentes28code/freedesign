@@ -1,5 +1,6 @@
 import { CX, curve, lerp, line, mirrorSegs, path, quad, rect, ribLines, type Pt, type Seg } from './geometry'
 import { mirrorPath } from './top'
+import { NO_SCALE, type DrawScale } from './measures'
 import type { Shape, View } from './types'
 
 /** Pantalón jogger / cargo. */
@@ -12,6 +13,8 @@ export interface PantsCfg {
   backPockets: boolean
   cord: boolean
   stitch: 'simple' | 'doble'
+  /** Medidas propias del diseño (ver measures.ts). */
+  scale?: DrawScale
 }
 
 export const PANTS_PIECES = {
@@ -36,20 +39,23 @@ const CROTCH_Y = 186
 const KNEE_Y = 310
 
 function frame(c: PantsCfg) {
-  const F = FIT[c.fit]
+  const k = c.scale ?? NO_SCALE
+  const base = FIT[c.fit]
+  const F = { hip: base.hip * k.hip, knee: base.knee * k.knee, hem: base.hem * k.hem }
   const jogger = c.hem === 'puno'
   // El puño recoge el bajo: la pernera se estrecha más
-  const hemW = jogger ? Math.min(F.hem, F.knee * 0.72) : F.hem
-  const hemY = c.length === 'largo' ? 462 : 440
+  const hemW = jogger ? Math.min(F.hem, base.knee * 0.72 * k.hem) : F.hem
+  const hemY = TOP + ((c.length === 'largo' ? 462 : 440) - TOP) * k.length
+  const kneeY = TOP + (KNEE_Y - TOP) * k.length
   const cuffH = jogger ? 22 : 0
   const hemTop = hemY - cuffH
   const kneeC = CX + F.hip * 0.5
   const hemC = CX + F.hip * 0.52
   const outerAt = (y: number) => {
-    if (y <= KNEE_Y) return CX + F.hip + ((kneeC + F.knee / 2 - (CX + F.hip)) * (y - TOP)) / (KNEE_Y - TOP)
-    return kneeC + F.knee / 2 + ((hemC + hemW / 2 - (kneeC + F.knee / 2)) * (y - KNEE_Y)) / (hemTop - KNEE_Y)
+    if (y <= kneeY) return CX + F.hip + ((kneeC + F.knee / 2 - (CX + F.hip)) * (y - TOP)) / (kneeY - TOP)
+    return kneeC + F.knee / 2 + ((hemC + hemW / 2 - (kneeC + F.knee / 2)) * (y - kneeY)) / (hemTop - kneeY)
   }
-  return { F, hemW, hemY, cuffH, hemTop, kneeC, hemC, outerAt }
+  return { F, hemW, hemY, cuffH, hemTop, kneeC, hemC, outerAt, kneeY }
 }
 
 export function drawPants(view: View, c: PantsCfg): Shape[] {
@@ -66,10 +72,10 @@ export function drawPants(view: View, c: PantsCfg): Shape[] {
     [CX + 1, TOP],
     [
       { to: [CX + f.F.hip, TOP] },
-      { to: [f.kneeC + f.F.knee / 2, KNEE_Y], c: [CX + f.F.hip + 4, 170] },
+      { to: [f.kneeC + f.F.knee / 2, f.kneeY], c: [CX + f.F.hip + 4, 170] },
       { to: [f.hemC + f.hemW / 2, f.hemTop] },
       { to: [f.hemC - f.hemW / 2, f.hemTop] },
-      { to: [f.kneeC - f.F.knee / 2, KNEE_Y] },
+      { to: [f.kneeC - f.F.knee / 2, f.kneeY] },
       { to: [CX + 3, CROTCH_Y], c: [CX + 8, 230] },
       { to: [CX + 1, TOP], c: [CX + 2, 120] },
     ],
@@ -168,22 +174,22 @@ function drawSide(c: PantsCfg, f: ReturnType<typeof frame>): Shape[] {
     kind: 'fill',
     piece: P.legs,
     d: path([CX + depth, TOP], [
-      { to: [CX + f.F.knee * 0.55, KNEE_Y], c: [CX + depth + 6, 200] },
+      { to: [CX + f.F.knee * 0.55, f.kneeY], c: [CX + depth + 6, 200] },
       { to: [frontHem, f.hemTop] },
       { to: [backHem, f.hemTop] },
-      { to: [CX - f.F.knee * 0.5, KNEE_Y] },
+      { to: [CX - f.F.knee * 0.5, f.kneeY] },
       { to: [CX - depth - 4, 150], c: [CX - f.F.knee * 0.6, 220] },
       { to: [CX - depth, TOP], c: [CX - depth - 8, 100] },
     ]),
   })
   // Costura lateral
   const seamTop: Pt = [CX, TOP]
-  const seamKnee: Pt = [CX + f.F.knee * 0.03, KNEE_Y]
+  const seamKnee: Pt = [CX + f.F.knee * 0.03, f.kneeY]
   const seamHem: Pt = [(frontHem + backHem) / 2, f.hemTop]
   out.push({ kind: 'line', piece: P.legs, d: `${line(seamTop, seamKnee)} ${line(seamKnee, seamHem)}` })
   if (c.sidePockets) out.push({ kind: 'line', piece: P.legs, d: curve([CX + depth - 14, TOP], [CX + depth - 6, 110], [CX + 2, 132]) })
   if (c.cargo) {
-    const top: Pt = lerp(seamTop, seamKnee, (226 - TOP) / (KNEE_Y - TOP))
+    const top: Pt = lerp(seamTop, seamKnee, (226 - TOP) / (f.kneeY - TOP))
     out.push({ kind: 'fill', piece: P.pockets, d: rect(top[0] - 24, 230, 48, 66, 3) })
     out.push({ kind: 'fill', piece: P.pockets, d: rect(top[0] - 26, 224, 52, 20, 3) })
     for (const o of offs) out.push({ kind: 'stitch', piece: P.pockets, d: line([top[0] - 22, 244 - o], [top[0] + 22, 244 - o]) })

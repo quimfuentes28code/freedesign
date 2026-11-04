@@ -4,9 +4,11 @@ import { api } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { Status } from '../../components/ui'
 import { Callouts, Dimensions } from '../../designer/annotations'
+import { DrawingsView } from '../../designer/drawings'
 import { colorLabel } from '../../designer/colors'
 import { activeColorwayId, colorwaysOf, withColorway } from '../../designer/colorways'
 import { FlatView } from '../../designer/FlatView'
+import { measureDeltas } from '../../designer/measures'
 import { CX } from '../../designer/geometry'
 import { resolveMaterial } from '../../designer/materials'
 import { printSize, UNITS_PER_CM } from '../../designer/prints'
@@ -247,12 +249,17 @@ function Document(props: {
   const { loaded, design, template, pack, update, version, brand } = props
   const { project, client, materials, artworks } = loaded
   const options = design.data.options
-  const prints = design.data.prints ?? []
+  const prints = (design.data.prints ?? []).filter((p) => !p.hidden)
   const sheets = 4
   const custom = pack.mode === 'cliente' && client
   const body = custom ? clientBody(client.measurements).body : standardBody(pack.baseSize)
   const bodyLabel = custom ? `la medida de ${client.name}` : `la talla ${pack.baseSize}`
   const colorways = colorwaysOf(design.data)
+  // Cotas del dibujo: las de la tabla (talla de muestra o cliente) con las medidas cambiadas en el diseño
+  const deltas = measureDeltas(template, design.data, designBody(client))
+  const dimMeasures = Object.fromEntries(
+    garmentPoms(template, options).map((p) => [p.id, pack.overrides[custom ? 'cliente' : pack.baseSize]?.[p.id] ?? Math.round((p.value(body) + (deltas[p.id] ?? 0)) * 2) / 2]),
+  )
   const head = (title: string, page: number) => (
     <SheetHeader brand={brand} project={project} design={design} template={template} title={title} page={page} pages={sheets} version={version} />
   )
@@ -271,10 +278,12 @@ function Document(props: {
                 view={v.id}
                 materials={materials}
                 frame="comun"
+                body={designBody(client)}
                 overlay={(ctx) => (
                   <>
-                    {v.id === 'front' && <Dimensions ctx={ctx} template={template} options={options} body={body} />}
-                    <Callouts ctx={ctx} callouts={design.data.callouts ?? []} view={v.id} />
+                    {v.id === 'front' && <Dimensions ctx={ctx} template={template} options={options} body={body} measures={dimMeasures} />}
+                    <DrawingsView drawings={design.data.drawings ?? []} view={v.id} />
+                    <Callouts ctx={ctx} callouts={(design.data.callouts ?? []).filter((c) => !c.hidden)} view={v.id} />
                   </>
                 )}
               />
@@ -603,6 +612,9 @@ function MeasureTable(props: { template: GarmentTemplate; design: Design; client
   const columns: SpecColumn[] = custom ? ['cliente'] : pack.sizes
   const bodyOf = (c: SpecColumn) => (c === 'cliente' && fromClient ? fromClient.body : standardBody(c === 'cliente' ? 'M' : c))
   const missing = custom && fromClient ? fromClient.missing.filter((k) => poms.some((p) => p.uses.includes(k))) : []
+  // Medidas cambiadas en el Diseñador: la diferencia se suma a todas las columnas (se mantiene el escalado de tallas)
+  const deltas = measureDeltas(template, design.data, designBody(client))
+  const designed = Object.keys(deltas).length > 0
 
   const set = (col: SpecColumn, pom: string, raw: string, computed: number) => {
     const row = { ...(pack.overrides[col] ?? {}) }
@@ -616,7 +628,7 @@ function MeasureTable(props: { template: GarmentTemplate; design: Design; client
     <>
       <p className="muted small">
         Medidas de la prenda acabada, en cm, tomadas en plano. {custom ? `A medida de ${client.name}` : 'Tallaje estándar unisex'}; holgura según el corte
-        elegido. Las celdas en negrita se han retocado a mano.
+        elegido{designed ? ', con las medidas cambiadas en el diseño' : ''}. Las celdas en negrita se han retocado a mano.
       </p>
       {missing.length > 0 && (
         <p className="status error small no-print">
@@ -645,7 +657,7 @@ function MeasureTable(props: { template: GarmentTemplate; design: Design; client
               <td>{p.label}</td>
               <td className="muted small">{p.how}</td>
               {columns.map((c) => {
-                const computed = p.value(bodyOf(c))
+                const computed = Math.round((p.value(bodyOf(c)) + (deltas[p.id] ?? 0)) * 2) / 2
                 const override = pack.overrides[c]?.[p.id]
                 const value = override ?? computed
                 return (
@@ -773,6 +785,11 @@ function Editable({ value, onChange, multiline, placeholder }: { value: string; 
       <span className="print-only pre">{value || '—'}</span>
     </>
   )
+}
+
+/** Cuerpo con el que se diseñó (el del cliente si tiene medidas, si no la talla M), como en el Diseñador. */
+function designBody(client: Client | null) {
+  return client && Object.keys(client.measurements).length ? clientBody(client.measurements).body : standardBody('M')
 }
 
 /** Texto de etiquetas por defecto, con la composición del material del cuerpo. */

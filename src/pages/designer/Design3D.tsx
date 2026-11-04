@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { printLayer } from '../../designer/printLayers'
+import { clientBody } from '../../production/measurements'
 import { designTo3D, mannequinMeasurements } from '../../designer/to3d'
 import type { Design } from '../../types'
 import type { GarmentTemplate } from '../../designer/types'
@@ -22,10 +23,11 @@ export function Design3D({ template, data, materials, client }: Props) {
   const [hoodUp, setHoodUp] = useState(true)
   // Estampados: se pintan en una imagen por lado cada vez que cambian (o cambia la forma de la prenda)
   const [layers, setLayers] = useState<Design['prints']>()
-  const printKey = JSON.stringify([data.prints ?? [], data.options, template.id])
+  const body = useMemo(() => (client && Object.keys(client.measurements).length ? clientBody(client.measurements).body : undefined), [client])
+  const printKey = JSON.stringify([data.prints ?? [], data.options, data.measures ?? {}, template.id, !!body])
   useEffect(() => {
     let alive = true
-    Promise.all([printLayer(template, data, 'front'), printLayer(template, data, 'back')]).then(([front, back]) => {
+    Promise.all([printLayer(template, data, 'front', body), printLayer(template, data, 'back', body)]).then(([front, back]) => {
       if (alive) setLayers(front || back ? { front, back } : undefined)
     })
     return () => {
@@ -33,7 +35,7 @@ export function Design3D({ template, data, materials, client }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [printKey])
-  const design = useMemo(() => ({ ...designTo3D(template, data, materials), hoodUp, prints: layers }), [template, data, materials, hoodUp, layers])
+  const design = useMemo(() => ({ ...designTo3D(template, data, materials, body), hoodUp, prints: layers }), [template, data, materials, hoodUp, layers, body])
   const measurements = useMemo(() => mannequinMeasurements(client?.measurements), [client])
   const [autoRotate, setAutoRotate] = useState(false)
   const [animate, setAnimate] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches)

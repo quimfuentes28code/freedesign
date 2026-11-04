@@ -1,6 +1,8 @@
 import type { DesignData, Print } from '../shared/designs'
 import { fileUrl } from '../shared/library'
+import type { Body } from '../production/measurements'
 import { CX } from './geometry'
+import { drawScale } from './measures'
 import { printSize } from './prints'
 import type { GarmentTemplate, View } from './types'
 
@@ -22,12 +24,12 @@ export interface BodyFrame {
 const BODY_PIECES = (t: GarmentTemplate) => (t.id === 'pantalon' ? ['perneras', 'cinturilla'] : ['cuerpo'])
 
 /** Encuadre del cuerpo a partir de los puntos de sus trazados. */
-export function bodyFrame(t: GarmentTemplate, data: DesignData, view: View): BodyFrame | null {
+export function bodyFrame(t: GarmentTemplate, data: DesignData, view: View, body?: Body): BodyFrame | null {
   const pieces = BODY_PIECES(t)
   let half = 0
   let top = Infinity
   let bottom = -Infinity
-  for (const s of t.draw(view, data.options)) {
+  for (const s of t.draw(view, data.options, drawScale(t, data, body))) {
     if (s.kind !== 'fill' || !s.piece || !pieces.includes(s.piece)) continue
     const n = (s.d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number)
     for (let i = 0; i + 1 < n.length; i += 2) {
@@ -58,9 +60,9 @@ function loadImage(file: string) {
 const HEIGHT = 1024
 
 /** Imagen con los estampados de una vista, o null si esa vista no tiene. */
-export async function printLayer(t: GarmentTemplate, data: DesignData, view: View): Promise<HTMLCanvasElement | null> {
-  const prints = (data.prints ?? []).filter((p) => p.view === view)
-  const f = bodyFrame(t, data, view)
+export async function printLayer(t: GarmentTemplate, data: DesignData, view: View, body?: Body): Promise<HTMLCanvasElement | null> {
+  const prints = (data.prints ?? []).filter((p) => p.view === view && !p.hidden)
+  const f = bodyFrame(t, data, view, body)
   if (!prints.length || !f) return null
   const k = HEIGHT / (f.bottom - f.top)
   const canvas = document.createElement('canvas')

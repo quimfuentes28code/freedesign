@@ -1,4 +1,5 @@
 import type { MaterialCategory } from '../shared/library'
+import type { DrawScale } from './measures'
 
 export type View = 'front' | 'back' | 'side'
 
@@ -69,8 +70,8 @@ export interface GarmentTemplate {
   options: OptionDef[]
   /** Piezas que existen con estas opciones (p. ej. sin capucha no hay pieza «capucha»). */
   activePieces: (o: Options) => string[]
-  /** Dibujo técnico de una vista. */
-  draw: (view: View, o: Options) => Shape[]
+  /** Dibujo técnico de una vista (estirado según las medidas propias del diseño, si se pasan). */
+  draw: (view: View, o: Options, s?: DrawScale) => Shape[]
   /** Posiciones habituales de estampado en cada vista (centro y ancho, en unidades del lienzo). */
   printZones: Partial<Record<View, PrintZone[]>>
 }

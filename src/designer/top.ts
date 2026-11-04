@@ -18,6 +18,7 @@ import {
   type Pt,
   type Seg,
 } from './geometry'
+import { NO_SCALE, type DrawScale } from './measures'
 import type { Shape, View } from './types'
 
 /**
@@ -38,6 +39,8 @@ export interface TopCfg {
   stitch: 'simple' | 'doble'
   /** Escala de las bandas de canalé (la bomber las lleva más anchas). */
   ribScale?: number
+  /** Medidas propias del diseño (ver measures.ts). */
+  scale?: DrawScale
 }
 
 /** Ids de las piezas, para colores y materiales. */
@@ -63,22 +66,25 @@ const LENGTH = { crop: 160, normal: 214, largo: 256 }
 
 /** Medidas derivadas de las opciones, comunes a las tres vistas. */
 function frame(c: TopCfg) {
-  const F = FIT[c.fit]
+  const k = c.scale ?? NO_SCALE
+  const base = FIT[c.fit]
+  // Las medidas propias estiran el ancho (y con él los hombros), la sisa (ancho de manga) y el puño
+  const F = { ...base, half: base.half * k.width, drop: (58 + base.drop) * k.width - 58, arm: base.arm * k.sleeveWidth, cuffW: base.cuffW * k.cuff }
   const rib = c.ribScale ?? 1
   const nw = c.neck === 'bomber' ? 30 : 26
   const neckPt: Pt = [CX + nw, 100]
-  const S: Pt = [CX + 58 + F.drop, 110 + F.drop * 0.35]
+  const S: Pt = [CX + 58 + F.drop, 110 + base.drop * 0.35]
   const U: Pt = [CX + F.half, 106 + F.arm]
-  const hemY = 106 + LENGTH[c.length]
+  const hemY = 106 + LENGTH[c.length] * k.length
   const ribH = c.hem === 'canale' ? 16 * rib : 0
   const hemTop = hemY - ribH
   const long = c.sleeve === 'larga'
-  const sleeveLen = long ? 226 - F.drop * 0.7 : 64 + (c.fit === 'oversize' ? 20 : c.fit === 'boxy' ? 10 : 0)
+  const sleeveLen = (long ? 226 - base.drop * 0.7 : 64 + (c.fit === 'oversize' ? 20 : c.fit === 'boxy' ? 10 : 0)) * k.sleeve
   const a = ((long ? 14 : 32) * Math.PI) / 180
   const dir: Pt = [Math.sin(a), Math.cos(a)]
   const inward: Pt = [-Math.cos(a), Math.sin(a)]
   const cuffH = long && c.cuff === 'canale' ? 16 * rib : 0
-  const endW = long ? F.cuffW + (c.cuff === 'recto' ? 6 : 0) : len(sub(S, U)) * 0.82
+  const endW = long ? F.cuffW + (c.cuff === 'recto' ? 6 : 0) : len(sub(S, U)) * 0.82 * k.cuff
   return { F, rib, nw, neckPt, S, U, hemY, ribH, hemTop, long, sleeveLen, dir, inward, cuffH, endW }
 }
 

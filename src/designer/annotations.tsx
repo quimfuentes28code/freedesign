@@ -60,8 +60,9 @@ function dimLines(t: GarmentTemplate, pieces: Record<string, Box>): DimLine[] {
 }
 
 /** Cotas de la vista delantera con su letra y su medida (de la talla o del cliente que se pase). */
-export function Dimensions({ ctx, template, options, body }: { ctx: FlatContext; template: GarmentTemplate; options: Options; body: Body }) {
-  const poms = garmentPoms(template, options)
+export function Dimensions(props: { ctx: FlatContext; template: GarmentTemplate; options: Options; body: Body; measures?: Record<string, number> }) {
+  const { ctx, template, options, body, measures } = props
+  const poms = garmentPoms(template, options).map((p) => (measures?.[p.id] !== undefined ? { ...p, value: () => measures[p.id] } : p))
   const letters = pomLetters(template, options)
   return (
     <g pointerEvents="none" fontFamily={FONT}>

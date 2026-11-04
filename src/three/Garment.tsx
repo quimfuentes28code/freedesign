@@ -318,7 +318,7 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.hoodUp, design.pocket, design.cords, design.bodyLength, design.sleeveLength, fabric])
+  }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.hoodUp, design.pocket, design.cords, design.bodyLength, design.sleeveLength, design.chestScale, fabric])
   useEffect(() => () => patternGeom?.dispose(), [patternGeom])
 
   // Resto de prendas: tubos que envuelven el cuerpo (cálculo rápido, al momento)

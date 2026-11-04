@@ -1,9 +1,14 @@
-import { useRef, useState, type PointerEvent, type WheelEvent } from 'react'
+import { useEffect, useRef, useState, type PointerEvent, type WheelEvent } from 'react'
+import { api, imageSize } from '../../api/client'
 import { Callouts, CmGrid, Dimensions, newCallout, ScaleBar } from '../../designer/annotations'
+import { DrawingsLayer, TracingLayer, type Brush, type DrawTool } from '../../designer/drawings'
+import { CX } from '../../designer/geometry'
+import { UNITS_PER_CM } from '../../designer/prints'
 import { FlatView, type FlatContext } from '../../designer/FlatView'
+import { defaultMeasures } from '../../designer/measures'
 import { VIEWS, type GarmentTemplate, type View } from '../../designer/types'
 import { garmentPoms, type Body } from '../../production/measurements'
-import type { Callout, DesignData, Print } from '../../shared/designs'
+import type { Callout, DesignData, Drawing, Print, Tracing } from '../../shared/designs'
 import type { Material } from '../../shared/library'
 
 export type CanvasView = View | 'all'
@@ -14,7 +19,23 @@ export interface CanvasSettings {
   dims: boolean
   grid: boolean
   notes: boolean
+  /** Pincel de la herramienta de dibujo. */
+  brush: Brush
 }
+
+const WIDTHS = [
+  { v: 0.6, label: 'Fino' },
+  { v: 1.2, label: 'Medio' },
+  { v: 2.4, label: 'Grueso' },
+  { v: 4, label: 'Muy grueso' },
+]
+const TOOLS: { id: DrawTool | null; label: string; title: string }[] = [
+  { id: null, label: 'Seleccionar', title: 'Seleccionar y mover (Esc)' },
+  { id: 'free', label: 'Lápiz', title: 'Dibujo a mano alzada' },
+  { id: 'line', label: 'Línea', title: 'Línea recta' },
+  { id: 'rect', label: 'Rectángulo', title: 'Rectángulo' },
+  { id: 'ellipse', label: 'Elipse', title: 'Elipse o círculo' },
+]
 
 interface Props {
   template: GarmentTemplate
@@ -33,6 +54,10 @@ interface Props {
   selectedCallout: string | null
   onSelectCallout: (id: string | null) => void
   onCallouts: (c: Callout[]) => void
+  selectedDrawing: string | null
+  onSelectDrawing: (id: string | null) => void
+  onDrawings: (d: Drawing[]) => void
+  onTracings: (t: Tracing[]) => void
   /** Medidas del cuerpo para las cotas y de dónde salen (talla o cliente). */
   body: Body
   bodyLabel: string
@@ -48,9 +73,58 @@ export function Canvas(props: Props) {
   const { selectedPiece, onPickPiece, selectedPrint, onSelectPrint, onChangePrint, selectedCallout, onSelectCallout, onCallouts, body, bodyLabel } = props
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
+  const { selectedDrawing, onSelectDrawing, onDrawings, onTracings } = props
   const [adding, setAdding] = useState(false)
+  const [tool, setTool] = useState<DrawTool | null>(null)
+  const [adjusting, setAdjusting] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null)
-  const callouts = data.callouts ?? []
+  const allCallouts = data.callouts ?? []
+  const callouts = allCallouts.filter((c) => !c.hidden)
+  const drawings = data.drawings ?? []
+  const tracings = data.tracings ?? []
+  const current = view === 'all' ? null : view
+  const tracing = tracings.find((t) => t.view === current)
+  const selectedDraw = drawings.find((d) => d.id === selectedDrawing)
+  const centered = (data.prints ?? []).find((p) => p.id === selectedPrint && Math.abs(p.x - CX) < 0.01)
+
+  // Esc deja de dibujar (o de ajustar el calco)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setTool(null)
+      setAdding(false)
+      setAdjusting(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // El pincel se aplica al trazo seleccionado
+  const setBrush = (patch: Partial<Brush>) => {
+    onSettings({ ...settings, brush: { ...settings.brush, ...patch } })
+    if (selectedDraw) onDrawings(drawings.map((d) => (d.id === selectedDraw.id ? { ...d, ...patch } : d)))
+  }
+
+  const uploadTracing = async (file: File | undefined) => {
+    if (!file || !current) return
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const { width, height } = await imageSize(file)
+      const { key } = await api.uploadImage(file)
+      const t: Tracing = { id: crypto.randomUUID(), view: current, file: key, aspect: height / width, x: CX, y: 230, w: 300, opacity: 0.5 }
+      onTracings([...tracings.filter((x) => x.view !== current), t])
+      setAdjusting(true)
+    } catch (e) {
+      setUploadError((e as Error).message)
+    } finally {
+      setUploading(false)
+    }
+  }
+  const setTracing = (patch: Partial<Tracing>) => tracing && onTracings(tracings.map((t) => (t.id === tracing.id ? { ...t, ...patch } : t)))
 
   const setZoomClamped = (z: number) => {
     const next = Math.min(4, Math.max(1, z))
@@ -80,12 +154,33 @@ export function Canvas(props: Props) {
   }
   const toggle = (k: keyof Omit<CanvasSettings, 'mode'>) => onSettings({ ...settings, [k]: !settings[k] })
 
+  // Medidas de las cotas: las propias del diseño y, el resto, las que tocan (ajustadas a las propias)
+  const measures = { ...Object.fromEntries(defaultMeasures(template, data, body)), ...data.measures }
   const views = view === 'all' ? VIEWS.map((v) => v.id) : [view]
   const annotated = settings.dims || settings.notes
   const overlay = (v: View) => (ctx: FlatContext) => (
     <>
+      {tracings
+        .filter((t) => t.view === v)
+        .map((t) => (
+          <TracingLayer key={t.id} tracing={t} adjusting={adjusting && v === current} onChange={(next) => onTracings(tracings.map((x) => (x.id === t.id ? next : x)))} />
+        ))}
       {settings.grid && <CmGrid ctx={ctx} />}
-      {settings.dims && v === 'front' && <Dimensions ctx={ctx} template={template} options={data.options} body={body} />}
+      {centered && centered.view === v && (
+        <line x1={CX} x2={CX} y1={ctx.box.y} y2={ctx.box.y + ctx.box.h} stroke="#db2777" strokeWidth={0.6} strokeDasharray="3 2" pointerEvents="none" />
+      )}
+      <DrawingsLayer
+        ctx={ctx}
+        drawings={drawings}
+        view={v}
+        selected={selectedDrawing}
+        onSelect={onSelectDrawing}
+        tool={v === current || view === 'all' ? tool : null}
+        brush={settings.brush}
+        snap={settings.grid ? UNITS_PER_CM : null}
+        onAdd={(d) => onDrawings([...drawings, d])}
+      />
+      {settings.dims && v === 'front' && <Dimensions ctx={ctx} template={template} options={data.options} body={body} measures={measures} />}
       {settings.notes && (
         <Callouts
           ctx={ctx}
@@ -93,11 +188,11 @@ export function Canvas(props: Props) {
           view={v}
           selected={selectedCallout}
           onSelect={onSelectCallout}
-          onChange={(c) => onCallouts(callouts.map((x) => (x.id === c.id ? c : x)))}
+          onChange={(c) => onCallouts(allCallouts.map((x) => (x.id === c.id ? c : x)))}
           adding={adding}
           onAdd={(p) => {
             const c = newCallout(v, p)
-            onCallouts([...callouts, c])
+            onCallouts([...allCallouts, c])
             onSelectCallout(c.id)
             setAdding(false)
           }}
@@ -166,6 +261,75 @@ export function Canvas(props: Props) {
           </button>
         </div>
       </div>
+      <div className="canvas-subbar">
+        <div className="segmented" role="group" aria-label="Herramienta de dibujo">
+          {TOOLS.map((t) => (
+            <button
+              key={t.label}
+              className={tool === t.id ? 'active' : ''}
+              title={t.title}
+              onClick={() => {
+                setTool(t.id)
+                setAdding(false)
+                setAdjusting(false)
+                if (t.id) onSelectDrawing(null)
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <label className="brush-color" title="Color del trazo">
+          <input type="color" value={selectedDraw?.color ?? settings.brush.color} onChange={(e) => setBrush({ color: e.target.value })} />
+          <span style={{ background: selectedDraw?.color ?? settings.brush.color }} />
+        </label>
+        <select value={selectedDraw?.width ?? settings.brush.width} onChange={(e) => setBrush({ width: Number(e.target.value) })} aria-label="Grosor del trazo">
+          {WIDTHS.map((w) => (
+            <option key={w.v} value={w.v}>
+              {w.label}
+            </option>
+          ))}
+        </select>
+        <label className="toggle small-toggle" title="Trazo discontinuo, como un pespunte">
+          <input type="checkbox" checked={selectedDraw?.dash ?? settings.brush.dash} onChange={(e) => setBrush({ dash: e.target.checked })} />
+          Pespunte
+        </label>
+        {selectedDraw && (
+          <button className="tool" onClick={() => onDrawings(drawings.filter((d) => d.id !== selectedDraw.id))} title="Borrar el trazo (Supr)">
+            Borrar trazo
+          </button>
+        )}
+        <span className="subbar-sep" />
+        <span className="muted small">Calco</span>
+        {!current ? (
+          <span className="muted small">elige una vista</span>
+        ) : !tracing ? (
+          <button className="tool" onClick={() => fileInput.current?.click()} disabled={uploading} title="Sube la foto de un dibujo a mano para calcarlo">
+            {uploading ? 'Subiendo…' : 'Subir boceto'}
+          </button>
+        ) : (
+          <>
+            <button className={adjusting ? 'tool active' : 'tool'} onClick={() => setAdjusting((a) => !a)} disabled={tracing.locked} title="Mover y escalar el boceto">
+              {adjusting ? 'Listo' : 'Ajustar'}
+            </button>
+            <input
+              type="range"
+              min={0.1}
+              max={1}
+              step={0.05}
+              value={tracing.opacity}
+              onChange={(e) => setTracing({ opacity: Number(e.target.value) })}
+              aria-label="Transparencia del boceto"
+              title="Transparencia"
+            />
+            <button className="tool" onClick={() => onTracings(tracings.filter((t) => t.id !== tracing.id))} title="Quitar el boceto">
+              Quitar
+            </button>
+          </>
+        )}
+        <input ref={fileInput} type="file" accept="image/*" hidden onChange={(e) => uploadTracing(e.target.files?.[0]).finally(() => (e.target.value = ''))} />
+        {uploadError && <span className="status error small">{uploadError}</span>}
+      </div>
       <div
         className={`canvas-stage${zoom > 1 ? ' zoomed' : ''}${settings.mode === 'linea' ? ' line-mode' : ''}`}
         onWheel={onWheel}
@@ -184,6 +348,7 @@ export function Canvas(props: Props) {
                 highlight={highlight}
                 frame={view === 'all' ? 'comun' : 'ajustado'}
                 pad={annotated ? 40 : 16}
+                body={body}
                 mode={settings.mode}
                 selectedPiece={selectedPiece}
                 onPickPiece={(p) => {
@@ -196,6 +361,7 @@ export function Canvas(props: Props) {
                   if (id === null) {
                     onPickPiece(null)
                     onSelectCallout(null)
+                    onSelectDrawing(null)
                   }
                 }}
                 onChangePrint={onChangePrint}

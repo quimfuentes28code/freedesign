@@ -4,7 +4,9 @@ import { api, useApi } from '../../api/client'
 import { Field, Status } from '../../components/ui'
 import { colorLabel } from '../../designer/colors'
 import { switchColorway } from '../../designer/colorways'
+import { CX } from '../../designer/geometry'
 import { resolveMaterial } from '../../designer/materials'
+import { UNITS_PER_CM } from '../../designer/prints'
 import { fileUrl } from '../../shared/library'
 import { getTemplate } from '../../designer/templates'
 import { OPTION_GROUPS, opt, type GarmentTemplate } from '../../designer/types'
@@ -13,6 +15,7 @@ import type { Callout, DesignData, DesignInput, PieceStyle, Print } from '../../
 import { Canvas, type CanvasSettings, type CanvasView } from './Canvas'
 import { ColorwaysBar, ColorwaysCompare } from './Colorways'
 import { Design3D } from './Design3D'
+import { MeasuresPanel } from './MeasuresPanel'
 import { PieceInspector } from './PieceInspector'
 import { PrintsPanel } from './PrintsPanel'
 import { useHistory } from './useHistory'
@@ -35,7 +38,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'datos', label: 'Datos' },
 ]
 
-const DEFAULT_SETTINGS: CanvasSettings = { mode: 'color', dims: false, grid: false, notes: true }
+const DEFAULT_SETTINGS: CanvasSettings = { mode: 'color', dims: false, grid: false, notes: true, brush: { color: '#1d1c1a', width: 1.2, dash: false } }
 
 /** Lee y guarda una preferencia del editor en este navegador (si se puede). */
 function stored<T>(key: string, def: T): T {
@@ -79,6 +82,7 @@ export function DesignEditor() {
   const [selectedPiece, setSelectedPiece] = useState<string | null>(null)
   const [selectedPrint, setSelectedPrint] = useState<string | null>(null)
   const [selectedCallout, setSelectedCallout] = useState<string | null>(null)
+  const [selectedDrawing, setSelectedDrawing] = useState<string | null>(null)
   const [comparing, setComparing] = useState(false)
   const [mode, setMode] = useState<ViewMode>(() => stored<{ v: ViewMode }>('fd:editor-mode-v2', { v: '2d' }).v)
   const [settings, setSettings] = useState<CanvasSettings>(() => stored('fd:canvas', DEFAULT_SETTINGS))
@@ -145,11 +149,15 @@ export function DesignEditor() {
         } else if (selectedCallout) {
           history.set({ ...design, data: { ...design.data, callouts: (design.data.callouts ?? []).filter((c) => c.id !== selectedCallout) } })
           setSelectedCallout(null)
+        } else if (selectedDrawing) {
+          history.set({ ...design, data: { ...design.data, drawings: (design.data.drawings ?? []).filter((d) => d.id !== selectedDrawing) } })
+          setSelectedDrawing(null)
         }
       } else if (e.key === 'Escape') {
         setSelectedPiece(null)
         setSelectedPrint(null)
         setSelectedCallout(null)
+        setSelectedDrawing(null)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -183,7 +191,21 @@ export function DesignEditor() {
   const setOption = (key: string, value: string | boolean) => setData({ options: { ...design.data.options, [key]: value } })
   const prints = design.data.prints ?? []
   const setPrints = (next: Print[]) => setData({ prints: next })
-  const changePrint = (p: Print) => setPrints(prints.map((x) => (x.id === p.id ? p : x)))
+  // Al mover un estampado se ajusta al centro de la prenda (si queda a menos de 1,5 cm) y, con la cuadrícula, a cada cm
+  const changePrint = (p: Print) => {
+    const snapped = { ...p }
+    if (settings.grid) {
+      snapped.x = CX + Math.round((p.x - CX) / UNITS_PER_CM) * UNITS_PER_CM
+      snapped.y = Math.round(p.y / UNITS_PER_CM) * UNITS_PER_CM
+    }
+    if (Math.abs(snapped.x - CX) < 1.5 * UNITS_PER_CM) snapped.x = CX
+    setPrints(prints.map((x) => (x.id === p.id ? snapped : x)))
+  }
+  const drawings = design.data.drawings ?? []
+  const tracings = design.data.tracings ?? []
+  /** Cambia una capa (estampado, trazo, nota o calco) por su id: ocultar, bloquear… */
+  const patchLayer = <K extends 'prints' | 'drawings' | 'callouts' | 'tracings'>(key: K, id: string, patch: Record<string, unknown>) =>
+    setData({ [key]: ((design.data[key] ?? []) as { id: string }[]).map((x) => (x.id === id ? { ...x, ...patch } : x)) } as Partial<DesignData>)
   const callouts = design.data.callouts ?? []
   const setCallouts = (next: Callout[]) => setData({ callouts: next })
 
@@ -287,7 +309,7 @@ export function DesignEditor() {
         ) : (
           <ul className="layer-list">
             {[...prints].reverse().map((p) => (
-              <li key={p.id}>
+              <li key={p.id} className={p.hidden ? 'layer-row hidden' : 'layer-row'}>
                 <button
                   className={selectedPrint === p.id ? 'layer active' : 'layer'}
                   onClick={() => {
@@ -300,9 +322,10 @@ export function DesignEditor() {
                   </span>
                   <span className="layer-text">
                     <span>{p.kind === 'text' ? `«${p.text}»` : (artworks.data?.find((a) => a.id === p.artworkId)?.name ?? 'Gráfico')}</span>
-                    <span className="muted">{{ front: 'Delantero', back: 'Espalda', side: 'Lateral' }[p.view]}</span>
+                    <span className="muted">{VIEW_LABEL[p.view]}</span>
                   </span>
                 </button>
+                <LayerToggles hidden={p.hidden} locked={p.locked} onChange={(patch) => patchLayer('prints', p.id, patch)} />
               </li>
             ))}
           </ul>
@@ -314,7 +337,7 @@ export function DesignEditor() {
         ) : (
           <ul className="layer-list">
             {callouts.map((c, i) => (
-              <li key={c.id}>
+              <li key={c.id} className={c.hidden ? 'layer-row hidden' : 'layer-row'}>
                 <button
                   className={selectedCallout === c.id ? 'layer active' : 'layer'}
                   onClick={() => {
@@ -327,9 +350,62 @@ export function DesignEditor() {
                     <span>{c.text || 'Nota sin texto'}</span>
                   </span>
                 </button>
+                <LayerToggles hidden={c.hidden} lockable={false} onChange={(patch) => patchLayer('callouts', c.id, patch)} />
               </li>
             ))}
           </ul>
+        )}
+
+        <h2>Dibujos</h2>
+        {drawings.length === 0 ? (
+          <p className="muted small">Usa el lápiz, la línea o las formas de la barra del dibujo.</p>
+        ) : (
+          <ul className="layer-list">
+            {[...drawings].reverse().map((d) => (
+              <li key={d.id} className={d.hidden ? 'layer-row hidden' : 'layer-row'}>
+                <button
+                  className={selectedDrawing === d.id ? 'layer active' : 'layer'}
+                  onClick={() => {
+                    setSelectedDrawing(d.locked ? null : d.id)
+                    if (view !== 'all' && view !== d.view) setView(d.view)
+                  }}
+                >
+                  <span className="layer-swatch">
+                    <svg viewBox="0 0 20 20" width="18" height="18">
+                      <path d="M3 15 C 7 3, 12 18, 17 5" fill="none" stroke={d.color} strokeWidth={Math.min(3, d.width + 0.6)} strokeDasharray={d.dash ? '3 2' : undefined} />
+                    </svg>
+                  </span>
+                  <span className="layer-text">
+                    <span>{DRAW_LABEL[d.kind]}</span>
+                    <span className="muted">{VIEW_LABEL[d.view]}</span>
+                  </span>
+                </button>
+                <LayerToggles hidden={d.hidden} locked={d.locked} onChange={(patch) => patchLayer('drawings', d.id, patch)} />
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {tracings.length > 0 && (
+          <>
+            <h2>Calco</h2>
+            <ul className="layer-list">
+              {tracings.map((t) => (
+                <li key={t.id} className={t.hidden ? 'layer-row hidden' : 'layer-row'}>
+                  <button className="layer" onClick={() => view !== 'all' && view !== t.view && setView(t.view)}>
+                    <span className="layer-swatch thumb">
+                      <img src={fileUrl(t.file)} alt="" />
+                    </span>
+                    <span className="layer-text">
+                      <span>Boceto</span>
+                      <span className="muted">{VIEW_LABEL[t.view]}</span>
+                    </span>
+                  </button>
+                  <LayerToggles hidden={t.hidden} locked={t.locked} onChange={(patch) => patchLayer('tracings', t.id, patch)} />
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </aside>
 
@@ -365,6 +441,16 @@ export function DesignEditor() {
                 selectedCallout={selectedCallout}
                 onSelectCallout={pickCallout}
                 onCallouts={setCallouts}
+                selectedDrawing={selectedDrawing}
+                onSelectDrawing={(d) => {
+                  setSelectedDrawing(d)
+                  if (d) {
+                    setSelectedPiece(null)
+                    setSelectedPrint(null)
+                  }
+                }}
+                onDrawings={(next) => setData({ drawings: next })}
+                onTracings={(next) => setData({ tracings: next })}
                 body={body}
                 bodyLabel={bodyLabel}
               />
@@ -412,6 +498,9 @@ export function DesignEditor() {
             </section>
           ))}
 
+        {tab === 'prenda' && (
+          <MeasuresPanel template={template} data={design.data} body={body} bodyLabel={bodyLabel} onChange={(measures) => setData({ measures })} />
+        )}
         {tab === 'prenda' &&
           OPTION_GROUPS.map((g) => {
             const options = template.options.filter((o) => o.group === g.id)
@@ -523,6 +612,33 @@ export function DesignEditor() {
         )}
       </aside>
     </div>
+  )
+}
+
+const VIEW_LABEL = { front: 'Delantero', back: 'Espalda', side: 'Lateral' } as const
+const DRAW_LABEL = { free: 'Trazo a mano', line: 'Línea', rect: 'Rectángulo', ellipse: 'Elipse' } as const
+
+/** Botones de una capa: mostrar/ocultar y (si se puede) bloquear/desbloquear. */
+function LayerToggles(props: { hidden?: boolean; locked?: boolean; lockable?: boolean; onChange: (p: { hidden?: boolean; locked?: boolean }) => void }) {
+  const { hidden, locked, lockable = true, onChange } = props
+  return (
+    <span className="layer-toggles">
+      <button className={hidden ? 'layer-toggle off' : 'layer-toggle'} onClick={() => onChange({ hidden: !hidden })} title={hidden ? 'Mostrar' : 'Ocultar'} aria-label={hidden ? 'Mostrar' : 'Ocultar'}>
+        <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden>
+          <path d="M1.5 10s3-5.5 8.5-5.5S18.5 10 18.5 10s-3 5.5-8.5 5.5S1.5 10 1.5 10Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          <circle cx="10" cy="10" r="2.6" fill="currentColor" />
+          {hidden && <path d="M3 17 17 3" stroke="currentColor" strokeWidth="1.6" />}
+        </svg>
+      </button>
+      {lockable ? (
+        <button className={locked ? 'layer-toggle on' : 'layer-toggle'} onClick={() => onChange({ locked: !locked })} title={locked ? 'Desbloquear' : 'Bloquear'} aria-label={locked ? 'Desbloquear' : 'Bloquear'}>
+          <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden>
+            <rect x="4" y="9" width="12" height="8.5" rx="1.5" fill={locked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" />
+            <path d={locked ? 'M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9' : 'M6.5 9V6.5a3.5 3.5 0 0 1 6.8-1.2'} fill="none" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+        </button>
+      ) : null}
+    </span>
   )
 }
 

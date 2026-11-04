@@ -229,6 +229,17 @@ export function PrintsPanel({ template, prints, onChange, view, onViewChange, se
             <input type="checkbox" checked={current.clip} onChange={(e) => update({ clip: e.target.checked })} />
           </label>
           <div className="print-actions">
+            <button className="button" onClick={() => update({ x: CX })} title="Centrar en la prenda (también se ajusta solo al acercarlo al centro)">
+              ↔ Centrar
+            </button>
+            <button className="button" onClick={() => update({ rotation: 0 })} title="Quitar el giro">
+              Enderezar
+            </button>
+            <button className="button" onClick={() => update({ locked: !current.locked })} title="Bloquear para no moverlo sin querer">
+              {current.locked ? 'Desbloquear' : 'Bloquear'}
+            </button>
+          </div>
+          <div className="print-actions">
             <button className="button" onClick={() => move(-1)} title="Poner por debajo">
               ↓ Atrás
             </button>

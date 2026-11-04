@@ -43,6 +43,8 @@ export interface Design {
   bodyLength: number
   /** Largo de manga, de la costura del hombro al final del puño, en cm. */
   sleeveLength: number
+  /** Ancho del cuerpo respecto al que toca por el corte (1 = el del corte), desde las medidas del Diseñador. */
+  chestScale?: number
   /**
    * Color y material de cada zona (desde el Diseñador). Las que falten usan `color` y `fabric`
    * (y las de canalé, canalé del mismo color).

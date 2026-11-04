@@ -85,7 +85,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
 
   // --- Medidas del patrón (cm) ---
   const ease = EASE[design.fit]
-  const bodyC = m.chest + ease
+  const bodyC = (m.chest + ease) * (design.chestScale ?? 1)
   const W = bodyC / 2 // ancho de delantero y espalda
   const L = design.bodyLength - 7 // largo del cuerpo sin el bajo de canalé
   const neckW = 19 * s

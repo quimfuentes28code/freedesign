@@ -2,7 +2,9 @@ import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { DesignData, Print } from '../shared/designs'
 import { fileUrl, type Material } from '../shared/library'
 import { VIEW_H, VIEW_W } from './geometry'
+import type { Body } from '../production/measurements'
 import { resolveMaterial, type CatalogMaterial } from './materials'
+import { drawScale } from './measures'
 import { PrintShape, printSize, Transformable } from './prints'
 import { GlossGradient, hasWeave, WeavePattern } from './swatches'
 import type { GarmentTemplate, Shape, View } from './types'
@@ -34,6 +36,8 @@ interface Props {
   overlay?: (ctx: FlatContext) => ReactNode
   /** Margen alrededor del dibujo en el encuadre ajustado (más si hay cotas). */
   pad?: number
+  /** Cuerpo con el que se comparan las medidas propias del diseño (talla M si no se pasa). */
+  body?: Body
 }
 
 export interface Box {
@@ -52,11 +56,11 @@ export interface FlatContext {
 /** Dibujo técnico (flat) de una prenda en una vista, con los colores y materiales de cada pieza y sus estampados. */
 export function FlatView(props: Props) {
   const { template, data, view, materials, highlight, className, frame = 'ajustado', selectedPrint, onSelectPrint, onChangePrint } = props
-  const { mode = 'color', selectedPiece, onPickPiece, overlay, pad = 12 } = props
+  const { mode = 'color', selectedPiece, onPickPiece, overlay, pad = 12, body } = props
   const line = mode === 'linea'
   const uid = useId().replace(/:/g, '')
-  const shapes = template.draw(view, data.options)
-  const prints = (data.prints ?? []).filter((p) => p.view === view)
+  const shapes = template.draw(view, data.options, drawScale(template, data, body))
+  const prints = (data.prints ?? []).filter((p) => p.view === view && !p.hidden)
 
   // Encuadre: el lienzo se ajusta al dibujo (con un margen), así la prenda ocupa todo el espacio disponible
   const group = useRef<SVGGElement>(null)
@@ -207,7 +211,7 @@ export function FlatView(props: Props) {
             <PrintShape p={p} />
           </g>
         )
-        if (!editable) return <g key={p.id}>{shape}</g>
+        if (!editable || p.locked) return <g key={p.id}>{shape}</g>
         const { w, h } = printSize(p)
         return (
           <Transformable

@@ -29,6 +29,7 @@ export interface Callout {
   lx: number
   ly: number
   text: string
+  hidden?: boolean
 }
 
 /**
@@ -58,6 +59,39 @@ export interface Print {
   technique: Technique
   /** Recortar el estampado al contorno de la prenda. */
   clip: boolean
+  /** Capa oculta (no se dibuja) o bloqueada (no se puede mover). */
+  hidden?: boolean
+  locked?: boolean
+}
+
+/** Trazo dibujado a mano sobre el plano (costuras, cortes, detalles). Puntos en unidades del lienzo: x0, y0, x1, y1… */
+export interface Drawing {
+  id: string
+  view: 'front' | 'back' | 'side'
+  /** Lápiz libre, línea recta, rectángulo o elipse (estos tres con dos puntos: esquina a esquina). */
+  kind: 'free' | 'line' | 'rect' | 'ellipse'
+  points: number[]
+  color: string
+  width: number
+  /** Trazo discontinuo, como un pespunte. */
+  dash: boolean
+  hidden?: boolean
+  locked?: boolean
+}
+
+/** Boceto (foto de un dibujo a mano) puesto encima del plano para calcarlo. Centro (x, y) y ancho en unidades del lienzo. */
+export interface Tracing {
+  id: string
+  view: 'front' | 'back' | 'side'
+  file: string
+  /** Alto / ancho de la imagen. */
+  aspect: number
+  x: number
+  y: number
+  w: number
+  opacity: number
+  hidden?: boolean
+  locked?: boolean
 }
 
 export interface DesignData {
@@ -75,6 +109,12 @@ export interface DesignData {
   prints?: Print[]
   /** Notas con flecha sobre el dibujo técnico. */
   callouts?: Callout[]
+  /** Medidas propias de la prenda acabada (cm), por punto de medida; las que no estén salen del corte y el cuerpo. */
+  measures?: Record<string, number>
+  /** Trazos dibujados a mano sobre el plano. */
+  drawings?: Drawing[]
+  /** Bocetos para calcar (como mucho uno por vista). */
+  tracings?: Tracing[]
   notes: string
 }
 
