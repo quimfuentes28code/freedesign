@@ -1,6 +1,7 @@
 /**
  * Proyectos y colecciones, compartidos por la web (src/) y la API (worker/).
  */
+import type { ProjectPayment } from './economy'
 import type { PriceUnit } from './library'
 
 /** Fases de un proyecto, en orden. Las dos últimas quedan aparte del flujo normal. */
@@ -57,6 +58,8 @@ export interface ProjectSummary {
   price: number | null
   /** Coste total calculado (materiales + otros costes). */
   cost: number
+  /** Total cobrado (suma de sus cobros). */
+  paid: number
   tasksOpen: number
   tasksTotal: number
   /** Primera imagen del proyecto (para la tarjeta), si tiene. */
@@ -107,6 +110,7 @@ export interface Project extends ProjectSummary {
   materials: ProjectMaterial[]
   costs: ProjectCost[]
   tasks: ProjectTask[]
+  payments: ProjectPayment[]
 }
 
 export type ProjectInput = Pick<Project, 'name' | 'status' | 'clientId' | 'collectionId' | 'description' | 'notes' | 'dueDate' | 'price'>

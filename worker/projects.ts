@@ -9,6 +9,7 @@ import {
   type ProjectStatus,
   type ProjectSummary,
 } from '../src/shared/projects'
+import { PAYMENT_METHODS, type PaymentMethod } from '../src/shared/economy'
 import { deleteFile, isFileKey } from './files'
 import { HttpError, json, noContent, now, num, ownedRef, readBody, required, text, type Env } from './http'
 
@@ -75,6 +76,8 @@ export async function projectsRoute(request: Request, env: Env, uid: string, res
         return projectCosts(request, env, uid, id, subId)
       case 'tasks':
         return projectTasks(request, env, uid, id, subId)
+      case 'payments':
+        return projectPayments(request, env, uid, id, subId)
     }
   }
   throw new HttpError(405, 'Método no permitido')
@@ -90,6 +93,7 @@ const SUMMARY_SELECT = `
   SELECT p.*, c.name AS client_name, col.name AS collection_name,
     (SELECT COALESCE(SUM(pm.quantity * COALESCE(mt.price, 0)), 0) FROM project_materials pm JOIN materials mt ON mt.id = pm.material_id WHERE pm.project_id = p.id)
       + (SELECT COALESCE(SUM(amount), 0) FROM project_costs WHERE project_id = p.id) AS cost,
+    (SELECT COALESCE(SUM(amount), 0) FROM project_payments WHERE project_id = p.id) AS paid,
     (SELECT COUNT(*) FROM project_tasks WHERE project_id = p.id AND done = 0) AS tasks_open,
     (SELECT COUNT(*) FROM project_tasks WHERE project_id = p.id) AS tasks_total,
     (SELECT file FROM project_files WHERE project_id = p.id
@@ -112,6 +116,7 @@ interface SummaryRow {
   due_date: string
   price: number | null
   cost: number
+  paid: number
   tasks_open: number
   tasks_total: number
   cover: string | null
@@ -132,6 +137,7 @@ function toSummary(r: SummaryRow): ProjectSummary {
     dueDate: r.due_date,
     price: r.price,
     cost: Math.round(r.cost * 100) / 100,
+    paid: Math.round(r.paid * 100) / 100,
     tasksOpen: r.tasks_open,
     tasksTotal: r.tasks_total,
     cover: r.cover,
@@ -157,7 +163,7 @@ async function listProjects(env: Env, uid: string, params: URLSearchParams) {
 async function getProject(env: Env, uid: string, id: string): Promise<Project> {
   const row = await env.DB.prepare(`${SUMMARY_SELECT} WHERE p.id = ? AND p.user_id = ?`).bind(id, uid).first<SummaryRow>()
   if (!row) throw new HttpError(404, 'Proyecto no encontrado')
-  const [files, materials, costs, tasks] = await env.DB.batch([
+  const [files, materials, costs, tasks, payments] = await env.DB.batch([
     env.DB.prepare('SELECT * FROM project_files WHERE project_id = ? ORDER BY created_at').bind(id),
     env.DB.prepare(
       `SELECT pm.*, m.name, m.category, m.price, m.price_unit, m.photo FROM project_materials pm
@@ -165,6 +171,7 @@ async function getProject(env: Env, uid: string, id: string): Promise<Project> {
     ).bind(id),
     env.DB.prepare('SELECT * FROM project_costs WHERE project_id = ? ORDER BY created_at').bind(id),
     env.DB.prepare('SELECT * FROM project_tasks WHERE project_id = ? ORDER BY done, CASE due_date WHEN \'\' THEN 1 ELSE 0 END, due_date, created_at').bind(id),
+    env.DB.prepare('SELECT * FROM project_payments WHERE project_id = ? ORDER BY date, created_at').bind(id),
   ])
   type R = Record<string, unknown>
   return {
@@ -191,6 +198,13 @@ async function getProject(env: Env, uid: string, id: string): Promise<Project> {
     })),
     costs: (costs.results as R[]).map((c) => ({ id: c.id as string, label: c.label as string, amount: c.amount as number })),
     tasks: (tasks.results as R[]).map((t) => ({ id: t.id as string, title: t.title as string, done: t.done === 1, dueDate: t.due_date as string })),
+    payments: (payments.results as R[]).map((x) => ({
+      id: x.id as string,
+      amount: x.amount as number,
+      date: x.date as string,
+      method: x.method as PaymentMethod,
+      notes: x.notes as string,
+    })),
   }
 }
 
@@ -306,6 +320,37 @@ async function projectTasks(request: Request, env: Env, uid: string, projectId: 
   }
   if (id && request.method === 'DELETE') {
     await env.DB.prepare('DELETE FROM project_tasks WHERE id = ? AND project_id = ?').bind(id, projectId).run()
+    return json(await getProject(env, uid, projectId))
+  }
+  throw new HttpError(405, 'Método no permitido')
+}
+
+async function projectPayments(request: Request, env: Env, uid: string, projectId: string, id: string | undefined) {
+  const read = async () => {
+    const b = await readBody(request)
+    const amount = num(b.amount)
+    if (!amount) throw new HttpError(400, 'El importe es obligatorio')
+    const date = text(b.date)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpError(400, 'La fecha no es válida')
+    const method = PAYMENT_METHODS.some((x) => x.id === b.method) ? (b.method as PaymentMethod) : 'otro'
+    return { amount: Math.round(amount * 100) / 100, date, method, notes: text(b.notes) }
+  }
+  if (!id && request.method === 'POST') {
+    const p = await read()
+    await env.DB.prepare('INSERT INTO project_payments (id, project_id, amount, date, method, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .bind(uuid(), projectId, p.amount, p.date, p.method, p.notes, now())
+      .run()
+    return json(await getProject(env, uid, projectId), 201)
+  }
+  if (id && request.method === 'PUT') {
+    const p = await read()
+    await env.DB.prepare('UPDATE project_payments SET amount = ?, date = ?, method = ?, notes = ? WHERE id = ? AND project_id = ?')
+      .bind(p.amount, p.date, p.method, p.notes, id, projectId)
+      .run()
+    return json(await getProject(env, uid, projectId))
+  }
+  if (id && request.method === 'DELETE') {
+    await env.DB.prepare('DELETE FROM project_payments WHERE id = ? AND project_id = ?').bind(id, projectId).run()
     return json(await getProject(env, uid, projectId))
   }
   throw new HttpError(405, 'Método no permitido')

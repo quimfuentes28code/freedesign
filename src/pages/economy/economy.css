@@ -1,0 +1,215 @@
+/* Economía: resumen, gráfico mensual, rentabilidad y gastos generales. */
+@import '../projects/projects.css';
+
+/* Colores de las series del gráfico (paleta validada para daltonismo: azul, naranja, aguamarina) */
+.monthly-chart,
+.economy-chart-card {
+  --series-income: #2a78d6;
+  --series-costs: #eb6834;
+  --series-overhead: #1baf7a;
+}
+
+.year-select {
+  width: auto;
+}
+
+.economy-stat .stat-value {
+  font-size: 24px;
+}
+
+.negative-text {
+  color: var(--danger);
+}
+
+.economy-chart-card {
+  margin-bottom: 16px;
+}
+
+.chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.chart-head .link-button {
+  margin: 0;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.swatch.s-income,
+.bar.s-income {
+  background: var(--series-income);
+  fill: var(--series-income);
+}
+
+.swatch.s-costs,
+.bar.s-costs {
+  background: var(--series-costs);
+  fill: var(--series-costs);
+}
+
+.swatch.s-overhead,
+.bar.s-overhead {
+  background: var(--series-overhead);
+  fill: var(--series-overhead);
+}
+
+.chart-wrap {
+  position: relative;
+}
+
+.chart-wrap svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chart-wrap .grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.chart-wrap .axis {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+
+.chart-wrap .tick {
+  font-size: 11px;
+  fill: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-wrap g.dim .bar {
+  opacity: 0.35;
+}
+
+.chart-tip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.08);
+  padding: 8px 10px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  pointer-events: none;
+  min-width: 190px;
+}
+
+.chart-tip span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.chart-tip b {
+  margin-left: auto;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-tip .tip-total {
+  border-top: 1px solid var(--border);
+  padding-top: 3px;
+  margin-top: 2px;
+}
+
+.chart-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  pointer-events: none;
+}
+
+.economy-grid {
+  margin-bottom: 16px;
+}
+
+.category-bar {
+  grid-template-columns: 170px 1fr 90px;
+  --c: var(--muted);
+}
+
+.economy-projects .padded {
+  padding: 16px 16px 0;
+}
+
+.economy-projects .card-title {
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.economy-grid .num,
+.economy-projects .num {
+  white-space: nowrap;
+}
+
+.totals-row td {
+  font-weight: 600;
+  background: var(--soft);
+}
+
+/* Gastos generales */
+
+.expense-form {
+  margin-bottom: 16px;
+}
+
+.expense-form .fields {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.link-button.inline {
+  margin: 0 8px 0 0;
+}
+
+.editing-row td {
+  background: color-mix(in srgb, #3b82f6 6%, transparent);
+}
+
+.expense-total {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px;
+  font-weight: 600;
+  background: var(--soft);
+}
+
+@media (max-width: 700px) {
+  .category-bar {
+    grid-template-columns: 110px 1fr 80px;
+  }
+}

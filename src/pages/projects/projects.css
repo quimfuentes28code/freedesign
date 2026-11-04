@@ -358,6 +358,23 @@
   color: var(--danger);
 }
 
+.payment-add {
+  flex-wrap: nowrap;
+}
+
+.payment-add select {
+  flex: none;
+}
+
+.payment-add input {
+  flex: 1;
+  min-width: 0;
+}
+
+.price-hint {
+  margin: 10px 0 0;
+}
+
 .task-list {
   list-style: none;
   margin: 0;

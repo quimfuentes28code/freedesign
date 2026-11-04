@@ -4,6 +4,7 @@ import { api, useApi } from '../../api/client'
 import { Field, PageHeader, Status } from '../../components/ui'
 import { FlatView } from '../../designer/FlatView'
 import { getTemplate } from '../../designer/templates'
+import { PAYMENT_METHODS, type PaymentMethod } from '../../shared/economy'
 import { fileUrl, MATERIAL_CATEGORIES } from '../../shared/library'
 import {
   EMPTY_PROJECT,
@@ -186,6 +187,7 @@ export function ProjectDetail() {
           <Designs project={project} />
           <Files project={project} onPart={part} />
           <Costs project={project} price={form.price} onPart={part} />
+          <Payments project={project} price={form.price} onPart={part} />
           <Tasks project={project} onPart={part} />
           <div className="danger-zone">
             <button className="button danger" onClick={remove}>
@@ -485,6 +487,92 @@ function Costs({ project, price, onPart }: { project: Project; price: number | n
         <div className={m !== null && m < 0 ? 'negative' : ''}>
           <span>Margen</span>
           <strong>{m === null ? '—' : `${euro((price ?? 0) - total)} · ${m.toFixed(0)} %`}</strong>
+        </div>
+      </div>
+      {total > 0 && (
+        <p className="muted small price-hint">
+          Precio orientativo: {euro(total / 0.5)} para un margen del 50 % · {euro(total / 0.4)} para un 60 %
+        </p>
+      )}
+    </section>
+  )
+}
+
+const todayIso = () => new Date().toISOString().slice(0, 10)
+
+function Payments({ project, price, onPart }: { project: Project; price: number | null; onPart: PartFn }) {
+  const [amount, setAmount] = useState('')
+  const [date, setDate] = useState(todayIso)
+  const [method, setMethod] = useState<PaymentMethod>('transferencia')
+  const [notes, setNotes] = useState('')
+  const paid = project.payments.reduce((s, p) => s + p.amount, 0)
+  const pending = price ? Math.max(0, price - paid) : null
+  const add = () =>
+    Number(amount) > 0 &&
+    onPart(() => api.projectPart(project.id, 'payments', 'POST', { amount: Number(amount), date, method, notes })).then(() => {
+      setAmount('')
+      setNotes('')
+    })
+
+  return (
+    <section className="card project-section">
+      <h2>Cobros</h2>
+      <table className="table compact">
+        <tbody>
+          {project.payments.map((p) => (
+            <tr key={p.id}>
+              <td>{new Date(`${p.date}T00:00:00`).toLocaleDateString('es-ES')}</td>
+              <td>
+                {PAYMENT_METHODS.find((x) => x.id === p.method)?.label}
+                {p.notes && <span className="muted small"> · {p.notes}</span>}
+              </td>
+              <td className="num">{euro(p.amount)}</td>
+              <td className="num">
+                <button className="icon-button" title="Quitar" onClick={() => onPart(() => api.projectPart(project.id, 'payments', 'DELETE', undefined, p.id))}>
+                  ×
+                </button>
+              </td>
+            </tr>
+          ))}
+          <tr className="add-row">
+            <td>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </td>
+            <td>
+              <div className="inline-actions payment-add">
+                <select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
+                  {PAYMENT_METHODS.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.label}
+                    </option>
+                  ))}
+                </select>
+                <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Señal, pago final…" />
+              </div>
+            </td>
+            <td className="num">
+              <input className="qty" type="number" min={0} step={0.01} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="€" />
+            </td>
+            <td className="num">
+              <button className="button" disabled={!(Number(amount) > 0) || !date} onClick={add}>
+                Añadir
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div className="totals">
+        <div>
+          <span>Precio de venta</span>
+          <strong>{euro(price)}</strong>
+        </div>
+        <div>
+          <span>Cobrado</span>
+          <strong>{euro(paid)}</strong>
+        </div>
+        <div className={pending ? 'negative' : ''}>
+          <span>Pendiente</span>
+          <strong>{pending === null ? '—' : euro(pending)}</strong>
         </div>
       </div>
     </section>

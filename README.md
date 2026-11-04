@@ -4,7 +4,7 @@ Herramienta de taller para diseñar y fabricar prendas personalizadas: clientes 
 
 Cada persona o empresa crea su cuenta y tiene su propio espacio privado.
 
-Apartados: **Dashboard · Clientes · Diseñador · Proyectos · Producción · Biblioteca · Economía** (de momento están hechos el Dashboard, Clientes, el Diseñador 2D con estampados, Proyectos, Producción (fichas técnicas y órdenes de fabricación), la Biblioteca y la vista previa 3D; el resto se irá construyendo por fases).
+Apartados: **Dashboard · Clientes · Diseñador · Proyectos · Producción · Biblioteca · Economía** (de momento están hechos el Dashboard, Clientes, el Diseñador 2D con estampados, Proyectos, Producción (fichas técnicas y órdenes de fabricación), la Biblioteca, Economía (cobros, gastos generales y rentabilidad) y la vista previa 3D).
 
 ## Empezar (para cada uno de nosotros, una sola vez)
 

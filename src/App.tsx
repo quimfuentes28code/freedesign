@@ -19,7 +19,9 @@ import { ProjectDetail } from './pages/projects/ProjectDetail'
 import { ProjectsPage } from './pages/projects/ProjectsPage'
 import { ProductionPage } from './pages/production/ProductionPage'
 import { TechPackPage } from './pages/production/TechPack'
-import { Economy, NotFound } from './pages/Sections'
+import { EconomyPage } from './pages/economy/EconomyPage'
+import { ExpensesPage } from './pages/economy/Expenses'
+import { NotFound } from './pages/Sections'
 
 /** Rutas de la app. Entrar y crear cuenta son públicas; el resto necesita sesión. */
 export default function App() {
@@ -57,7 +59,8 @@ export default function App() {
               <Route path="biblioteca/proveedores/nuevo" element={<SupplierForm />} />
               <Route path="biblioteca/proveedores/:id" element={<SupplierForm />} />
               <Route path="biblioteca/:id" element={<MaterialForm />} />
-              <Route path="economia" element={<Economy />} />
+              <Route path="economia" element={<EconomyPage />} />
+              <Route path="economia/gastos" element={<ExpensesPage />} />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Route>

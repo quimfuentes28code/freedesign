@@ -4,6 +4,7 @@ import type { Artwork, ArtworkInput } from '../shared/artworks'
 import type { Design, DesignInput } from '../shared/designs'
 import type { Material, MaterialInput, Supplier, SupplierInput } from '../shared/library'
 import type { Collection, CollectionInput, FileCategory, Project, ProjectInput, ProjectStatus, ProjectSummary } from '../shared/projects'
+import type { EconomySummary, Expense, ExpenseInput } from '../shared/economy'
 import type { ProductionOrder, ProductionOrderInput, TechPack, TechPackInput } from '../shared/production'
 import type { ProfileInput, RegisterInput, User } from '../shared/users'
 
@@ -51,7 +52,7 @@ export const api = {
   setProjectStatus: (id: string, status: ProjectStatus) => request<Project>(`/projects/${id}`, send('PATCH', { status })),
   deleteProject: (id: string) => request<void>(`/projects/${id}`, send('DELETE')),
   /** Partes de un proyecto (archivos, materiales, costes, tareas): devuelven el proyecto actualizado. */
-  projectPart: (id: string, part: 'files' | 'materials' | 'costs' | 'tasks', method: 'POST' | 'PUT' | 'DELETE', body?: unknown, partId?: string) =>
+  projectPart: (id: string, part: 'files' | 'materials' | 'costs' | 'tasks' | 'payments',method: 'POST' | 'PUT' | 'DELETE', body?: unknown, partId?: string) =>
     request<Project>(`/projects/${id}/${part}${partId ? `/${partId}` : ''}`, send(method, body)),
   addProjectFile: async (id: string, file: File, category: FileCategory) => {
     const { key } = await api.uploadImage(file)
@@ -67,7 +68,13 @@ export const api = {
   updateOrder: (id: string, o: ProductionOrderInput) => request<ProductionOrder>(`/production/${id}`, send('PUT', o)),
   deleteOrder: (id: string) => request<void>(`/production/${id}`, send('DELETE')),
 
-  listCollections:() => request<Collection[]>('/collections'),
+  economy: (year: number) => request<EconomySummary>(`/economy?year=${year}`),
+  listExpenses: (year = '') => request<Expense[]>(`/expenses?year=${encodeURIComponent(year)}`),
+  createExpense: (e: ExpenseInput) => request<Expense>('/expenses', send('POST', e)),
+  updateExpense: (id: string, e: ExpenseInput) => request<Expense>(`/expenses/${id}`, send('PUT', e)),
+  deleteExpense: (id: string) => request<void>(`/expenses/${id}`, send('DELETE')),
+
+  listCollections: () =>request<Collection[]>('/collections'),
   createCollection: (c: CollectionInput) => request<Collection>('/collections', send('POST', c)),
   updateCollection: (id: string, c: CollectionInput) => request<Collection>(`/collections/${id}`, send('PUT', c)),
   deleteCollection: (id: string) => request<void>(`/collections/${id}`, send('DELETE')),
