@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { FabricLook } from '../../data/fabrics'
 import { GARMENT_SLOTS, slotIndex, type Design, type GarmentSlot, type Measurements } from '../../types'
 import type { ModelInfo } from '../body'
-import { skinPoints, unskinPoints, type PoseData } from '../pose'
+import { Part, skinPoints, unskinPoints, type PoseData } from '../pose'
 import { CloudGrid } from '../wrap'
 import { EDGE_CODES } from './Cloth'
 import { buildHoodie, type PocketShape } from './hoodie'
@@ -59,7 +59,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     timings[name] = Math.round(now - t0)
     t0 = now
   }
-  const { cloth, follows, slots, pocket, layers, cordExits } = buildHoodie({ info, points: cloud.pos, unit }, measurements, design)
+  const { cloth, follows, slots, pocket, layers, cordExits, rims } = buildHoodie({ info, points: cloud.pos, unit }, measurements, design)
 
   // La rigidez a la flexión depende de la tela
   for (const l of cloth.links) if (l.k < 0.5) l.k = Math.min(1, l.k * fabric.stiffness)
@@ -78,6 +78,9 @@ export function dressPatternGarment(input: DressInput): DressOutput {
       { mode: 'outside', outer: layers.hood, inner: layers.torso, gap: 0.9 * unit },
       { mode: 'apart', outer: layers.sleevesLow, inner: layers.torsoLow, gap: 2 * unit },
     ],
+    bodyOnly: layers.bodyOnly,
+    pins: layers.collarPins,
+    bodyParts: [Part.Torso, Part.Neck, Part.LegL, Part.LegR],
   })
   weldSeams(relaxed, cloth.seams)
   // Quita el "ruido" de arrugas diminutas (picos de un solo punto) sin encoger la prenda ni borrar los pliegues
@@ -86,6 +89,8 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   const border = cloth.edgeInfo()
   const fixed = (v: number) => border[v * 3] < 1e-3 && !sewn.has(v)
   taubinSmooth(relaxed, cloth.neighbours(), 4, fixed)
+  // Los bordes libres se alisan a lo largo del propio borde (sin encogerlos hacia dentro): si no, salen dentados
+  for (const rim of rims) smoothChain(relaxed, rim.verts, 6)
   weldSeams(relaxed, cloth.seams)
   lap('asentar')
 
@@ -137,13 +142,41 @@ export function dressPatternGarment(input: DressInput): DressOutput {
 
   // Cordones de la capucha, con ojales metálicos donde salen
   if (cordExits.length) {
-    addCords({ positions, uvs, edges, idx, wts, bySlot }, relaxed, layers.torso, cordExits, skinIndex, skinWeight, pose, unit)
+    addCords(
+      { positions, uvs, edges, idx, wts, bySlot },
+      relaxed,
+      [...layers.torso, ...layers.hoodAll],
+      [...cloth.tris[0], ...cloth.tris[1]],
+      cordExits,
+      skinIndex,
+      skinWeight,
+      pose,
+      unit,
+    )
   }
 
   // Todas las caras de la tela miran hacia fuera del cuerpo (así la luz y el interior oscuro de la prenda salen bien)
   // (los puntos copiados del bolsillo van todos en un grupo propio)
   const baseCount = cloth.panelOf.length
   orientOutwards(bySlot, new Float32Array(positions), pose, unit, (v) => (v < baseCount ? cloth.panelOf[v] : -1))
+
+  // Rebordes con grosor (después de orientar: son tubos y ya tienen sus caras hacia fuera)
+  const normalOf = fabricNormals(relaxed, [...cloth.tris[0], ...cloth.tris[1]], pose, unit)
+  for (const rim of rims) {
+    const path = rim.verts.map((v) => new THREE.Vector3().fromArray(relaxed, v * 3))
+    const ups = rim.verts.map((v) => normalOf(v))
+    tube(
+      { positions, uvs, edges, idx, wts, bySlot },
+      path,
+      ups,
+      rim.verts,
+      { w: rim.radius * unit, h: rim.radius * unit, twist: 0 },
+      unit,
+      rim.slot,
+      skinIndex,
+      skinWeight,
+    )
+  }
 
   const position = new Float32Array(positions)
   const skinIdx = new Uint16Array(idx)
@@ -229,66 +262,72 @@ interface MeshBuffers {
 }
 
 /**
- * Cordones de la capucha: salen de un ojal a cada lado del cuello y cuelgan sobre el pecho, por fuera de la tela,
- * con su herrete al final. Se mueven con el delantero (toman los pesos de los huesos de la tela que tienen detrás).
+ * Cordones de la capucha: salen de un ojal metálico clavado en el canal de la capucha (a cada lado de la cara)
+ * y cuelgan por fuera de la capucha y del delantero, con su herrete al final. Cada tramo se mueve con la tela
+ * que tiene detrás (toma sus pesos de huesos).
  */
 function addCords(
   out: MeshBuffers,
   relaxed: Float32Array,
-  torso: number[],
+  /** Puntos de tela sobre los que puede apoyarse el cordón (delantero, espalda y capucha). */
+  surface: number[],
+  /** Triángulos de la tela (para la normal en el ojal). */
+  fabricTris: number[],
   exits: number[],
   skinIndex: Uint16Array,
   skinWeight: Float32Array,
   pose: PoseData,
   unit: number,
 ) {
-  const torsoPos = new Float32Array(torso.length * 3)
-  torso.forEach((v, k) => torsoPos.set(relaxed.subarray(v * 3, v * 3 + 3), k * 3))
-  const torsoHash = new SpatialHash(torsoPos, 3 * unit)
-  const skinHash = new SpatialHash(pose.points, 8 * unit)
+  const surfPos = new Float32Array(surface.length * 3)
+  surface.forEach((v, k) => surfPos.set(relaxed.subarray(v * 3, v * 3 + 3), k * 3))
+  const surfHash = new SpatialHash(surfPos, 3 * unit)
+  const skinHash = new SpatialHash(pose.points, 10 * unit)
   const cm = unit
   const outward = (p: THREE.Vector3) => {
     const k = skinHash.nearest(p.x, p.y, p.z)
     return k < 0 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3().fromArray(pose.normals, k * 3)
   }
-  /** Saca un punto por fuera de la tela del cuerpo (a `gap` de ella) y devuelve el punto de tela que tiene detrás. */
+  const fabricNormal = fabricNormals(relaxed, fabricTris, pose, unit)
+  /** Saca un punto por fuera de la tela (a `gap` de ella) y devuelve el punto de tela que tiene detrás. */
   const keepOutside = (p: THREE.Vector3, gap: number) => {
-    const k = torsoHash.nearest(p.x, p.y, p.z)
+    const k = surfHash.nearest(p.x, p.y, p.z)
     if (k < 0) return -1
-    const q = new THREE.Vector3().fromArray(torsoPos, k * 3)
-    const n = outward(q)
+    const v = surface[k]
+    const q = new THREE.Vector3().fromArray(surfPos, k * 3)
+    const n = fabricNormal(v)
     const d = p.clone().sub(q).dot(n)
     if (d < gap) p.addScaledVector(n, gap - d)
-    return torso[k]
+    return v
   }
 
   exits.forEach((exit, side) => {
     const dir = side === 0 ? 1 : -1
-    const start = new THREE.Vector3().fromArray(relaxed, exit * 3)
-    start.x += dir * 3.2 * cm
-    start.y -= 1 * cm
-    keepOutside(start, 0.5 * cm)
-    const normal0 = outward(start)
+    // El ojal va sobre la tela de la capucha, y el cordón sale de su centro
+    const eyelet = new THREE.Vector3().fromArray(relaxed, exit * 3)
+    const normal0 = fabricNormal(exit)
+    eyelet.addScaledVector(normal0, 0.12 * cm)
+    const start = eyelet.clone().addScaledVector(normal0, 0.2 * cm)
 
-    // Recorrido del cordón: cae pegado al pecho con una curva suave (no recto como una varilla);
+    // Recorrido del cordón: cae pegado a la tela con una curva suave (no recto como una varilla);
     // los dos cordones no son iguales para que no se vean de copia
     const step = 1 * cm
-    const length = (side === 0 ? 31 : 33) * cm
+    const length = (side === 0 ? 33 : 35) * cm
     const path = [start.clone()]
     const ups = [normal0.clone()]
-    const anchors = [keepOutside(start.clone(), 0.5 * cm)]
+    const anchors = [exit]
     for (let s = step; s <= length; s += step) {
       const t = s / length
       const p = path[path.length - 1].clone()
       p.y -= step
-      // Primero se abre un poco hacia fuera y luego vuelve a caer recto
-      p.x += dir * cm * (0.18 * Math.cos(Math.PI * t) + 0.04 * Math.sin(7 * t + side * 2))
-      const a = keepOutside(p, 0.4 * cm)
+      // Cae casi recto (un cordón de verdad no se abre hacia los lados), con un vaivén muy suave
+      p.x += dir * cm * (-0.04 + 0.04 * Math.sin(7 * t + side * 2))
+      const a = keepOutside(p, 0.35 * cm)
       // Mantiene el largo de cada tramo tras el empujón
       const prev = path[path.length - 1]
       p.sub(prev).setLength(step).add(prev)
       path.push(p)
-      ups.push(outward(p))
+      ups.push(a >= 0 ? fabricNormal(a) : outward(p))
       anchors.push(a)
     }
 
@@ -298,9 +337,43 @@ function addCords(
     tube(out, path.slice(0, cordEnd), ups, anchors, { w: 0.45 * cm, h: 0.13 * cm, twist: 0.2 + side * 0.15 }, cm, 'cordones', skinIndex, skinWeight)
     const tip = path.slice(path.length - aglet)
     tube(out, tip, ups.slice(path.length - aglet), anchors.slice(path.length - aglet), { w: 0.3 * cm, h: 0.3 * cm, twist: 0 }, cm, 'ojales', skinIndex, skinWeight)
-    // Ojal metálico alrededor de la salida
-    ring(out, start, normal0, 0.6 * cm, 0.16 * cm, anchors[0], skinIndex, skinWeight)
+    // Ojal metálico alrededor de la salida, apoyado en la tela
+    ring(out, eyelet, normal0, 0.55 * cm, 0.14 * cm, exit, skinIndex, skinWeight)
   })
+}
+
+/** Normal de la tela en cada punto, orientada hacia fuera del cuerpo (las piezas no tienen todas el mismo giro). */
+function fabricNormals(relaxed: Float32Array, tris: number[], pose: PoseData, unit: number) {
+  const normals = vertexNormals(relaxed, tris)
+  const skinHash = new SpatialHash(pose.points, 10 * unit)
+  return (v: number) => {
+    const n = new THREE.Vector3().fromArray(normals, v * 3)
+    const k = skinHash.nearest(relaxed[v * 3], relaxed[v * 3 + 1], relaxed[v * 3 + 2])
+    if (k >= 0 && n.x * pose.normals[k * 3] + n.y * pose.normals[k * 3 + 1] + n.z * pose.normals[k * 3 + 2] < 0) n.negate()
+    return n.lengthSq() > 0 ? n.normalize() : new THREE.Vector3(0, 0, 1)
+  }
+}
+
+/** Alisa una línea de puntos (un borde) a lo largo de sí misma, sin encogerla (Taubin en una dimensión). */
+function smoothChain(pos: Float32Array, verts: number[], iterations: number) {
+  const tmp = new Float32Array(verts.length * 3)
+  const pass = (factor: number) => {
+    for (let k = 0; k < verts.length; k++) {
+      const v = verts[k] * 3
+      if (k === 0 || k === verts.length - 1) {
+        tmp.set(pos.subarray(v, v + 3), k * 3)
+        continue
+      }
+      const a = verts[k - 1] * 3
+      const b = verts[k + 1] * 3
+      for (let c = 0; c < 3; c++) tmp[k * 3 + c] = pos[v + c] + factor * ((pos[a + c] + pos[b + c]) / 2 - pos[v + c])
+    }
+    verts.forEach((v, k) => pos.set(tmp.subarray(k * 3, k * 3 + 3), v * 3))
+  }
+  for (let it = 0; it < iterations; it++) {
+    pass(0.5)
+    pass(-0.53)
+  }
 }
 
 /** Copia a un punto nuevo los pesos de huesos del punto de tela `anchor`. */

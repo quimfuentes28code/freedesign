@@ -4,6 +4,8 @@ import type { Cloth } from './Cloth'
 export interface Collider {
   points: Float32Array
   normals: Float32Array
+  /** Zona del cuerpo de cada punto (Part), para que algunas piezas no choquen con brazos y manos. */
+  parts?: Uint8Array
 }
 
 /** Rejilla espacial rápida (tabla hash numérica) para encontrar el punto de la piel más cercano. */
@@ -83,6 +85,18 @@ export interface RelaxOptions {
    * - apart: los dos grupos se separan entre sí (mangas y costados del cuerpo)
    */
   layers?: Layer[]
+  /**
+   * Puntos de tela que solo chocan con el tronco y las piernas (no con brazos ni manos): p. ej. el bajo de canalé,
+   * que si no se retuerce al chocar con la mano que cuelga a su altura.
+   */
+  bodyOnly?: number[]
+  /** Zonas del cuerpo que cuentan como "tronco y piernas" para `bodyOnly`. */
+  bodyParts?: number[]
+  /**
+   * Puntos sujetos con suavidad a su posición inicial (p. ej. el cuello vuelto que forma la capucha bajada,
+   * que si no se iría hacia atrás arrastrado por el peso de la capucha).
+   */
+  pins?: number[]
 }
 
 export interface Layer {
@@ -155,6 +169,8 @@ function separateLayers(
 export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
   const pos = Float32Array.from(cloth.pos)
   const prev = Float32Array.from(pos)
+  const pins = opts.pins?.length ? opts.pins : null
+  const pinPos = Float32Array.from(pos)
   const n = pos.length / 3
   const fps = 60
   const substeps = 10
@@ -182,8 +198,25 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
   const reach2 = (opts.cell * 1.5) ** 2
   const maxPush = opts.thickness
   const nearest = new Int32Array(n).fill(-1)
+  // Piel solo del tronco y las piernas, para los puntos que no deben chocar con brazos ni manos
+  const onlyBody = new Uint8Array(n)
+  let bodyHash: SpatialHash | null = null
+  let bodyIndex: number[] = []
+  if (opts.bodyOnly?.length && body.parts && opts.bodyParts) {
+    for (const v of opts.bodyOnly) onlyBody[v] = 1
+    const allowed = new Set(opts.bodyParts)
+    bodyIndex = Array.from(body.parts.keys()).filter((k) => allowed.has(body.parts![k]))
+    const pts = new Float32Array(bodyIndex.length * 3)
+    bodyIndex.forEach((k, j) => pts.set(body.points.subarray(k * 3, k * 3 + 3), j * 3))
+    bodyHash = new SpatialHash(pts, opts.cell)
+  }
   const refresh = () => {
-    for (let i = 0; i < n; i++) nearest[i] = hash.nearest(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2])
+    for (let i = 0; i < n; i++) {
+      if (bodyHash && onlyBody[i]) {
+        const k = bodyHash.nearest(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2])
+        nearest[i] = k < 0 ? -1 : bodyIndex[k]
+      } else nearest[i] = hash.nearest(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2])
+    }
   }
 
   // 0. Antes de empezar, sacamos del cuerpo de una vez la tela que haya quedado dentro
@@ -233,6 +266,13 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
 
     // 3. Distancias del patrón
     satisfyLinks()
+
+    // Puntos sujetos: vuelven un poco hacia su sitio en cada paso
+    if (pins) {
+      for (const v of pins) {
+        for (let c = 0; c < 3; c++) pos[v * 3 + c] += (pinPos[v * 3 + c] - pos[v * 3 + c]) * 0.08
+      }
+    }
 
     // 4. Choque con el cuerpo (con rozamiento para que la tela se quede apoyada en hombros y pecho)
     // La piel más cercana cambia poco de un paso a otro: se recalcula de vez en cuando
