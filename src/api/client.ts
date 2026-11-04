@@ -4,6 +4,10 @@ import type { Artwork, ArtworkInput } from '../shared/artworks'
 import type { Design, DesignInput } from '../shared/designs'
 import type { Material, MaterialInput, Supplier, SupplierInput } from '../shared/library'
 import type { Collection, CollectionInput, FileCategory, Project, ProjectInput, ProjectStatus, ProjectSummary } from '../shared/projects'
+import type { ProfileInput, RegisterInput, User } from '../shared/users'
+
+/** Evento que se lanza cuando la API responde que no hay sesión (caducada o cerrada en otro sitio). */
+export const SESSION_EXPIRED = 'fd:session-expired'
 
 /** Llamada a la API del Worker (/api/...). Lanza un Error con el mensaje del servidor si algo falla. */
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -13,6 +17,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null
+    if (res.status === 401 && !path.startsWith('/auth/')) window.dispatchEvent(new Event(SESSION_EXPIRED))
     throw new Error(body?.error ?? `Error ${res.status}`)
   }
   return (res.status === 204 ? undefined : await res.json()) as T
@@ -21,6 +26,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const send = (method: string, body?: unknown): RequestInit => ({ method, body: body === undefined ? undefined : JSON.stringify(body) })
 
 export const api = {
+  /** Cuenta con la sesión iniciada, o null si no hay sesión. */
+  me: async () => {
+    const res = await fetch('/api/auth/me')
+    if (res.status === 401) return null
+    if (!res.ok) throw new Error(`Error ${res.status}`)
+    return (await res.json()) as User
+  },
+  login: (email: string, password: string) => request<User>('/auth/login', send('POST', { email, password })),
+  register: (r: RegisterInput) => request<User>('/auth/register', send('POST', r)),
+  logout: () => request<void>('/auth/logout', send('POST')),
+  updateProfile: (p: ProfileInput) => request<User>('/auth/me', send('PUT', p)),
+  changePassword: (current: string, password: string) => request<void>('/auth/password', send('PUT', { current, password })),
+
   stats: () => request<Stats>('/stats'),
   openTasks: () => request<{ id: string; title: string; dueDate: string; projectId: string; projectName: string }[]>('/tasks'),
 

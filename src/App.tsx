@@ -1,5 +1,8 @@
 import { BrowserRouter, Route, Routes } from 'react-router'
+import { AuthProvider, GuestOnly, RequireAuth } from './auth/AuthContext'
 import { AppLayout } from './layout/AppLayout'
+import { ProfilePage } from './pages/account/Profile'
+import { LoginPage, RegisterPage } from './pages/auth/AuthPages'
 import { ClientForm } from './pages/clients/ClientForm'
 import { ClientsList } from './pages/clients/ClientsList'
 import { Dashboard } from './pages/Dashboard'
@@ -16,38 +19,47 @@ import { ProjectDetail } from './pages/projects/ProjectDetail'
 import { ProjectsPage } from './pages/projects/ProjectsPage'
 import { Economy, NotFound, Production } from './pages/Sections'
 
-/** Rutas de la app. Cada apartado del menú es una página. */
+/** Rutas de la app. Entrar y crear cuenta son públicas; el resto necesita sesión. */
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="clientes" element={<ClientsList />} />
-          <Route path="clientes/nuevo" element={<ClientForm />} />
-          <Route path="clientes/:id" element={<ClientForm />} />
-          <Route path="disenador" element={<DesignsList />} />
-          <Route path="disenador/nuevo" element={<NewDesign />} />
-          <Route path="disenador/3d" element={<Preview3D />} />
-          <Route path="disenador/:id" element={<DesignEditor />} />
-          <Route path="proyectos" element={<ProjectsPage />} />
-          <Route path="proyectos/nuevo" element={<ProjectDetail />} />
-          <Route path="proyectos/colecciones" element={<CollectionsPage />} />
-          <Route path="proyectos/:id" element={<ProjectDetail />} />
-          <Route path="produccion" element={<Production />} />
-          <Route path="biblioteca" element={<MaterialsCatalog />} />
-          <Route path="biblioteca/nuevo" element={<MaterialForm />} />
-          <Route path="biblioteca/graficos" element={<ArtworksList />} />
-          <Route path="biblioteca/graficos/nuevo" element={<ArtworkCreator />} />
-          <Route path="biblioteca/graficos/:id" element={<ArtworkCreator />} />
-          <Route path="biblioteca/proveedores" element={<SuppliersList />} />
-          <Route path="biblioteca/proveedores/nuevo" element={<SupplierForm />} />
-          <Route path="biblioteca/proveedores/:id" element={<SupplierForm />} />
-          <Route path="biblioteca/:id" element={<MaterialForm />} />
-          <Route path="economia" element={<Economy />} />
-          <Route path="*" element={<NotFound />} />
-        </Route>
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          <Route element={<GuestOnly />}>
+            <Route path="entrar" element={<LoginPage />} />
+            <Route path="registro" element={<RegisterPage />} />
+          </Route>
+          <Route element={<RequireAuth />}>
+            <Route element={<AppLayout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="perfil" element={<ProfilePage />} />
+              <Route path="clientes" element={<ClientsList />} />
+              <Route path="clientes/nuevo" element={<ClientForm />} />
+              <Route path="clientes/:id" element={<ClientForm />} />
+              <Route path="disenador" element={<DesignsList />} />
+              <Route path="disenador/nuevo" element={<NewDesign />} />
+              <Route path="disenador/3d" element={<Preview3D />} />
+              <Route path="disenador/:id" element={<DesignEditor />} />
+              <Route path="proyectos" element={<ProjectsPage />} />
+              <Route path="proyectos/nuevo" element={<ProjectDetail />} />
+              <Route path="proyectos/colecciones" element={<CollectionsPage />} />
+              <Route path="proyectos/:id" element={<ProjectDetail />} />
+              <Route path="produccion" element={<Production />} />
+              <Route path="biblioteca" element={<MaterialsCatalog />} />
+              <Route path="biblioteca/nuevo" element={<MaterialForm />} />
+              <Route path="biblioteca/graficos" element={<ArtworksList />} />
+              <Route path="biblioteca/graficos/nuevo" element={<ArtworkCreator />} />
+              <Route path="biblioteca/graficos/:id" element={<ArtworkCreator />} />
+              <Route path="biblioteca/proveedores" element={<SuppliersList />} />
+              <Route path="biblioteca/proveedores/nuevo" element={<SupplierForm />} />
+              <Route path="biblioteca/proveedores/:id" element={<SupplierForm />} />
+              <Route path="biblioteca/:id" element={<MaterialForm />} />
+              <Route path="economia" element={<Economy />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Route>
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

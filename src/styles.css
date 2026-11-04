@@ -723,6 +723,171 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
+/* --- Cuenta (abajo del menú lateral) --- */
+
+.account {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.account-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.account-link:hover {
+  background: var(--soft);
+}
+
+.avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-text);
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.account-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.account-name {
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-type-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.account-logout {
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.account-logout:hover {
+  color: var(--text);
+}
+
+/* --- Entrar y crear cuenta --- */
+
+.auth-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+}
+
+.auth-box {
+  width: 100%;
+  max-width: 400px;
+}
+
+.auth-brand {
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.auth-card h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.auth-card > .muted {
+  margin: 0 0 18px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-form .status {
+  margin: 0;
+}
+
+.auth-form .button {
+  margin-top: 6px;
+}
+
+.auth-footer {
+  text-align: center;
+  margin-top: 16px;
+}
+
+.auth-checking {
+  padding: 32px;
+}
+
+.account-type {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.account-type button {
+  font: inherit;
+  font-size: 14px;
+  padding: 9px 12px;
+  border: none;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.account-type button + button {
+  border-left: 1px solid var(--border);
+}
+
+.account-type button.active {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+input:disabled {
+  background: var(--soft);
+  color: var(--muted);
+}
+
 /* --- Móvil: el menú pasa arriba y se desliza en horizontal --- */
 
 @media (max-width: 760px) {
@@ -753,6 +918,19 @@ select {
   .nav-link {
     white-space: nowrap;
     padding: 7px 10px;
+  }
+
+  /* En el móvil, de la cuenta solo queda el círculo con la inicial (lleva a Mi perfil) */
+  .account {
+    margin-top: 0;
+    margin-left: auto;
+    border-top: none;
+    padding-top: 0;
+  }
+
+  .account-text,
+  .account-logout {
+    display: none;
   }
 
   .page {

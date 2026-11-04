@@ -5,8 +5,6 @@ export interface Env {
   /** Almacén de archivos (fotos de materiales, y más adelante bocetos, estampados…). */
   FILES: KVNamespace
   ASSETS: Fetcher
-  /** Correos con acceso, separados por comas. Vacío = sin comprobación (desarrollo local). */
-  ALLOWED_EMAILS: string
 }
 
 export class HttpError extends Error {
@@ -49,3 +47,16 @@ export function required(v: unknown, field: string) {
 }
 
 export const now = () => new Date().toISOString()
+
+/**
+ * Comprueba que una referencia (cliente, proyecto, material…) es de esta cuenta antes de guardarla,
+ * para que nadie pueda enlazar datos de otra cuenta. Devuelve el id (o null si viene vacío).
+ */
+export async function ownedRef(env: Env, table: OwnedTable, id: string | null, uid: string, what: string) {
+  if (!id) return null
+  const row = await env.DB.prepare(`SELECT 1 FROM ${table} WHERE id = ? AND user_id = ?`).bind(id, uid).first()
+  if (!row) throw new HttpError(400, `${what} no existe`)
+  return id
+}
+
+type OwnedTable = 'clients' | 'suppliers' | 'materials' | 'designs' | 'artworks' | 'collections' | 'projects'
