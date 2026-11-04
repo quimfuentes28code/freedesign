@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { Design, Measurements } from '../../types'
+import type { Design, GarmentSlot, Measurements } from '../../types'
 import type { ModelInfo } from '../body'
 import { Part } from '../pose'
 import { Cloth, type Panel } from './Cloth'
@@ -11,8 +11,18 @@ export interface HoodieResult {
   cloth: Cloth
   /** Zonas del cuerpo cuyo movimiento sigue cada pieza. */
   follows: Part[][]
+  /** Zona de la prenda de cada pieza (para darle su color y material). */
+  slots: GarmentSlot[]
   /** Bolsillo canguro en coordenadas del patrón del delantero (cm), si lo lleva. */
-  pocket: { panel: number; inside: (x: number, y: number) => boolean } | null
+  pocket: { panel: number; inside: (x: number, y: number) => boolean; shape: PocketShape } | null
+}
+
+/** Trapecio del bolsillo canguro en el patrón del delantero (cm): de `y0` a `y0 + h`, semiancho de `w0` abajo a `w1` arriba. */
+export interface PocketShape {
+  y0: number
+  h: number
+  w0: number
+  w1: number
 }
 
 interface Body {
@@ -33,8 +43,10 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const s = m.height / 172
   const cloth = new Cloth(unit)
   const follows: Part[][] = []
-  const add = (panel: Panel, parts: Part[]) => {
+  const slots: GarmentSlot[] = []
+  const add = (panel: Panel, parts: Part[], slot: GarmentSlot) => {
     follows[panel.id] = parts
+    slots[panel.id] = slot
     return panel
   }
 
@@ -131,8 +143,8 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
       },
     })
   }
-  const front = add(torsoPanel(true), [Part.Torso, Part.Neck, Part.ArmL, Part.ArmR])
-  const back = add(torsoPanel(false), [Part.Torso, Part.Neck, Part.ArmL, Part.ArmR])
+  const front = add(torsoPanel(true), [Part.Torso, Part.Neck, Part.ArmL, Part.ArmR], 'cuerpo')
+  const back = add(torsoPanel(false), [Part.Torso, Part.Neck, Part.ArmL, Part.ArmR], 'cuerpo')
 
   // Costados (solo por debajo de la sisa) y hombros
   const armpitRow = Math.floor(((L - slope - armhole) / (L - slope)) * (nv - 1))
@@ -180,6 +192,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
         },
       }),
       [side > 0 ? Part.ArmL : Part.ArmR, Part.Torso],
+      'mangas',
     )
     const top = sleeve.row(0)
     const mid = (ns - 1) / 2
@@ -202,6 +215,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
         },
       }),
       [side > 0 ? Part.ArmL : Part.ArmR, side > 0 ? Part.HandL : Part.HandR],
+      'punos',
     )
     cloth.sew(sleeve.row(nl - 1), cuff.row(0))
     cloth.sew(cuff.col(0), cuff.col(nc - 1))
@@ -231,6 +245,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
       },
     }),
     [Part.Torso],
+    'bajo',
   )
   cloth.sew(band.row(3), hemLoop)
   cloth.sew(band.col(0), band.col(nb - 1))
@@ -278,6 +293,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
           },
         }),
         [Part.Torso, Part.Neck],
+        'capucha',
       )
       cloth.sew(panel.row(0), neck)
       return panel
@@ -304,6 +320,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
         },
       }),
       [Part.Torso, Part.Neck],
+      'cuello',
     )
     cloth.sew(collar.row(0), [...loop, loop[0]])
     cloth.sew(collar.col(0), collar.col(nn - 1))
@@ -321,10 +338,11 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
           const t = (y - py) / ph
           return Math.abs(x) < THREE.MathUtils.lerp(pw / 2, pw * 0.34, t)
         },
+        shape: { y0: py, h: ph, w0: pw / 2, w1: pw * 0.34 },
       }
     : null
 
-  return { cloth, follows, pocket }
+  return { cloth, follows, slots, pocket }
 }
 
 /** Perímetro aproximado de una elipse (Ramanujan). */

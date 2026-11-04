@@ -46,6 +46,7 @@ function toGeometry(out: DressOutput) {
   g.setAttribute('skinWeight', new THREE.BufferAttribute(out.skinWeight, 4))
   g.setIndex(new THREE.BufferAttribute(out.index, 1))
   for (const [start, count, material] of out.groups) g.addGroup(start, count, material)
+  g.userData.pocket = out.pocket
   return g
 }
 

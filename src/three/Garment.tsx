@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import * as THREE from 'three'
-import { FABRICS, type Fabric } from '../data/fabrics'
-import type { Design, Measurements } from '../types'
+import { FABRICS, type FabricLook } from '../data/fabrics'
+import { GARMENT_SLOTS, RIB_SLOTS, slotIndex, type Design, type GarmentSlot, type Measurements, type SlotStyle } from '../types'
 import type { Model } from './Avatar'
 import { FIT_EASE, jointPosition, type BodyFit } from './body'
 import { dressInWorker } from './cloth/dressClient'
@@ -9,24 +9,78 @@ import { knitNormalMap } from './cloth/textures'
 import { Part, referencePose, type ReferencePose } from './pose'
 import { CloudGrid, computeTubeNormals, skinFromCloud, wrapTube, type Cloud, type TubeSpec } from './wrap'
 
-/** Materiales de la prenda: la tela elegida y el canalé de puños, bajo y cuello (mismo color). */
-function useFabricMaterials(design: Design) {
+/** Color y material de cada zona: el que venga del Diseñador o, si no, la tela y el color de la prenda (canalé en puños, bajo y cuello). */
+export function slotStyle(design: Design, slot: GarmentSlot): SlotStyle {
+  const own = design.pieces?.[slot]
+  if (own) return own
   const fabric = FABRICS[design.fabric]
-  const materials = useMemo(() => {
-    const make = (knit: Fabric['knit'], depth: number) =>
-      new THREE.MeshPhysicalMaterial({
-        color: design.color,
-        roughness: fabric.roughness,
-        sheen: fabric.sheen,
-        sheenRoughness: fabric.sheenRoughness,
-        sheenColor: new THREE.Color(design.color).lerp(new THREE.Color('#ffffff'), 0.25),
-        clearcoat: fabric.clearcoat,
-        normalMap: depth > 0 ? knitNormalMap(knit) : null,
-        normalScale: new THREE.Vector2(depth, depth),
-        side: THREE.DoubleSide,
-      })
-    return [make(fabric.knit, fabric.knitDepth), make('canale', 0.9)]
-  }, [fabric, design.color])
+  const body = design.pieces?.cuerpo ?? { color: design.color, look: fabric }
+  return RIB_SLOTS.includes(slot) ? { color: body.color, look: { ...body.look, knit: 'canale', knitDepth: 0.9 } } : body
+}
+
+/**
+ * Recorta el material del bolsillo canguro a su forma exacta (un trapecio en las UV del delantero, en cm),
+ * así su borde sale recto aunque la malla sea de triángulos. La forma se pone en `userData.pocket` al tener la prenda.
+ */
+function clipToPocket(m: THREE.MeshPhysicalMaterial) {
+  const uniforms = { uPocket: { value: new THREE.Vector4(0, 0, 0, 0) } }
+  m.userData.pocket = uniforms.uPocket
+  m.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms)
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vPocketUv;')
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\nvPocketUv = uv;')
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vPocketUv;\nuniform vec4 uPocket;')
+      .replace(
+        'void main() {',
+        `void main() {
+          float pt = (vPocketUv.y - uPocket.x) / max(uPocket.y, 0.001);
+          if (pt < 0.0 || pt > 1.0 || abs(vPocketUv.x) > mix(uPocket.z, uPocket.w, pt)) discard;`,
+      )
+  }
+  m.customProgramCacheKey = () => 'bolsillo'
+}
+
+/** Un material de Three.js por zona (en el orden de GARMENT_SLOTS), que solo se rehace si cambia algún color o tela. */
+function useSlotMaterials(design: Design) {
+  const styles = GARMENT_SLOTS.map((s) => slotStyle(design, s))
+  const key = JSON.stringify(styles)
+  const materials = useMemo(
+    () =>
+      styles.map(({ color, look }, i) => {
+        const m = new THREE.MeshPhysicalMaterial({
+          color,
+          roughness: look.roughness,
+          metalness: look.metalness ?? 0,
+          sheen: look.sheen,
+          sheenRoughness: look.sheenRoughness,
+          sheenColor: new THREE.Color(color).lerp(new THREE.Color('#ffffff'), 0.25),
+          clearcoat: look.clearcoat,
+          clearcoatRoughness: 0.3,
+          normalMap: look.knitDepth > 0 ? knitNormalMap(look.knit) : null,
+          normalScale: new THREE.Vector2(look.knitDepth, look.knitDepth),
+          side: THREE.DoubleSide,
+        })
+        const slot = GARMENT_SLOTS[i]
+        // En la sisa la manga y el cuerpo se tocan: el cuerpo se dibuja por delante para que no asomen trocitos de manga
+        if (slot === 'cuerpo') {
+          m.polygonOffset = true
+          m.polygonOffsetFactor = -1
+          m.polygonOffsetUnits = -2
+        }
+        if (slot === 'bolsillo') {
+          // El bolsillo va cosido encima del delantero: siempre por delante de él
+          m.polygonOffset = true
+          m.polygonOffsetFactor = -2
+          m.polygonOffsetUnits = -6
+          clipToPocket(m)
+        }
+        return m
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [key],
+  )
   useEffect(() => () => materials.forEach((m) => m.dispose()), [materials])
   return materials
 }
@@ -49,8 +103,14 @@ const PATTERN_GARMENTS = new Set<Design['garment']>(['sudadera'])
  * - Resto: tubos de tela que envuelven torso, mangas y perneras (versión sencilla, pendiente de pasar a patrón).
  */
 export function Garment({ model, fit, cloud, measurements, design }: Props) {
-  const materials = useFabricMaterials(design)
-  const fabric = FABRICS[design.fabric]
+  const materials = useSlotMaterials(design)
+  // La caída depende solo de la tela del cuerpo: cambiar otros materiales o colores no recalcula la prenda
+  const bodyLook = slotStyle(design, 'cuerpo').look
+  const fabric = useMemo<FabricLook>(
+    () => bodyLook,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bodyLook.stiffness, bodyLook.sheenRoughness],
+  )
   const pose = useMemo(() => referencePose(model, cloud), [model, cloud])
   const pattern = PATTERN_GARMENTS.has(design.garment)
 
@@ -72,7 +132,8 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
       },
       scale: fit.scale,
       measurements,
-      design,
+      // Al worker solo le hace falta la forma de la prenda (los colores y materiales se aplican aquí)
+      design: { ...design, pieces: undefined },
       fabric,
     })
       .then((g) => {
@@ -97,12 +158,16 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
     return buildGarment(model, cloud, pose, grid, fit, design, fabric)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, cloud, pose, fit, pattern, design.garment, design.fit, fabric])
-  useEffect(() => () => wrapGeoms.forEach((g) => g.dispose()), [wrapGeoms])
+  useEffect(() => () => wrapGeoms.forEach(({ g }) => g.dispose()), [wrapGeoms])
 
   useEffect(() => {
-    const geometries = pattern ? (patternGeom ? [patternGeom] : []) : wrapGeoms
-    const meshes = geometries.map((g) => {
-      const mesh = new THREE.SkinnedMesh(g, pattern ? materials : materials[0])
+    const geometries = pattern ? (patternGeom ? [{ g: patternGeom, slot: null }] : []) : wrapGeoms
+    // Forma del bolsillo de esta prenda, para recortar su material
+    const shape = patternGeom?.userData.pocket as { y0: number; h: number; w0: number; w1: number } | null | undefined
+    const pocketUniform = materials[slotIndex('bolsillo')].userData.pocket as { value: THREE.Vector4 } | undefined
+    if (shape && pocketUniform) pocketUniform.value.set(shape.y0, shape.h, shape.w0, shape.w1)
+    const meshes = geometries.map(({ g, slot }) => {
+      const mesh = new THREE.SkinnedMesh(g, slot ? materials[slotIndex(slot)] : materials)
       mesh.castShadow = true
       mesh.receiveShadow = true
       mesh.frustumCulled = false
@@ -139,8 +204,8 @@ function buildGarment(
   grid: CloudGrid,
   fit: BodyFit,
   design: Design,
-  fabric: Fabric,
-) {
+  fabric: FabricLook,
+): { g: THREE.BufferGeometry; slot: GarmentSlot }[] {
   const I = model.info
   const easeM = FIT_EASE[design.fit]
   // Separación de la tela respecto al cuerpo (con un mínimo para que nunca quede por dentro)
@@ -228,7 +293,7 @@ function buildGarment(
   // Cada pieza toma el movimiento solo de las zonas que cubre, suavizado a lo largo de la tela
   const only = (...allowed: Part[]) => (i: number) => allowed.includes(parts[i] as Part)
   const torsoAndLegs = only(Part.Torso, Part.Neck, Part.LegL, Part.LegR)
-  const pieces: { g: THREE.BufferGeometry; allow: (i: number) => boolean; smoothing: number }[] = []
+  const pieces: { g: THREE.BufferGeometry; allow: (i: number) => boolean; smoothing: number; slot: GarmentSlot }[] = []
   switch (design.garment) {
     case 'camiseta':
     case 'manga-larga': {
@@ -237,9 +302,9 @@ function buildGarment(
         flare: (t) => loose * 0.35 * (1 - t) ** 2,
         folds: { count: 10, amp: loose * 0.08, t0: 0.25, t1: 0 },
       })
-      pieces.push({ g, allow: torsoAndLegs, smoothing: 4 })
-      pieces.push({ g: sleeve(1, coverage), allow: only(Part.ArmL, Part.Torso), smoothing: 3 })
-      pieces.push({ g: sleeve(-1, coverage), allow: only(Part.ArmR, Part.Torso), smoothing: 3 })
+      pieces.push({ g, allow: torsoAndLegs, smoothing: 4, slot: 'cuerpo' })
+      pieces.push({ g: sleeve(1, coverage), allow: only(Part.ArmL, Part.Torso), smoothing: 3, slot: 'mangas' })
+      pieces.push({ g: sleeve(-1, coverage), allow: only(Part.ArmR, Part.Torso), smoothing: 3, slot: 'mangas' })
       break
     }
     case 'vestido': {
@@ -251,20 +316,20 @@ function buildGarment(
         flare: (t) => (t < tHips ? skirtFlare * (1 - t / tHips) ** 1.4 : 0),
         folds: { count: 9, amp: 1 + loose * 0.3, t0: tHips, t1: 0 },
       })
-      pieces.push({ g, allow: torsoAndLegs, smoothing: 12 })
+      pieces.push({ g, allow: torsoAndLegs, smoothing: 12, slot: 'cuerpo' })
       break
     }
     case 'pantalon':
-      pieces.push({ g: torso(crotchY + 1, waistY + 3), allow: torsoAndLegs, smoothing: 4 })
-      pieces.push({ g: leg(1), allow: only(Part.LegL, Part.Torso), smoothing: 3 })
-      pieces.push({ g: leg(-1), allow: only(Part.LegR, Part.Torso), smoothing: 3 })
+      pieces.push({ g: torso(crotchY + 1, waistY + 3), allow: torsoAndLegs, smoothing: 4, slot: 'cuerpo' })
+      pieces.push({ g: leg(1), allow: only(Part.LegL, Part.Torso), smoothing: 3, slot: 'cuerpo' })
+      pieces.push({ g: leg(-1), allow: only(Part.LegR, Part.Torso), smoothing: 3, slot: 'cuerpo' })
       break
   }
 
-  return pieces.map(({ g, allow, smoothing }) => {
+  return pieces.map(({ g, allow, smoothing, slot }) => {
     skinFromCloud(g, cloud, grid, allow, smoothing)
     pose.unskin(g)
     computeTubeNormals(g)
-    return g
+    return { g, slot }
   })
 }

@@ -1,10 +1,35 @@
 import * as THREE from 'three'
 
-/** Relieve del tejido. Las UV de la prenda están en cm reales; `size` es cuántos cm ocupa una repetición. */
-export type Knit = 'punto' | 'canale' | 'sarga' | 'liso'
+/**
+ * Relieve del tejido. Las UV de la prenda están en cm reales; `SIZE` es cuántos cm ocupa una repetición.
+ * - punto: jersey o felpa · canale: costillas · sarga: diagonal (denim, chino) · liso: sin relieve
+ * - pana: canutillos anchos · gofre: cuadritos (waffle, piqué) · rejilla: malla o ripstop
+ * - grano: piel · rizo: borrego, bouclé, pelo · acolchado: canales de plumas
+ */
+export type Knit = 'punto' | 'canale' | 'sarga' | 'liso' | 'pana' | 'gofre' | 'rejilla' | 'grano' | 'rizo' | 'acolchado'
 
-const SIZE: Record<Knit, number> = { punto: 1.2, canale: 2, sarga: 1.5, liso: 1 }
+const SIZE: Record<Knit, number> = {
+  punto: 1.2,
+  canale: 2,
+  sarga: 1.5,
+  liso: 1,
+  pana: 2.4,
+  gofre: 1.4,
+  rejilla: 0.8,
+  grano: 3,
+  rizo: 1.6,
+  acolchado: 12,
+}
 const cache = new Map<Knit, THREE.Texture>()
+
+/** Ruido suave y periódico (para piel y rizo), sin dependencias. */
+function wave(x: number, y: number, seeds: number[][]) {
+  let h = 0
+  for (const [fx, fy, ph] of seeds) h += Math.sin(Math.PI * 2 * (fx * x + fy * y) + ph)
+  return h / seeds.length
+}
+const GRAIN = [[3, 5, 0.3], [7, -2, 1.7], [-5, 6, 2.9], [11, 9, 0.8], [-13, 4, 4.1]]
+const CURL = [[4, 4, 0], [-4, 4, 1.3], [8, 0, 2.2], [0, 8, 3.1]]
 
 /** Altura del relieve en una repetición (x, y en [0, 1)), periódica. */
 const HEIGHT: Record<Knit, (x: number, y: number) => number> = {
@@ -19,6 +44,16 @@ const HEIGHT: Record<Knit, (x: number, y: number) => number> = {
   // Sarga (denim): diagonales
   sarga: (x, y) => Math.abs(Math.sin(Math.PI * 12 * (x + y))),
   liso: () => 0.5,
+  // Pana: canutillos redondeados y anchos
+  pana: (x) => Math.sqrt(Math.abs(Math.sin(Math.PI * 3 * x))),
+  // Gofre: cuadritos hundidos
+  gofre: (x, y) => Math.min(Math.abs(Math.sin(Math.PI * 4 * x)), Math.abs(Math.sin(Math.PI * 4 * y))),
+  // Rejilla: agujeros redondos
+  rejilla: (x, y) => Math.min(1, Math.hypot(((x * 4) % 1) - 0.5, ((y * 4) % 1) - 0.5) * 2.6),
+  grano: (x, y) => 0.5 + 0.5 * wave(x, y, GRAIN),
+  rizo: (x, y) => Math.abs(wave(x, y, CURL)),
+  // Acolchado: canales horizontales abombados
+  acolchado: (_x, y) => Math.sqrt(Math.abs(Math.sin(Math.PI * y))),
 }
 
 /** Mapa de normales del tejido, generado por código (sin descargar imágenes). */

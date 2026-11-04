@@ -1,10 +1,10 @@
 import * as THREE from 'three'
-import type { Fabric } from '../../data/fabrics'
-import type { Design, Measurements } from '../../types'
+import type { FabricLook } from '../../data/fabrics'
+import { GARMENT_SLOTS, slotIndex, type Design, type GarmentSlot, type Measurements } from '../../types'
 import type { ModelInfo } from '../body'
 import { skinPoints, unskinPoints, type PoseData } from '../pose'
 import { CloudGrid } from '../wrap'
-import { buildHoodie } from './hoodie'
+import { buildHoodie, type PocketShape } from './hoodie'
 import { relax } from './relax'
 import { skinCloth } from './skinCloth'
 
@@ -18,7 +18,8 @@ export interface DressInput {
   scale: number
   measurements: Measurements
   design: Design
-  fabric: Fabric
+  /** Tela del cuerpo de la prenda (su rigidez decide cómo cae). */
+  fabric: FabricLook
   /** Solo para depurar: segundos de simulación (0 = ver la prenda sin asentar). */
   seconds?: number
 }
@@ -31,8 +32,10 @@ export interface DressOutput {
   skinIndex: Uint16Array
   skinWeight: Float32Array
   index: Uint32Array
-  /** Grupos de material: [inicio, cantidad, material] (0 = tela principal, 1 = canalé). */
+  /** Grupos de material: [inicio, cantidad, material]; el material es el índice de la zona en GARMENT_SLOTS. */
   groups: [number, number, number][]
+  /** Forma del bolsillo canguro en las UV del delantero (cm), para recortarlo exacto; null si no lleva. */
+  pocket: PocketShape | null
   /** Tiempo de cada fase, en ms (para vigilar el rendimiento). */
   timings: Record<string, number>
 }
@@ -53,7 +56,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     timings[name] = Math.round(now - t0)
     t0 = now
   }
-  const { cloth, follows, pocket } = buildHoodie({ info, points: cloud.pos, unit }, measurements, design)
+  const { cloth, follows, slots, pocket } = buildHoodie({ info, points: cloud.pos, unit }, measurements, design)
 
   // La rigidez a la flexión depende de la tela
   for (const l of cloth.links) if (l.k < 0.5) l.k = Math.min(1, l.k * fabric.stiffness)
@@ -71,21 +74,28 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   const uvs = [...cloth.flat]
   const idx = Array.from(skinIndex)
   const wts = Array.from(skinWeight)
-  const main = [...cloth.tris[0]]
-  const rib = cloth.tris[1]
+  // Triángulos agrupados por zona de la prenda (cada zona lleva su color y material)
+  const bySlot: number[][] = GARMENT_SLOTS.map(() => [])
+  for (const tris of cloth.tris) {
+    for (let t = 0; t < tris.length; t += 3) {
+      const slot = slotIndex(slots[cloth.panelOf[tris[t]]])
+      bySlot[slot].push(tris[t], tris[t + 1], tris[t + 2])
+    }
+  }
+  const pocketTris = bySlot[slotIndex('bolsillo' satisfies GarmentSlot)]
 
   // Bolsillo canguro: una capa de tela por encima del delantero, en la zona del bolsillo
   if (pocket) {
-    const normals = vertexNormals(relaxed, [...main, ...rib])
+    const normals = vertexNormals(relaxed, [...cloth.tris[0], ...cloth.tris[1]])
     const copy = new Map<number, number>()
     const lift = 0.35 * unit
     const tris = cloth.tris[0]
     for (let t = 0; t < tris.length; t += 3) {
       const tri = [tris[t], tris[t + 1], tris[t + 2]]
-      const inside = tri.every(
-        (v) => cloth.panelOf[v] === pocket.panel && pocket.inside(cloth.flat[v * 2], cloth.flat[v * 2 + 1]),
-      )
-      if (!inside) continue
+      // Se copian también los triángulos del borde: el material del bolsillo recorta la forma exacta (ver Garment.tsx)
+      const touches =
+        tri.every((v) => cloth.panelOf[v] === pocket.panel) && tri.some((v) => pocket.inside(cloth.flat[v * 2], cloth.flat[v * 2 + 1]))
+      if (!touches) continue
       for (const v of tri) {
         if (!copy.has(v)) {
           copy.set(v, positions.length / 3)
@@ -96,7 +106,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
             wts.push(skinWeight[v * 4 + j])
           }
         }
-        main.push(copy.get(v)!)
+        pocketTris.push(copy.get(v)!)
       }
     }
   }
@@ -105,7 +115,13 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   const skinIdx = new Uint16Array(idx)
   const skinWts = new Float32Array(wts)
   unskinPoints(pose, position, skinIdx, skinWts)
-  const index = new Uint32Array([...main, ...rib])
+  const index = new Uint32Array(bySlot.flat())
+  const groups: [number, number, number][] = []
+  let start = 0
+  bySlot.forEach((tris, material) => {
+    if (tris.length) groups.push([start, tris.length, material])
+    start += tris.length
+  })
   const normal = vertexNormals(position, Array.from(index))
   lap('malla')
 
@@ -124,10 +140,8 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     skinIndex: skinIdx,
     skinWeight: skinWts,
     index,
-    groups: [
-      [0, main.length, 0],
-      [main.length, rib.length, 1],
-    ],
+    groups,
+    pocket: pocket?.shape ?? null,
     timings,
   }
 }

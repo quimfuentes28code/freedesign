@@ -7,6 +7,8 @@ import { OPTION_GROUPS, opt, type GarmentTemplate, type PieceDef } from '../../d
 import type { DesignData, DesignInput, PieceStyle, Print } from '../../shared/designs'
 import type { Material } from '../../shared/library'
 import { Canvas, type CanvasView } from './Canvas'
+import { Design3D } from './Design3D'
+import { MaterialPicker } from './MaterialPicker'
 import { PrintsPanel } from './PrintsPanel'
 import './designer.css'
 
@@ -16,7 +18,14 @@ const PALETTE = [
   '#1f2a44', '#3b5b8c', '#6b1f2a', '#b3261e', '#c4643a', '#e3b341', '#a99bc9', '#e8b4c0',
 ]
 
-/** Editor de un diseño: lienzo con las vistas y panel con piezas, opciones y datos. */
+type ViewMode = '2d' | '3d' | 'ambas'
+const VIEW_MODES: { id: ViewMode; label: string; title: string }[] = [
+  { id: '2d', label: '2D', title: 'Dibujo técnico' },
+  { id: '3d', label: '3D', title: 'Maniquí en 3D' },
+  { id: 'ambas', label: '2D + 3D', title: 'Las dos vistas a la vez' },
+]
+
+/** Editor de un diseño: lienzo (2D, 3D o ambos) y panel con piezas, materiales, opciones y datos. Todo se ve al momento en las dos vistas. */
 export function DesignEditor() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -31,6 +40,22 @@ export function DesignEditor() {
   const [saving, setSaving] = useState(false)
   const [highlight, setHighlight] = useState<string | null>(null)
   const [view, setView] = useState<CanvasView>('front')
+  const [mode, setMode] = useState<ViewMode>(() => {
+    try {
+      const saved = localStorage.getItem('fd:editor-mode')
+      return saved === '3d' || saved === 'ambas' ? saved : '2d'
+    } catch {
+      return '2d'
+    }
+  })
+  const changeMode = (m: ViewMode) => {
+    setMode(m)
+    try {
+      localStorage.setItem('fd:editor-mode', m)
+    } catch {
+      // Sin almacenamiento (modo privado): se recuerda solo mientras la página está abierta
+    }
+  }
   const [selectedPrint, setSelectedPrint] = useState<string | null>(null)
   const artworks = useApi(() => api.listArtworks(), [])
 
@@ -120,6 +145,13 @@ export function DesignEditor() {
             aria-label="Nombre del diseño"
           />
           <span className="muted small">{template.name}</span>
+          <div className="segmented view-mode" role="group" aria-label="Vista">
+            {VIEW_MODES.map((m) => (
+              <button key={m.id} className={mode === m.id ? 'active' : ''} onClick={() => changeMode(m.id)} title={m.title}>
+                {m.label}
+              </button>
+            ))}
+          </div>
           <div className="editor-actions">
             <span className={dirty ? 'save-state dirty' : 'save-state'}>{saving ? 'Guardando…' : dirty ? 'Cambios sin guardar' : 'Guardado'}</span>
             <button className="button primary" onClick={save} disabled={!dirty || saving}>
@@ -128,17 +160,24 @@ export function DesignEditor() {
           </div>
         </header>
         {error && <p className="status error">{error}</p>}
-        <Canvas
-          template={template}
-          data={design.data}
-          materials={materials}
-          highlight={highlight}
-          view={view}
-          onViewChange={setView}
-          selectedPrint={selectedPrint}
-          onSelectPrint={setSelectedPrint}
-          onChangePrint={changePrint}
-        />
+        <div className={`editor-views mode-${mode}`}>
+          {mode !== '3d' && (
+            <Canvas
+              template={template}
+              data={design.data}
+              materials={materials}
+              highlight={highlight}
+              view={view}
+              onViewChange={setView}
+              selectedPrint={selectedPrint}
+              onSelectPrint={setSelectedPrint}
+              onChangePrint={changePrint}
+            />
+          )}
+          {mode !== '2d' && (
+            <Design3D template={template} data={design.data} materials={materials} client={clients.data?.find((c) => c.id === design.clientId)} />
+          )}
+        </div>
       </div>
 
       <aside className="editor-panel">
@@ -150,6 +189,7 @@ export function DesignEditor() {
             .map((p) => (
               <PieceEditor
                 key={p.id}
+                template={template.id}
                 piece={p}
                 style={pieceStyle(template, design.data, p.id)}
                 materials={library.data ?? []}
@@ -260,6 +300,7 @@ function pieceStyle(t: GarmentTemplate, data: DesignData, piece: string): PieceS
 }
 
 interface PieceEditorProps {
+  template: string
   piece: PieceDef
   style: PieceStyle
   materials: Material[]
@@ -267,8 +308,7 @@ interface PieceEditorProps {
   onHover: (piece: string | null) => void
 }
 
-function PieceEditor({ piece, style, materials, onChange, onHover }: PieceEditorProps) {
-  const options = materials.filter((m) => piece.materials.includes(m.category))
+function PieceEditor({ template, piece, style, materials, onChange, onHover }: PieceEditorProps) {
   return (
     <div className="piece" onMouseEnter={() => onHover(piece.id)} onMouseLeave={() => onHover(null)}>
       <div className="piece-head">
@@ -290,15 +330,15 @@ function PieceEditor({ piece, style, materials, onChange, onHover }: PieceEditor
           />
         ))}
       </div>
-      <select value={style.materialId ?? ''} onChange={(e) => onChange({ materialId: e.target.value || null })}>
-        <option value="">{options.length ? 'Material sin elegir' : 'Sin materiales en la Biblioteca'}</option>
-        {options.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.name}
-            {m.composition ? ` · ${m.composition}` : ''}
-          </option>
-        ))}
-      </select>
+      <MaterialPicker
+        template={template}
+        piece={piece}
+        materialId={style.materialId}
+        color={style.color}
+        library={materials}
+        // Los metales tienen su propio color: al elegirlos, la pieza lo toma
+        onChange={(materialId, m) => onChange(m?.tint ? { materialId, color: m.tint } : { materialId })}
+      />
     </div>
   )
 }
