@@ -2,6 +2,8 @@
 
 Herramienta de taller para diseñar y fabricar prendas personalizadas: clientes con sus medidas, diseñador de prendas, proyectos, producción (fichas técnicas y tech packs), biblioteca de materiales y economía. Incluye una vista previa 3D de la prenda sobre un maniquí animado.
 
+Cada persona o empresa crea su cuenta y tiene su propio espacio privado.
+
 Apartados: **Dashboard · Clientes · Diseñador · Proyectos · Producción · Biblioteca · Economía** (de momento están hechos el Dashboard, Clientes, el Diseñador 2D con estampados, Proyectos, la Biblioteca y la vista previa 3D; el resto se irá construyendo por fases).
 
 ## Empezar (para cada uno de nosotros, una sola vez)
@@ -62,4 +64,7 @@ Para publicarla, quien tenga la cuenta de Cloudflare:
    ```bash
    npm run db:migrate:remote
    ```
-4. **Proteger la app** para que solo entremos nosotros: en el panel de Cloudflare, **Zero Trust → Access → Applications → Add an application → Self-hosted**, con el dominio de la app y una política que permita solo nuestros correos. Poner esos mismos correos (separados por comas) en `ALLOWED_EMAILS` de `wrangler.jsonc`.
+
+## Cuentas de usuario
+
+Cualquiera puede crear una cuenta en `/registro` (particular o empresa) y cada cuenta tiene su propio espacio privado: sus clientes, diseños, biblioteca y proyectos. En local, crea una cuenta de prueba la primera vez que abras la app (la base de datos local es independiente de la de producción).

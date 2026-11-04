@@ -22,7 +22,8 @@ Herramienta de taller para diseñar y fabricar prendas personalizadas (outfits p
 
 ### App y datos
 
-- `src/App.tsx` — rutas de cada apartado; `src/layout/AppLayout.tsx` — menú lateral
+- `src/App.tsx` — rutas de cada apartado; `src/layout/AppLayout.tsx` — menú lateral (con la cuenta abajo)
+- Cuentas: cada usuario (particular o empresa) tiene su espacio privado. `src/auth/AuthContext.tsx` guarda la sesión (`useAuth`) y protege las rutas (`RequireAuth`, `GuestOnly`); pantallas en `src/pages/auth/AuthPages.tsx` (/entrar, /registro) y `src/pages/account/Profile.tsx` (/perfil). Tipos en `src/shared/users.ts`
 - `src/pages/` — una página por apartado (`Dashboard.tsx`, `clients/`, `library/`, `designer/`, `projects/` y `Sections.tsx` con los que aún están por hacer)
 - Proyectos (`src/pages/projects/`): tablero por fases (arrastrar cambia la fase), lista, ficha (datos, diseños, archivos, materiales y costes, tareas, notas) y colecciones. Fases y categorías de archivo en `src/shared/projects.ts`. Las partes de un proyecto (archivos, materiales, costes, tareas) se guardan al momento con `api.projectPart`; los datos principales con «Guardar cambios»
 - `src/designer/` — Diseñador 2D: dibujos técnicos (flats) paramétricos en SVG. `templates.ts` es el catálogo de prendas base (piezas, opciones y cómo se dibujan); `top.ts` dibuja las prendas de torso (sudadera, camiseta, bomber) y `pants.ts` el pantalón; `FlatView.tsx` pinta una vista con los colores y materiales de cada pieza. Añadir una prenda base = una entrada en `TEMPLATES` (puede reutilizar `drawTop` o `drawPants`)
@@ -31,7 +32,7 @@ Herramienta de taller para diseñar y fabricar prendas personalizadas (outfits p
 - `src/components/ui.tsx` — piezas comunes (cabecera de página, campos, precio, estados de carga)
 - `src/api/client.ts` — llamadas a la API, `useApi` para cargar datos y subida de imágenes (se reducen antes de subirlas)
 - `src/shared/` — tipos compartidos por la web y la API (`clients.ts` con la lista de medidas, `library.ts` con categorías y unidades de precio)
-- `worker/` — API: `index.ts` (rutas y acceso), `clients.ts`, `library.ts` (materiales y proveedores), `designs.ts` (diseños), `artworks.ts` (gráficos), `projects.ts` (proyectos, colecciones y tareas), `files.ts` (imágenes en Workers KV), `http.ts` (utilidades)
+- `worker/` — API: `index.ts` (rutas y acceso), `auth.ts` (registro, login, sesiones y perfil), `clients.ts`, `library.ts` (materiales y proveedores), `designs.ts` (diseños), `artworks.ts` (gráficos), `projects.ts` (proyectos, colecciones y tareas), `files.ts` (imágenes en Workers KV), `http.ts` (utilidades)
 - `migrations/` — tablas de la base de datos (una migración nueva por cada cambio; nunca editar las ya aplicadas)
 
 ### Vista previa 3D (`/disenador/3d`)
@@ -70,4 +71,11 @@ Herramienta de taller para diseñar y fabricar prendas personalizadas (outfits p
 - La configuración pública va en `wrangler.jsonc` (sí se sube).
 - Los secretos (API keys, tokens) **nunca** van en el repo: en local en `.dev.vars` (está en `.gitignore`) y en producción con `npx wrangler secret put NOMBRE` o desde el panel de Cloudflare.
 - D1 guarda los datos y Workers KV (binding `FILES`) las imágenes; ver README para crearlos en producción. Al quitar o cambiar una foto, la API borra la anterior de KV.
-- La app es solo para nosotros dos: en producción va detrás de **Cloudflare Access**, y el Worker comprueba además `ALLOWED_EMAILS`.
+
+## Cuentas y datos por usuario (importante)
+
+- Todas las rutas de la API menos `/api/auth/*` exigen sesión (`currentUser` en `worker/auth.ts`). Cada handler recibe el `uid` de la cuenta.
+- **Toda tabla nueva con datos de usuario lleva `user_id`**, y toda consulta filtra por él (`WHERE ... AND user_id = ?`), también los `UPDATE` y `DELETE`. Las tablas hijas (p. ej. las partes de un proyecto) cuelgan de su padre y se comprueba antes que el padre es de la cuenta.
+- Las referencias que llegan del navegador (cliente, proyecto, material, proveedor, colección) se validan con `ownedRef` (`worker/http.ts`) antes de guardarlas.
+- Los archivos de KV guardan en sus metadatos la cuenta que los subió; solo esa cuenta puede verlos o borrarlos.
+- Contraseñas con PBKDF2 (Web Crypto). La sesión es una cookie `HttpOnly` con un token aleatorio; en D1 solo se guarda su hash. Las peticiones que cambian datos desde otro origen se rechazan.
