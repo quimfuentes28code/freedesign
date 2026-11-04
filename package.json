@@ -30,5 +30,10 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
     "wrangler": "^4.156.2"
+  },
+  "allowScripts": {
+    "workerd@1.20261101.1": true,
+    "workerd@1.20261102.1": true,
+    "esbuild@0.28.2": true
   }
 }
