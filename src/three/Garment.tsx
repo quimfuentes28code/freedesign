@@ -97,25 +97,81 @@ vec3 perturbSeamNormal(vec3 surfPos, vec3 surfNorm, vec2 dHdxy, float faceDir) {
 }
 `
 
-/** Prepara un material de tela con el detalle de confección (ver SEAM_GLSL). */
-function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean) {
-  const uniforms = { uSeams: { value: 0 }, uPocket: { value: new THREE.Vector4(0, 0, 0, 0) } }
+/**
+ * Estampados: la imagen de cada lado (delantero y espalda) se proyecta de frente sobre el cuerpo de la prenda.
+ * Se usa la posición de la tela en reposo (antes de moverla con el esqueleto), así el estampado va pegado a la tela
+ * y la acompaña al respirar y al moverse. `uPrintFrame` = centro x, semiancho, alto del hombro y del bajo; `uPrintZ`
+ * separa delante de detrás. Encima siguen el relieve del tejido y las costuras, como en un estampado de verdad.
+ */
+const PRINT_GLSL = /* glsl */ `
+varying vec3 vRestPos;
+varying vec2 vPrintUv;
+uniform sampler2D uPrintFront;
+uniform sampler2D uPrintBack;
+uniform vec4 uPrintFrame;
+uniform float uPrintZ;
+uniform float uPrintOn;
+// Prendas de patrón: se estampa sobre la pieza plana (UV en cm del patrón: x de uPrintUv.x a .y, alto de .z a .w)
+uniform float uPrintFlat;
+uniform vec4 uPrintUv;
+`
+
+const PRINT_APPLY = /* glsl */ `
+if (uPrintOn > 0.5 && gl_FrontFacing) {
+  float ps = (vRestPos.x - uPrintFrame.x) / (2.0 * uPrintFrame.y) + 0.5;
+  float pt = (uPrintFrame.z - vRestPos.y) / max(uPrintFrame.z - uPrintFrame.w, 1e-4);
+  if (uPrintFlat > 0.5) {
+    ps = (vPrintUv.x - uPrintUv.x) / max(uPrintUv.y - uPrintUv.x, 1e-4);
+    pt = (uPrintUv.w - vPrintUv.y) / max(uPrintUv.w - uPrintUv.z, 1e-4);
+  }
+  if (ps > 0.0 && ps < 1.0 && pt > 0.0 && pt < 1.0) {
+    vec4 pc = vRestPos.z >= uPrintZ ? texture2D(uPrintFront, vec2(ps, 1.0 - pt)) : texture2D(uPrintBack, vec2(1.0 - ps, 1.0 - pt));
+    diffuseColor.rgb = mix(diffuseColor.rgb, pc.rgb, pc.a);
+  }
+}
+`
+
+/** Textura vacía (sin estampados en ese lado). */
+const NO_PRINT = (() => {
+  const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1)
+  t.needsUpdate = true
+  return t
+})()
+
+/** Prepara un material de tela con el detalle de confección (ver SEAM_GLSL) y, si `prints`, con los estampados (PRINT_GLSL). */
+function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = false) {
+  const uniforms = {
+    uSeams: { value: 0 },
+    uPocket: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uPrintFront: { value: NO_PRINT as THREE.Texture },
+    uPrintBack: { value: NO_PRINT as THREE.Texture },
+    uPrintFrame: { value: new THREE.Vector4(0, 1, 1, 0) },
+    uPrintZ: { value: 0 },
+    uPrintOn: { value: 0 },
+    uPrintFlat: { value: 0 },
+    uPrintUv: { value: new THREE.Vector4(0, 1, 0, 1) },
+  }
   m.userData.seams = uniforms.uSeams
   if (pocket) m.userData.pocket = uniforms.uPocket
+  if (prints) m.userData.prints = uniforms
   m.defines = { ...m.defines, ...(pocket ? { POCKET: '' } : {}) }
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms)
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
-        `#include <common>\nattribute vec3 edge;\nvarying vec2 vEdge;\nflat varying float vEdgeKind;${pocket ? '\nvarying vec2 vPocketUv;' : ''}`,
+        `#include <common>\nattribute vec3 edge;\nvarying vec2 vEdge;\nflat varying float vEdgeKind;${pocket ? '\nvarying vec2 vPocketUv;' : ''}${prints ? '\nvarying vec3 vRestPos;\nvarying vec2 vPrintUv;' : ''}`,
       )
-      .replace('#include <uv_vertex>', `#include <uv_vertex>\nvEdge = edge.xy;\nvEdgeKind = edge.z;${pocket ? '\nvPocketUv = uv;' : ''}`)
+      .replace(
+        '#include <uv_vertex>',
+        `#include <uv_vertex>\nvEdge = edge.xy;\nvEdgeKind = edge.z;${pocket ? '\nvPocketUv = uv;' : ''}${prints ? '\nvRestPos = position;\nvPrintUv = uv;' : ''}`,
+      )
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${SEAM_GLSL}`)
+      .replace('#include <common>', `#include <common>\n${SEAM_GLSL}${prints ? PRINT_GLSL : ''}`)
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
+        ${prints ? PRINT_APPLY : ''}
         vec3 seamEdge = vec3(vEdge, vEdgeKind);
         seamPxD = fwidth(vEdge.x);
         seamPxA = fwidth(vEdge.y);
@@ -153,7 +209,7 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean) {
       // El interior de la prenda, algo más apagado (no mucho: en los pliegues del cuello salía a manchas)
       .replace('#include <opaque_fragment>', `outgoingLight *= gl_FrontFacing ? 1.0 : 0.84;\n#include <opaque_fragment>`)
   }
-  m.customProgramCacheKey = () => (pocket ? 'tela-bolsillo' : 'tela')
+  m.customProgramCacheKey = () => (pocket ? 'tela-bolsillo' : 'tela') + (prints ? '-estampados' : '')
 }
 
 /** Un material de Three.js por zona (en el orden de GARMENT_SLOTS), que solo se rehace si cambia algún color o tela. */
@@ -189,7 +245,7 @@ function useSlotMaterials(design: Design) {
           m.polygonOffsetFactor = -2
           m.polygonOffsetUnits = -6
         }
-        if (slot !== 'cordones' && slot !== 'ojales') withSeams(m, slot === 'bolsillo')
+        if (slot !== 'cordones' && slot !== 'ojales') withSeams(m, slot === 'bolsillo', slot === 'cuerpo' || slot === 'bolsillo')
         return m
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -247,7 +303,7 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
       scale: fit.scale,
       measurements,
       // Al worker solo le hace falta la forma de la prenda (los colores y materiales se aplican aquí)
-      design: { ...design, pieces: undefined },
+      design: { ...design, pieces: undefined, prints: undefined },
       fabric,
     })
       .then((g) => {
@@ -274,6 +330,43 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
   }, [model, cloud, pose, fit, pattern, design.garment, design.fit, fabric])
   useEffect(() => () => wrapGeoms.forEach(({ g }) => g.dispose()), [wrapGeoms])
 
+  // Estampados: una textura por lado, que se proyecta sobre el cuerpo de la prenda (ver PRINT_GLSL)
+  const printTextures = useMemo(() => {
+    const make = (c: HTMLCanvasElement | null | undefined) => {
+      if (!c) return null
+      const t = new THREE.CanvasTexture(c)
+      t.colorSpace = THREE.SRGBColorSpace
+      t.anisotropy = 8
+      return t
+    }
+    return { front: make(design.prints?.front), back: make(design.prints?.back) }
+  }, [design.prints])
+  useEffect(
+    () => () => {
+      printTextures.front?.dispose()
+      printTextures.back?.dispose()
+    },
+    [printTextures],
+  )
+  useEffect(() => {
+    const geometries = pattern ? (patternGeom ? [{ g: patternGeom, slot: null }] : []) : wrapGeoms
+    const frame = printFrame(geometries, design.garment !== 'pantalon')
+    const on = !!frame && !!(printTextures.front || printTextures.back)
+    for (const slot of ['cuerpo', 'bolsillo'] as const) {
+      const u = materials[slotIndex(slot)].userData.prints as PrintUniforms | undefined
+      if (!u) continue
+      u.uPrintOn.value = on ? 1 : 0
+      u.uPrintFront.value = printTextures.front ?? NO_PRINT
+      u.uPrintBack.value = printTextures.back ?? NO_PRINT
+      if (frame) {
+        u.uPrintFrame.value.set(frame.cx, frame.half, frame.top, frame.bottom)
+        u.uPrintZ.value = frame.cz
+        u.uPrintFlat.value = frame.uv ? 1 : 0
+        if (frame.uv) u.uPrintUv.value.set(...frame.uv)
+      }
+    }
+  }, [patternGeom, wrapGeoms, materials, pattern, printTextures, design.garment])
+
   useEffect(() => {
     const geometries = pattern ? (patternGeom ? [{ g: patternGeom, slot: null }] : []) : wrapGeoms
     // Forma del bolsillo de esta prenda, para recortar su material
@@ -297,6 +390,73 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
   return null
 }
 
+
+interface PrintUniforms {
+  uPrintFront: { value: THREE.Texture }
+  uPrintBack: { value: THREE.Texture }
+  uPrintFrame: { value: THREE.Vector4 }
+  uPrintZ: { value: number }
+  uPrintOn: { value: number }
+  uPrintFlat: { value: number }
+  uPrintUv: { value: THREE.Vector4 }
+}
+
+/**
+ * Encuadre del cuerpo de la prenda en reposo, el mismo que el de la imagen de estampados del dibujo:
+ * de costado a costado (medido a la altura del pecho en prendas de torso, para no contar las sisas) y del punto
+ * más alto (hombro junto al cuello, o cintura) al bajo. `cz` separa delante de detrás.
+ */
+function printFrame(list: { g: THREE.BufferGeometry; slot: GarmentSlot | null }[], top: boolean) {
+  const body = slotIndex('cuerpo')
+  const pts: number[] = []
+  // Prenda de patrón: medidas de la pieza plana (UV en cm) de delantero y espalda
+  let uv: [number, number, number, number] | null = null
+  for (const { g, slot } of list) {
+    const pos = g.getAttribute('position')
+    if (!pos) continue
+    if (slot === 'cuerpo') {
+      for (let i = 0; i < pos.count; i++) pts.push(pos.getX(i), pos.getY(i), pos.getZ(i))
+    } else if (slot === null) {
+      // Una sola malla con un grupo de triángulos por zona
+      const index = g.getIndex()
+      const uvs = g.getAttribute('uv')
+      for (const grp of g.groups) {
+        if (grp.materialIndex !== body) continue
+        for (let k = grp.start; k < grp.start + grp.count; k++) {
+          const i = index ? index.getX(k) : k
+          pts.push(pos.getX(i), pos.getY(i), pos.getZ(i))
+          if (uvs) {
+            const [x, y] = [uvs.getX(i), uvs.getY(i)]
+            uv = uv ? [Math.min(uv[0], x), Math.max(uv[1], x), Math.min(uv[2], y), Math.max(uv[3], y)] : [x, x, y, y]
+          }
+        }
+      }
+    }
+  }
+  if (!pts.length) return null
+  let minY = Infinity
+  let maxY = -Infinity
+  for (let i = 1; i < pts.length; i += 3) {
+    minY = Math.min(minY, pts[i])
+    maxY = Math.max(maxY, pts[i])
+  }
+  const h = maxY - minY
+  // Franja donde medir el ancho y el fondo: la del pecho (prendas de torso) o toda la pieza (pantalón)
+  const [lo, hi] = top ? [maxY - h * 0.6, maxY - h * 0.25] : [minY, maxY]
+  let minX = Infinity
+  let maxX = -Infinity
+  let minZ = Infinity
+  let maxZ = -Infinity
+  for (let i = 0; i < pts.length; i += 3) {
+    if (pts[i + 1] < lo || pts[i + 1] > hi) continue
+    minX = Math.min(minX, pts[i])
+    maxX = Math.max(maxX, pts[i])
+    minZ = Math.min(minZ, pts[i + 2])
+    maxZ = Math.max(maxZ, pts[i + 2])
+  }
+  if (!Number.isFinite(minX)) return null
+  return { cx: (minX + maxX) / 2, half: (maxX - minX) / 2, top: maxY, bottom: minY, cz: (minZ + maxZ) / 2, uv }
+}
 
 /** Unidades del modelo (cm del modelo original) para una distancia real en metros. */
 const toModel = (meters: number, fit: BodyFit) => meters / fit.scale

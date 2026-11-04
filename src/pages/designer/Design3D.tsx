@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { printLayer } from '../../designer/printLayers'
 import { designTo3D, mannequinMeasurements } from '../../designer/to3d'
+import type { Design } from '../../types'
 import type { GarmentTemplate } from '../../designer/types'
 import type { Client } from '../../shared/clients'
 import type { DesignData } from '../../shared/designs'
@@ -18,11 +20,24 @@ interface Props {
 /** Vista 3D del diseño que se está editando: el maniquí con la prenda, sus colores y materiales, al momento. */
 export function Design3D({ template, data, materials, client }: Props) {
   const [hoodUp, setHoodUp] = useState(true)
-  const design = useMemo(() => ({ ...designTo3D(template, data, materials), hoodUp }), [template, data, materials, hoodUp])
+  // Estampados: se pintan en una imagen por lado cada vez que cambian (o cambia la forma de la prenda)
+  const [layers, setLayers] = useState<Design['prints']>()
+  const printKey = JSON.stringify([data.prints ?? [], data.options, template.id])
+  useEffect(() => {
+    let alive = true
+    Promise.all([printLayer(template, data, 'front'), printLayer(template, data, 'back')]).then(([front, back]) => {
+      if (alive) setLayers(front || back ? { front, back } : undefined)
+    })
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [printKey])
+  const design = useMemo(() => ({ ...designTo3D(template, data, materials), hoodUp, prints: layers }), [template, data, materials, hoodUp, layers])
   const measurements = useMemo(() => mannequinMeasurements(client?.measurements), [client])
   const [autoRotate, setAutoRotate] = useState(false)
   const [animate, setAnimate] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
-  const prints = (data.prints ?? []).length
+  const sidePrints = (data.prints ?? []).filter((p) => p.view === 'side').length
 
   return (
     <div className="design-3d studio">
@@ -47,7 +62,7 @@ export function Design3D({ template, data, materials, client }: Props) {
         <p className="design-3d-note">
           {client && Object.keys(client.measurements).length ? `Medidas de ${client.name}` : 'Medidas estándar'}
           {template.id === 'bomber' && ' · La bomber se ve de momento como una prenda de manga larga'}
-          {prints > 0 && ' · Los estampados solo se ven en 2D por ahora'}
+          {sidePrints > 0 && ' · Los estampados del lateral aún no se ven en 3D'}
           {' · Arrastra para girar'}
         </p>
       </div>

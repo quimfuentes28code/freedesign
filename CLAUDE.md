@@ -52,6 +52,7 @@ Herramienta de taller para diseñar y fabricar prendas personalizadas (outfits p
 - En desarrollo, `window.__three.look([x, y, z], [tx, ty, tz])` mueve la cámara de la vista 3D (para revisar detalles)
 - `src/three/wrap.ts` — construye esa tela "como una cinta métrica" sobre el cuerpo y le da los pesos de los huesos
 - `src/three/pose.ts` — pose de reposo de la animación (la ropa se construye ahí) y vuelta a la postura base del esqueleto
+- Estampados en 3D: `src/designer/printLayers.ts` pinta los estampados de delantero y espalda en una imagen encuadrada como el cuerpo del dibujo (de costado a costado, del hombro al bajo). `Garment.tsx` la proyecta sobre el cuerpo y el bolsillo (`PRINT_GLSL`): en la sudadera sobre la pieza plana del patrón (UV en cm), en el resto de frente sobre la posición en reposo. Los del lateral aún no salen en 3D
 - `src/three/Scene.tsx` — canvas, luces, cámara orbital
 - `src/data/fabrics.ts` — catálogo de telas y sus propiedades de material
 - `src/types.ts` — tipos de la vista 3D (`Design`, medidas del maniquí)

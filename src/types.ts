@@ -48,4 +48,9 @@ export interface Design {
    * (y las de canalé, canalé del mismo color).
    */
   pieces?: Partial<Record<GarmentSlot, SlotStyle>>
+  /**
+   * Estampados (desde el Diseñador): una imagen por lado que abarca el cuerpo de la prenda, de costado a costado
+   * y del punto más alto del hombro al bajo (ver src/designer/printLayers.ts). La prenda la proyecta sobre su cuerpo.
+   */
+  prints?: { front: HTMLCanvasElement | null; back: HTMLCanvasElement | null }
 }
