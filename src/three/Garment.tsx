@@ -11,8 +11,9 @@ import { CloudGrid, computeTubeNormals, skinFromCloud, wrapTube, type Cloud, typ
 
 /** Cordones (algodón crudo) y ojales (metal plateado) si el diseño no dice otra cosa. */
 const TRIM_DEFAULTS: Partial<Record<GarmentSlot, SlotStyle>> = {
-  cordones: { color: '#f4f1ea', look: { roughness: 0.9, sheen: 0.3, sheenRoughness: 0.9, clearcoat: 0, knit: 'canale', knitDepth: 0.6, stiffness: 1 } },
-  ojales: { color: '#b8b8b8', look: { roughness: 0.28, sheen: 0, sheenRoughness: 1, clearcoat: 0, metalness: 1, knit: 'liso', knitDepth: 0, stiffness: 1 } },
+  cordones: { color: '#ece7dc', look: { roughness: 0.95, sheen: 0.4, sheenRoughness: 0.9, clearcoat: 0, knit: 'sarga', knitDepth: 0.9, stiffness: 1 } },
+  // Metal satinado (un metal pulido del todo refleja el estudio oscuro y se ve negro)
+  ojales: { color: '#c9c9c9', look: { roughness: 0.38, sheen: 0, sheenRoughness: 1, clearcoat: 0.3, metalness: 0.6, knit: 'liso', knitDepth: 0, stiffness: 1 } },
 }
 
 /** Color y material de cada zona: el que venga del Diseñador o, si no, la tela y el color de la prenda (canalé en puños, bajo y cuello). */
@@ -34,18 +35,27 @@ export function slotStyle(design: Design, slot: GarmentSlot): SlotStyle {
  * El bolsillo canguro además se recorta a su forma exacta y dibuja sus propios bordes.
  */
 const SEAM_GLSL = /* glsl */ `
-varying vec3 vEdge;
+varying vec2 vEdge;
+// El acabado no se interpola entre puntos (si no, a medio camino entre dos bordes salen acabados que no existen)
+flat varying float vEdgeKind;
 uniform float uSeams;
 #ifdef POCKET
 varying vec2 vPocketUv;
 uniform vec4 uPocket;
 #endif
 
-// Puntadas a la distancia "at" del borde: trazos de unos 2 mm cada 3,2 mm
+// Tamaño de un píxel en cm del patrón (se calcula una vez, fuera de cualquier "if")
+float seamPxD;
+float seamPxA;
+
+// Puntadas a la distancia "at" del borde: trazos de unos 2 mm cada 3,2 mm.
+// Si en pantalla son más pequeñas que un píxel (de lejos o en tela fruncida) se funden en una línea suave
 float stitchLine(float d, float at, float along) {
-  float line = 1.0 - smoothstep(0.035, 0.085, abs(d - at));
+  float line = 1.0 - smoothstep(0.035, 0.085 + seamPxD, abs(d - at));
+  line *= clamp(0.14 / max(seamPxD, 1e-4), 0.0, 1.0);
   float ph = fract(along / 0.32);
   float dash = smoothstep(0.03, 0.08, ph) * (1.0 - smoothstep(0.6, 0.66, ph));
+  dash = mix(dash, 0.55, smoothstep(0.06, 0.18, seamPxA));
   return line * dash;
 }
 
@@ -70,7 +80,7 @@ void seamDetail(vec3 e, out float h, out float thread, out float shade) {
     if (k == 4) { thread += stitchLine(d, 2.4, al); h -= 0.1 * (1.0 - smoothstep(0.0, 0.18, abs(d - 2.4))); }
     if (k == 5) thread += stitchLine(d, 0.9, al);
   }
-  h += 0.05 * thread;
+  h += 0.04 * thread;
 }
 
 vec3 perturbSeamNormal(vec3 surfPos, vec3 surfNorm, vec2 dHdxy, float faceDir) {
@@ -93,16 +103,23 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean) {
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms)
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\nattribute vec3 edge;\nvarying vec3 vEdge;${pocket ? '\nvarying vec2 vPocketUv;' : ''}`)
-      .replace('#include <uv_vertex>', `#include <uv_vertex>\nvEdge = edge;${pocket ? '\nvPocketUv = uv;' : ''}`)
+      .replace(
+        '#include <common>',
+        `#include <common>\nattribute vec3 edge;\nvarying vec2 vEdge;\nflat varying float vEdgeKind;${pocket ? '\nvarying vec2 vPocketUv;' : ''}`,
+      )
+      .replace('#include <uv_vertex>', `#include <uv_vertex>\nvEdge = edge.xy;\nvEdgeKind = edge.z;${pocket ? '\nvPocketUv = uv;' : ''}`)
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\n${SEAM_GLSL}`)
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
-        vec3 seamEdge = vEdge;
+        vec3 seamEdge = vec3(vEdge, vEdgeKind);
+        seamPxD = fwidth(vEdge.x);
+        seamPxA = fwidth(vEdge.y);
         #ifdef POCKET
           // Bolsillo: fuera del trapecio no hay tela; sus bordes salen de la forma
+          seamPxD = fwidth(vPocketUv.y);
+          seamPxA = fwidth(vPocketUv.x);
           float pt = (vPocketUv.y - uPocket.x) / max(uPocket.y, 0.001);
           float halfW = mix(uPocket.z, uPocket.w, clamp(pt, 0.0, 1.0));
           if (pt < 0.0 || pt > 1.0 || abs(vPocketUv.x) > halfW) discard;
@@ -118,8 +135,9 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean) {
         seamDetail(seamEdge, seamH, seamThread, seamShade);
         seamH *= uSeams; seamThread *= uSeams; seamShade *= uSeams;
         float seamLum = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-        vec3 threadColor = seamLum < 0.35 ? mix(diffuseColor.rgb, vec3(1.0), 0.22) : diffuseColor.rgb * 0.72;
-        diffuseColor.rgb *= 1.0 - seamShade * 0.45;
+        // Hilo del mismo tono que la tela, un poco más claro (telas oscuras) o más oscuro (claras)
+        vec3 threadColor = seamLum < 0.35 ? mix(diffuseColor.rgb, vec3(1.0), 0.2) : diffuseColor.rgb * 0.8;
+        diffuseColor.rgb *= 1.0 - seamShade * 0.35;
         diffuseColor.rgb = mix(diffuseColor.rgb, threadColor, clamp(seamThread, 0.0, 1.0));`,
       )
       .replace(

@@ -10,7 +10,8 @@ export type Knit = 'punto' | 'canale' | 'sarga' | 'liso' | 'pana' | 'gofre' | 'r
 
 const SIZE: Record<Knit, number> = {
   punto: 1.2,
-  canale: 2,
+  // 4 costillas por repetición: ~4 mm cada una, como un canalé 2x2 de verdad
+  canale: 1.6,
   sarga: 1.5,
   liso: 1,
   pana: 2.4,
@@ -39,8 +40,8 @@ const HEIGHT: Record<Knit, (x: number, y: number) => number> = {
     const cy = (y * 10) % 1
     return 1 - Math.min(Math.abs(Math.abs(cx - 0.5) * 2 - (1 - cy)) * 2.2, 1)
   },
-  // Canalé: costillas verticales marcadas
-  canale: (x) => Math.pow(Math.abs(Math.sin(Math.PI * 4 * x)), 0.6),
+  // Canalé: costillas verticales redondeadas
+  canale: (x) => Math.pow(Math.abs(Math.sin(Math.PI * 4 * x)), 0.85),
   // Sarga (denim): diagonales
   sarga: (x, y) => Math.abs(Math.sin(Math.PI * 12 * (x + y))),
   liso: () => 0.5,
