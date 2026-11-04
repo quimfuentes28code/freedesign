@@ -1,0 +1,503 @@
+/* Producción: órdenes de fabricación y ficha técnica (con su versión para imprimir). */
+@import '../projects/projects.css';
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+.production-section {
+  margin-bottom: 28px;
+}
+
+.small-button {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.danger-text {
+  margin: 0;
+  color: var(--danger);
+}
+
+/* --- Órdenes --- */
+
+.order-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.order-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+.order-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.order-card header p {
+  margin: 2px 0 0;
+}
+
+.order-title {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.order-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.order-card footer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.order-card footer .danger-text {
+  margin-left: auto;
+}
+
+.tag.order-pendiente {
+  color: var(--muted);
+}
+
+.tag.order-en_curso {
+  color: #d97706;
+  border-color: color-mix(in srgb, #d97706 35%, transparent);
+}
+
+.tag.order-terminada {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 35%, transparent);
+}
+
+.progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--soft);
+  overflow: hidden;
+}
+
+.progress i {
+  display: block;
+  height: 100%;
+  background: var(--ok);
+  border-radius: 999px;
+  transition: width 0.2s;
+}
+
+.task-list.steps li {
+  padding: 6px 0;
+}
+
+.order-form {
+  margin-bottom: 24px;
+}
+
+.form-sub {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 18px 0 8px;
+}
+
+.qty-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.qty-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  width: 76px;
+}
+
+.qty-grid p {
+  margin: 0 0 8px 8px;
+}
+
+.cell-input {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font: inherit;
+  color: inherit;
+}
+
+.cell-input:hover {
+  border-color: var(--border);
+}
+
+.cell-input:focus {
+  border-color: var(--muted);
+  background: var(--panel);
+  outline: none;
+}
+
+/* Casillas de texto que crecen con su contenido */
+textarea.cell-input.grow {
+  display: block;
+  resize: none;
+  field-sizing: content;
+  min-height: 0;
+  line-height: 1.35;
+}
+
+textarea.cell-input.boxed {
+  border-color: var(--border);
+  min-height: 4.2em;
+}
+
+.print-only {
+  display: none;
+}
+
+.pre {
+  white-space: pre-line;
+}
+
+/* --- Ficha técnica en pantalla --- */
+
+.techpack-page {
+  max-width: 1000px;
+}
+
+.techpack-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.techpack-bar h1 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+
+.techpack-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+
+.techpack-settings .field {
+  margin: 0;
+}
+
+.techpack-settings select {
+  width: auto;
+}
+
+.techpack-settings .segmented button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.techpack-hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.techpack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Cada hoja tiene proporción A4 en pantalla (en papel, su tamaño real) */
+.sheet {
+  background: #fff;
+  color: #1d1c1a;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.05);
+  padding: 32px 36px;
+  font-size: 13px;
+}
+
+.sheet h3 {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 20px 0 8px;
+}
+
+.sheet-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid #1d1c1a;
+  margin-bottom: 18px;
+}
+
+.sheet-brand {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.sheet-header h2 {
+  margin: 4px 0 0;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.sheet-header dl,
+.spec-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 12px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.sheet-header dt,
+.spec-list dt {
+  color: #74706a;
+}
+
+.sheet-header dd,
+.spec-list dd {
+  margin: 0;
+}
+
+.sheet-flats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.6fr;
+  gap: 8px;
+  align-items: end;
+}
+
+.sheet-flats .flat {
+  margin: 0;
+  text-align: center;
+}
+
+.sheet-flats svg {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 320 / 480;
+}
+
+.sheet-flats .flat.side svg {
+  aspect-ratio: 320 / 480;
+}
+
+.sheet-flats figcaption {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #74706a;
+}
+
+.sheet-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+}
+
+.sheet-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.sheet-title-row .link-button {
+  margin: 0;
+}
+
+.spec-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.spec-table th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #74706a;
+  padding: 6px 8px;
+  border-bottom: 1.5px solid #1d1c1a;
+}
+
+.spec-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #e2dfd9;
+  vertical-align: middle;
+}
+
+.spec-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.spec-table .num .cell-input {
+  text-align: right;
+  width: 64px;
+}
+
+.spec-table td .cell-input {
+  padding: 3px 4px;
+}
+
+.measure-table .base {
+  background: #f7f5f2;
+}
+
+.measure-table td.edited {
+  font-weight: 700;
+}
+
+.measure-table td.edited .cell-input {
+  font-weight: 700;
+}
+
+.pom-letter {
+  font-weight: 700;
+  width: 24px;
+}
+
+.color-chip {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgb(0 0 0 / 0.2);
+  vertical-align: -2px;
+}
+
+.print-cell {
+  width: 44px;
+}
+
+.print-cell img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  display: block;
+}
+
+.print-cell span {
+  font-size: 18px;
+}
+
+.construction-table td:nth-child(1) {
+  width: 18%;
+}
+
+.assembly {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.assembly li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.assembly li::marker {
+  font-weight: 700;
+}
+
+.sheet .button.small-button {
+  margin-top: 8px;
+}
+
+/* --- Versión impresa: solo las hojas, cada una en una página A4 --- */
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  body,
+  :root {
+    background: #fff;
+  }
+
+  .sidebar,
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: inline;
+  }
+
+  .app {
+    display: block;
+    height: auto;
+  }
+
+  .content {
+    overflow: visible;
+  }
+
+  .page.techpack-page {
+    max-width: none;
+    padding: 0;
+  }
+
+  .techpack {
+    gap: 0;
+  }
+
+  .sheet {
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+    min-height: 0;
+    break-after: page;
+  }
+
+  .sheet:last-child {
+    break-after: auto;
+  }
+
+  .spec-table tr {
+    break-inside: avoid;
+  }
+
+  .sheet-flats svg {
+    max-height: 120mm;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

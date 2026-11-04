@@ -3,21 +3,6 @@ import { ComingSoon, PageHeader } from '../components/ui'
 
 /** Apartados aún por construir. Cada uno explica lo que tendrá. */
 
-export function Production() {
-  return (
-    <ComingSoon
-      title="Producción"
-      intro="Documentación de fabricación generada automáticamente a partir del diseño."
-      items={[
-        'Ficha técnica y tech pack (dibujo técnico frontal y trasero, materiales, colores, medidas)',
-        'Lista de materiales y cálculo de costes',
-        'Tipos de costura, acabados y detalles de confección',
-        'Instrucciones y registro de producción paso a paso',
-      ]}
-    />
-  )
-}
-
 export function Economy() {
   return (
     <ComingSoon

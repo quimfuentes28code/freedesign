@@ -4,6 +4,7 @@ import type { Artwork, ArtworkInput } from '../shared/artworks'
 import type { Design, DesignInput } from '../shared/designs'
 import type { Material, MaterialInput, Supplier, SupplierInput } from '../shared/library'
 import type { Collection, CollectionInput, FileCategory, Project, ProjectInput, ProjectStatus, ProjectSummary } from '../shared/projects'
+import type { ProductionOrder, ProductionOrderInput, TechPack, TechPackInput } from '../shared/production'
 import type { ProfileInput, RegisterInput, User } from '../shared/users'
 
 /** Evento que se lanza cuando la API responde que no hay sesión (caducada o cerrada en otro sitio). */
@@ -57,7 +58,16 @@ export const api = {
     return api.projectPart(id, 'files', 'POST', { file: key, category, name: file.name })
   },
 
-  listCollections: () => request<Collection[]>('/collections'),
+  /** Ficha técnica guardada de un proyecto (null si aún no tiene). */
+  getTechPack: (projectId: string) => request<TechPack | null>(`/techpacks/${projectId}`),
+  saveTechPack: (projectId: string, t: TechPackInput) => request<TechPack>(`/techpacks/${projectId}`, send('PUT', t)),
+  listTechPacks: () => request<{ projectId: string; version: number; updatedAt: string }[]>('/techpacks'),
+  listOrders: (project = '') => request<ProductionOrder[]>(`/production?project=${encodeURIComponent(project)}`),
+  createOrder: (o: ProductionOrderInput) => request<ProductionOrder>('/production', send('POST', o)),
+  updateOrder: (id: string, o: ProductionOrderInput) => request<ProductionOrder>(`/production/${id}`, send('PUT', o)),
+  deleteOrder: (id: string) => request<void>(`/production/${id}`, send('DELETE')),
+
+  listCollections:() => request<Collection[]>('/collections'),
   createCollection: (c: CollectionInput) => request<Collection>('/collections', send('POST', c)),
   updateCollection: (id: string, c: CollectionInput) => request<Collection>(`/collections/${id}`, send('PUT', c)),
   deleteCollection: (id: string) => request<void>(`/collections/${id}`, send('DELETE')),
@@ -148,7 +158,7 @@ export function useApi<T>(load: () => Promise<T>, deps: DependencyList) {
   }, [run])
 
   useEffect(() => reload(), [reload])
-  return { data, error, loading, reload }
+  return { data, error, loading, reload, setData }
 }
 
 /** Tamaño natural de una imagen (también de un SVG). */

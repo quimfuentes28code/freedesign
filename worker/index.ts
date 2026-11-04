@@ -10,6 +10,7 @@ import { designsRoute } from './designs'
 import { filesRoute } from './files'
 import { HttpError, json, type Env } from './http'
 import { materialsRoute, suppliersRoute } from './library'
+import { productionRoute, techPacksRoute } from './production'
 import { collectionsRoute, openTasks, projectsRoute } from './projects'
 import { ACTIVE_STATUSES } from '../src/shared/projects'
 
@@ -62,6 +63,10 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
       return projectsRoute(request, env, uid, id ? [id, ...rest] : [], url)
     case 'collections':
       return collectionsRoute(request, env, uid, id)
+    case 'techpacks':
+      return techPacksRoute(request, env, uid, id)
+    case 'production':
+      return productionRoute(request, env, uid, id, url)
     case 'tasks':
       if (request.method !== 'GET') break
       return json(await openTasks(env, uid))

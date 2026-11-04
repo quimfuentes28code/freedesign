@@ -109,6 +109,16 @@ export function ProjectDetail() {
               <Link to="/proyectos" className="button">
                 Volver
               </Link>
+              {!isNew && (
+                <>
+                  <Link to={`/produccion/ficha/${id}`} className="button">
+                    Ficha técnica
+                  </Link>
+                  <Link to={`/produccion?proyecto=${id}`} className="button">
+                    Orden de fabricación
+                  </Link>
+                </>
+              )}
               <button type="submit" className="button primary" disabled={saving || (!isNew && !dirty)}>
                 {saving ? 'Guardando…' : isNew ? 'Crear proyecto' : dirty ? 'Guardar cambios' : 'Guardado'}
               </button>
