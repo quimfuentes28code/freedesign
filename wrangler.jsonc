@@ -18,7 +18,7 @@
       "database_name": "freedesign",
       // En local no hace falta un id real. Para publicar: `npx wrangler d1 create freedesign`
       // y poner aquí el id que devuelve (ver README).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "ef3df381-0ad6-435c-be8c-b87c19c913ea",
       "migrations_dir": "migrations"
     }
   ],
