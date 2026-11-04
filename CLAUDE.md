@@ -63,11 +63,11 @@ Herramienta de taller para diseñar y fabricar prendas personalizadas (outfits p
 
 ## Cómo trabajamos los dos (importante)
 
-- **Nunca trabajar ni hacer push directamente en `main`.** Cada tarea en su rama: `feature/...`, `fix/...`, `chore/...`.
-- Antes de empezar: `git checkout main && git pull`, y crear la rama desde ahí.
+- **Trabajamos directamente en `main`**, sin ramas ni Pull Requests, para que nadie tenga que fusionar lo del otro.
+- Antes de empezar cada cambio: `git pull` para partir de lo último del otro.
 - Commits pequeños y con mensaje claro en español (p. ej. `Añade prenda falda`).
-- Al terminar: `npm run build`, push de la rama y **Pull Request** hacia `main`. La otra persona lo revisa (con la URL de preview de Cloudflare) y lo fusiona.
-- Si hay conflictos con `main`, traer `main` a la rama y resolverlos ahí, nunca en `main`.
+- Al terminar cada cambio: `npm run build` (si falla, no se sube), `git pull --rebase` y `git push`. Al subir a `main`, Cloudflare despliega a producción.
+- Si al traer los cambios del otro hay conflictos, resolverlos en local antes de subir; nunca `git push --force`.
 - Repartirse las zonas para no tocar los mismos archivos a la vez; si hay que cambiar algo compartido (`types.ts`, `body.ts`), avisar al otro.
 
 ## Cloudflare y secretos

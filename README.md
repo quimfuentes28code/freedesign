@@ -28,15 +28,14 @@ Apartados: **Dashboard · Clientes · Diseñador · Proyectos · Producción · 
 ## Flujo de trabajo diario
 
 ```text
-git checkout main && git pull        # partir de lo último
-git checkout -b feature/mi-tarea     # rama nueva
+git pull                             # partir de lo último del otro
 # ... trabajar (con Claude) ...
 npm run build                        # comprobar que compila
-git push -u origin feature/mi-tarea  # subir la rama
-# abrir Pull Request en GitHub → el otro revisa la preview → merge
+git commit -am "Describe el cambio"  # guardar
+git pull --rebase && git push        # traer lo del otro y subir a main
 ```
 
-Al fusionar en `main`, Cloudflare despliega automáticamente a producción. Cada rama tiene su propia URL de preview.
+Trabajamos directamente en `main`, sin ramas ni Pull Requests. Al subir a `main`, Cloudflare despliega automáticamente a producción.
 
 ## Despliegue en Cloudflare (configuración inicial, una vez)
 
