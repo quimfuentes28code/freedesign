@@ -46,7 +46,7 @@ Las normas detalladas para trabajar (y para Claude) están en [CLAUDE.md](CLAUDE
 
 ## Base de datos en la nube (configuración inicial, una vez)
 
-Los datos (clientes, materiales, proveedores…) se guardan en **Cloudflare D1** y las fotos en **Cloudflare R2**. En local no hace falta nada: `npm run dev` crea una base de datos y un almacén locales en `.wrangler/` y aplica las migraciones de `migrations/`.
+Los datos (clientes, materiales, proveedores…) se guardan en **Cloudflare D1** y las fotos en **Cloudflare Workers KV**. En local no hace falta nada: `npm run dev` crea una base de datos y un almacén locales en `.wrangler/` y aplica las migraciones de `migrations/`.
 
 Para publicarla, quien tenga la cuenta de Cloudflare:
 
@@ -56,7 +56,7 @@ Para publicarla, quien tenga la cuenta de Cloudflare:
    ```
 2. Crear el almacén de archivos (fotos de la biblioteca, y más adelante bocetos y estampados):
    ```bash
-   npx wrangler r2 bucket create freedesign-files
+   npx wrangler kv namespace create freedesign-files   # copiar el id que devuelve en wrangler.jsonc
    ```
 3. Crear las tablas en la base de datos de producción:
    ```bash
