@@ -80,6 +80,13 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     ],
   })
   weldSeams(relaxed, cloth.seams)
+  // Quita el "ruido" de arrugas diminutas (picos de un solo punto) sin encoger la prenda ni borrar los pliegues
+  // Los bordes libres (abertura de la capucha, final de puños y bajo) no se tocan: sin vecinos por fuera, encogerían
+  const sewn = new Set(cloth.seams.flat())
+  const border = cloth.edgeInfo()
+  const fixed = (v: number) => border[v * 3] < 1e-3 && !sewn.has(v)
+  taubinSmooth(relaxed, cloth.neighbours(), 4, fixed)
+  weldSeams(relaxed, cloth.seams)
   lap('asentar')
 
   // Malla de la prenda (en la pose de reposo)
@@ -263,27 +270,34 @@ function addCords(
     keepOutside(start, 0.5 * cm)
     const normal0 = outward(start)
 
-    // Recorrido del cordón: cae hacia abajo pegado al pecho
-    const step = 1.5 * cm
-    const length = 32 * cm
+    // Recorrido del cordón: cae pegado al pecho con una curva suave (no recto como una varilla);
+    // los dos cordones no son iguales para que no se vean de copia
+    const step = 1 * cm
+    const length = (side === 0 ? 31 : 33) * cm
     const path = [start.clone()]
+    const ups = [normal0.clone()]
     const anchors = [keepOutside(start.clone(), 0.5 * cm)]
     for (let s = step; s <= length; s += step) {
+      const t = s / length
       const p = path[path.length - 1].clone()
       p.y -= step
-      p.x += dir * 0.05 * cm // se abren muy poco hacia los lados
-      const a = keepOutside(p, 0.45 * cm)
+      // Primero se abre un poco hacia fuera y luego vuelve a caer recto
+      p.x += dir * cm * (0.18 * Math.cos(Math.PI * t) + 0.04 * Math.sin(7 * t + side * 2))
+      const a = keepOutside(p, 0.4 * cm)
       // Mantiene el largo de cada tramo tras el empujón
       const prev = path[path.length - 1]
       p.sub(prev).setLength(step).add(prev)
       path.push(p)
+      ups.push(outward(p))
       anchors.push(a)
     }
 
-    // Tubo del cordón (y el herrete, más grueso, al final)
-    const aglet = Math.round((3 * cm) / step)
-    tube(out, path.slice(0, path.length - aglet + 1), anchors, 0.32 * cm, cm, 'cordones', skinIndex, skinWeight)
-    tube(out, path.slice(path.length - aglet), anchors.slice(path.length - aglet), 0.42 * cm, cm, 'ojales', skinIndex, skinWeight)
+    // Cordón plano (como los de las sudaderas: ~9 mm de ancho), con un ligero giro; herrete redondo al final
+    const aglet = Math.round((2.8 * cm) / step)
+    const cordEnd = path.length - aglet + 1
+    tube(out, path.slice(0, cordEnd), ups, anchors, { w: 0.45 * cm, h: 0.13 * cm, twist: 0.2 + side * 0.15 }, cm, 'cordones', skinIndex, skinWeight)
+    const tip = path.slice(path.length - aglet)
+    tube(out, tip, ups.slice(path.length - aglet), anchors.slice(path.length - aglet), { w: 0.3 * cm, h: 0.3 * cm, twist: 0 }, cm, 'ojales', skinIndex, skinWeight)
     // Ojal metálico alrededor de la salida
     ring(out, start, normal0, 0.6 * cm, 0.16 * cm, anchors[0], skinIndex, skinWeight)
   })
@@ -297,33 +311,42 @@ function pushSkin(out: MeshBuffers, anchor: number, skinIndex: Uint16Array, skin
   }
 }
 
-/** Tubo redondo a lo largo de un recorrido, con las puntas cerradas. */
+/**
+ * Tubo a lo largo de un recorrido, con las puntas cerradas. La sección es una elipse de semiejes `w` (de lado)
+ * y `h` (hacia fuera, según `ups`): con `h` pequeño sale un cordón plano. `twist` gira la sección (vueltas en total).
+ */
 function tube(
   out: MeshBuffers,
   path: THREE.Vector3[],
+  ups: THREE.Vector3[],
   anchors: number[],
-  radius: number,
+  section: { w: number; h: number; twist: number },
   /** Unidades del modelo por cm (las UV van en cm, como el resto de la prenda). */
   cm: number,
   slot: GarmentSlot,
   skinIndex: Uint16Array,
   skinWeight: Float32Array,
 ) {
-  const sides = 10
+  const sides = 12
   const base = out.positions.length / 3
   const tris = out.bySlot[slotIndex(slot)]
-  const ref = new THREE.Vector3(0, 0, 1)
+  const perimeter = Math.PI * (3 * (section.w + section.h) - Math.sqrt((3 * section.w + section.h) * (section.w + 3 * section.h)))
   let along = 0
   path.forEach((p, i) => {
     const t = (path[Math.min(i + 1, path.length - 1)].clone().sub(path[Math.max(i - 1, 0)])).normalize()
-    const nrm = ref.clone().sub(t.clone().multiplyScalar(ref.dot(t))).normalize()
+    // La cara plana del cordón mira hacia fuera del pecho, con un giro suave a lo largo
+    const up = ups[Math.min(i, ups.length - 1)]
+    const nrm0 = up.clone().sub(t.clone().multiplyScalar(up.dot(t))).normalize()
+    const bin0 = t.clone().cross(nrm0)
+    const turn = Math.sin((i / Math.max(1, path.length - 1)) * Math.PI) * section.twist
+    const nrm = nrm0.clone().multiplyScalar(Math.cos(turn)).addScaledVector(bin0, Math.sin(turn))
     const bin = t.clone().cross(nrm)
     if (i > 0) along += p.distanceTo(path[i - 1])
     for (let k = 0; k < sides; k++) {
       const a = (k / sides) * Math.PI * 2
-      const q = p.clone().addScaledVector(nrm, Math.cos(a) * radius).addScaledVector(bin, Math.sin(a) * radius)
+      const q = p.clone().addScaledVector(nrm, Math.cos(a) * section.h).addScaledVector(bin, Math.sin(a) * section.w)
       out.positions.push(q.x, q.y, q.z)
-      out.uvs.push(((k / sides) * Math.PI * 2 * radius) / cm, along / cm)
+      out.uvs.push(((k / sides) * perimeter) / cm, along / cm)
       out.edges.push(99, 0, EDGE_CODES.ninguno)
       pushSkin(out, anchors[Math.min(i, anchors.length - 1)], skinIndex, skinWeight)
     }
@@ -334,7 +357,8 @@ function tube(
       const b = base + i * sides + ((k + 1) % sides)
       const c = a + sides
       const d = b + sides
-      tris.push(a, c, b, b, c, d)
+      // Caras hacia fuera del tubo
+      tris.push(a, b, c, b, d, c)
     }
   }
   // Tapas en las dos puntas
@@ -389,8 +413,38 @@ function ring(
       const b = base + i * sides + ((k + 1) % sides)
       const c = base + ((i + 1) % seg) * sides + k
       const d = base + ((i + 1) % seg) * sides + ((k + 1) % sides)
-      tris.push(a, b, c, b, d, c)
+      // Caras hacia fuera del anillo
+      tris.push(a, c, b, b, c, d)
     }
+  }
+}
+
+/**
+ * Alisado de Taubin: cada punto se acerca a la media de sus vecinos (λ) y luego se aleja un poco (μ).
+ * Elimina los picos y arrugas de un solo punto pero, a diferencia de un alisado normal, no encoge la malla.
+ */
+function taubinSmooth(pos: Float32Array, adj: number[][], iterations: number, fixed: (v: number) => boolean) {
+  const n = pos.length / 3
+  const tmp = new Float32Array(pos.length)
+  const pass = (factor: number) => {
+    for (let i = 0; i < n; i++) {
+      const nb = adj[i]
+      if (!nb.length || fixed(i)) {
+        tmp.set(pos.subarray(i * 3, i * 3 + 3), i * 3)
+        continue
+      }
+      for (let c = 0; c < 3; c++) {
+        let m = 0
+        for (const j of nb) m += pos[j * 3 + c]
+        m /= nb.length
+        tmp[i * 3 + c] = pos[i * 3 + c] + factor * (m - pos[i * 3 + c])
+      }
+    }
+    pos.set(tmp)
+  }
+  for (let it = 0; it < iterations; it++) {
+    pass(0.5)
+    pass(-0.53)
   }
 }
 
