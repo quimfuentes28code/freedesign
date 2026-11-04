@@ -59,7 +59,9 @@ export function Scene({ measurements, design, autoRotate, animate }: Props) {
           intensity={1.6}
           castShadow
           shadow-mapSize={[2048, 2048]}
-          shadow-bias={-0.0004}
+          shadow-bias={-0.0002}
+          // Evita el "acné" de sombra (rayas discontinuas en la tela donde la luz llega rasante)
+          shadow-normalBias={0.025}
         >
           <orthographicCamera attach="shadow-camera" args={[-1.5, 1.5, 2.5, -0.5, 0.1, 12]} />
         </directionalLight>

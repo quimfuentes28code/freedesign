@@ -73,9 +73,11 @@ void seamDetail(vec3 e, out float h, out float thread, out float shade) {
     if (k == 1) thread += stitchLine(d, 0.6, al);
     if (k == 2) thread += stitchLine(d, 0.55, al) + stitchLine(d, 1.2, al + 0.16);
   } else {
-    // Doblez: borde redondeado (el canto queda un poco en sombra)
-    h += 0.3 * sqrt(clamp(d / 0.7, 0.0, 1.0));
-    shade += 0.28 * (1.0 - smoothstep(0.0, 0.3, d));
+    // Doblez: borde redondeado (el canto queda un poco en sombra). Curva suave: con una esquina en la curva
+    // salía una línea de rayitas donde el relieve dejaba de subir de golpe
+    // Solo sombra, sin relieve: en la primera fila (puntos cada ~1,5 cm sobre tela curva) el relieve salía distinto
+    // en cada triángulo y se veían rayitas alternas
+    shade += 0.3 * (1.0 - smoothstep(0.0, 0.45, d));
     // Jareta: pespunte del canal del cordón; 5: abertura del bolsillo con su pespunte
     if (k == 4) { thread += stitchLine(d, 2.4, al); h -= 0.1 * (1.0 - smoothstep(0.0, 0.18, abs(d - 2.4))); }
     if (k == 5) thread += stitchLine(d, 0.9, al);
@@ -89,6 +91,7 @@ vec3 perturbSeamNormal(vec3 surfPos, vec3 surfNorm, vec2 dHdxy, float faceDir) {
   vec3 r1 = cross(sy, surfNorm);
   vec3 r2 = cross(surfNorm, sx);
   float det = dot(sx, r1) * faceDir;
+  if (abs(det) < 1e-12) return surfNorm;
   vec3 grad = sign(det) * (dHdxy.x * r1 + dHdxy.y * r2);
   return normalize(abs(det) * surfNorm - grad);
 }
@@ -143,9 +146,12 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean) {
       .replace(
         '#include <normal_fragment_maps>',
         `#include <normal_fragment_maps>
-        if (uSeams > 0.5) normal = perturbSeamNormal(-vViewPosition, normal, vec2(dFdx(seamH), dFdy(seamH)) * 0.01, faceDirection);`,
+        // Solo donde hay relieve: si no, la fórmula puede dar una normal inválida en algunos píxeles (rayitas)
+        vec2 seamDh = vec2(dFdx(seamH), dFdy(seamH)) * 0.01;
+        if (uSeams > 0.5 && dot(seamDh, seamDh) > 1e-14) normal = perturbSeamNormal(-vViewPosition, normal, seamDh, faceDirection);`,
       )
-      .replace('#include <opaque_fragment>', `outgoingLight *= gl_FrontFacing ? 1.0 : 0.72;\n#include <opaque_fragment>`)
+      // El interior de la prenda, algo más apagado (no mucho: en los pliegues del cuello salía a manchas)
+      .replace('#include <opaque_fragment>', `outgoingLight *= gl_FrontFacing ? 1.0 : 0.84;\n#include <opaque_fragment>`)
   }
   m.customProgramCacheKey = () => (pocket ? 'tela-bolsillo' : 'tela')
 }
@@ -276,6 +282,17 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
     if (shape && pocketUniform) pocketUniform.value.set(shape.y0, shape.h, shape.w0, shape.w1)
     // Costuras y rebordes solo en las prendas de patrón (las demás no saben dónde están sus bordes)
     for (const m of materials) if (m.userData.seams) (m.userData.seams as { value: number }).value = pattern ? 1 : 0
+    // En la sudadera, el interior del cuerpo y de las mangas nunca se ve (lo tapan capucha, puños y bajo): se dibujan
+    // solo por fuera. Si no, en los pliegues de la sisa asomaba su cara interior como una cuña oscura.
+    // Capucha, bolsillo y canalés siguen por las dos caras (su interior sí se ve, p. ej. dentro de la capucha).
+    for (const slot of ['cuerpo', 'mangas'] as const) {
+      const m = materials[slotIndex(slot)]
+      const side = pattern ? THREE.FrontSide : THREE.DoubleSide
+      if (m.side !== side) {
+        m.side = side
+        m.needsUpdate = true
+      }
+    }
     const meshes = geometries.map(({ g, slot }) => {
       const mesh = new THREE.SkinnedMesh(g, slot ? materials[slotIndex(slot)] : materials)
       mesh.castShadow = true
