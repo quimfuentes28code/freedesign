@@ -1,5 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import type { DesignData, Print } from '../shared/designs'
+import type { DesignData, Detail, Print, ZipStyle } from '../shared/designs'
+import { buttonPrims, DetailGraphic, detailAspect, PrimsView, shade, zipperPrims } from './details'
 import { fileUrl, type Material } from '../shared/library'
 import { VIEW_H, VIEW_W } from './geometry'
 import type { Body } from '../production/measurements'
@@ -38,6 +39,26 @@ interface Props {
   pad?: number
   /** Cuerpo con el que se comparan las medidas propias del diseño (talla M si no se pasa). */
   body?: Body
+  /** Edición de detalles (botones, cremalleras, parches…), como los estampados. */
+  selectedDetail?: string | null
+  onSelectDetail?: (id: string | null) => void
+  onChangeDetail?: (d: Detail) => void
+}
+
+/** Estilo de cremallera según el material elegido para la fornitura (si no se ha elegido uno a propósito). */
+const ZIP_BY_MATERIAL: Record<string, ZipStyle> = { 'cat:cremallera-vislon': 'vislon', 'cat:cremallera-nylon': 'nylon', 'cat:cremallera-invisible': 'invisible' }
+
+/** Números de un trazado SVG → su caja (para colocar las fornituras con estilo donde estaba la forma simple). */
+function pathBox(d: string) {
+  const v = (d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number)
+  let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity]
+  for (let i = 0; i + 1 < v.length; i += 2) {
+    x0 = Math.min(x0, v[i])
+    x1 = Math.max(x1, v[i])
+    y0 = Math.min(y0, v[i + 1])
+    y1 = Math.max(y1, v[i + 1])
+  }
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
 }
 
 export interface Box {
@@ -56,7 +77,7 @@ export interface FlatContext {
 /** Dibujo técnico (flat) de una prenda en una vista, con los colores y materiales de cada pieza y sus estampados. */
 export function FlatView(props: Props) {
   const { template, data, view, materials, highlight, className, frame = 'ajustado', selectedPrint, onSelectPrint, onChangePrint } = props
-  const { mode = 'color', selectedPiece, onPickPiece, overlay, pad = 12, body } = props
+  const { mode = 'color', selectedPiece, onPickPiece, overlay, pad = 12, body, selectedDetail, onSelectDetail, onChangeDetail } = props
   const line = mode === 'linea'
   const uid = useId().replace(/:/g, '')
   const shapes = template.draw(view, data.options, drawScale(template, data, body))
@@ -119,7 +140,25 @@ export function FlatView(props: Props) {
   }
   const glossOf = (piece?: string) => (piece ? (looks.get(piece)?.gloss ?? 0) : 0)
 
+  // Fornituras de la prenda con su estilo (botón de 4 agujeros, cremallera de metal…)
+  const hw = data.hardware ?? {}
+  const renderRole = (s: Shape, i: number) => {
+    const b = pathBox(s.d)
+    const color = colorOf(s.piece)
+    const material = s.piece ? data.pieces[s.piece]?.materialId : null
+    const prims =
+      s.role === 'button'
+        ? buttonPrims(hw.buttons ?? (material === 'cat:automatico' ? 'automatico' : '4'), b.w, color, hw.buttonArt)
+        : zipperPrims(hw.zip ?? ZIP_BY_MATERIAL[material ?? ''] ?? 'metal', hw.puller ?? 'clasico', b.w, b.h, color, line ? '#ffffff' : shade(colorOf(template.pieces[0]?.id), -0.12), hw.pullerArt)
+    return (
+      <g key={i} data-piece={s.piece} transform={`translate(${b.x + b.w / 2} ${b.y + b.h / 2})`} {...pick(s.piece)} filter={line ? undefined : `url(#${uid}-relief)`}>
+        <PrimsView prims={prims} />
+      </g>
+    )
+  }
+
   const renderShape = (s: Shape, i: number) => {
+    if (s.role) return renderRole(s, i)
     const color = colorOf(s.piece)
     const tex = s.piece ? textured.get(s.piece) : undefined
     const weave = weaveOf(s.piece)
@@ -169,6 +208,9 @@ export function FlatView(props: Props) {
   // Las fornituras (cremallera, cordones) van por encima de los estampados
   const onTop = (s: Shape) => s.kind === 'hardware' || (s.kind === 'line' && /cord/.test(s.piece ?? ''))
   const editable = !!onChangePrint
+  const details = (data.details ?? []).filter((d) => d.view === view && !d.hidden)
+  // Bordados y parches con relieve: sombra suave que les da volumen
+  const raised = (p: Print) => !line && (p.technique === 'bordado' || p.technique === 'parche')
 
   return (
     <svg
@@ -176,9 +218,22 @@ export function FlatView(props: Props) {
       viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
       role="img"
       aria-label={`${template.name}: vista ${view}`}
-      onPointerDown={editable ? () => onSelectPrint?.(null) : undefined}
+      onPointerDown={
+        editable
+          ? () => {
+              onSelectPrint?.(null)
+              onSelectDetail?.(null)
+            }
+          : undefined
+      }
     >
       <defs>
+        <filter id={`${uid}-relief`} x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0.4" dy="0.7" stdDeviation="0.5" floodColor="#000" floodOpacity="0.35" />
+        </filter>
+        <filter id={`${uid}-raised`} x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0.6" dy="1.1" stdDeviation="0.8" floodColor="#000" floodOpacity="0.45" />
+        </filter>
         {[...textured].map(([piece, url]) => (
           <pattern key={piece} id={`${uid}-${piece}`} patternUnits="userSpaceOnUse" width="70" height="70">
             <image href={url} width="70" height="70" preserveAspectRatio="xMidYMid slice" />
@@ -208,7 +263,9 @@ export function FlatView(props: Props) {
       {prints.map((p) => {
         const shape = (
           <g clipPath={p.clip ? `url(#${uid}-garment)` : undefined} style={line ? { filter: 'grayscale(1)' } : undefined}>
-            <PrintShape p={p} />
+            <g filter={raised(p) ? `url(#${uid}-raised)` : undefined}>
+              <PrintShape p={p} />
+            </g>
           </g>
         )
         if (!editable || p.locked) return <g key={p.id}>{shape}</g>
@@ -229,6 +286,24 @@ export function FlatView(props: Props) {
                 ...(p.kind === 'text' ? { size: (p.size * t.w) / w } : { w: t.w }),
               })
             }
+          >
+            {shape}
+          </Transformable>
+        )
+      })}
+      {details.map((d) => {
+        const filter = line ? undefined : `url(#${uid}-${d.relief ? 'raised' : 'relief'})`
+        const shape = <DetailGraphic d={line ? { ...d, color: '#ffffff', color2: '#1d1c1a' } : d} filter={filter} />
+        if (!onChangeDetail || d.locked) return <g key={d.id}>{shape}</g>
+        const aspect = detailAspect(d)
+        return (
+          <Transformable
+            key={d.id}
+            value={{ x: d.x, y: d.y, w: d.w, rotation: d.rotation }}
+            aspect={aspect}
+            selected={selectedDetail === d.id}
+            onSelect={() => onSelectDetail?.(d.id)}
+            onChange={(t) => onChangeDetail({ ...d, x: t.x, y: t.y, rotation: t.rotation, w: t.w, ...(d.kind === 'cremallera' ? { length: t.w * aspect } : {}) })}
           >
             {shape}
           </Transformable>

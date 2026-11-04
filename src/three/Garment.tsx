@@ -114,9 +114,14 @@ uniform float uPrintOn;
 // Prendas de patrón: se estampa sobre la pieza plana (UV en cm del patrón: x de uPrintUv.x a .y, alto de .z a .w)
 uniform float uPrintFlat;
 uniform vec4 uPrintUv;
+// Relieve (bordados, parches, fornituras): blanco donde sobresale
+uniform sampler2D uPrintReliefFront;
+uniform sampler2D uPrintReliefBack;
+uniform float uPrintRelief;
 `
 
 const PRINT_APPLY = /* glsl */ `
+float printH = 0.0;
 if (uPrintOn > 0.5 && gl_FrontFacing) {
   float ps = (vRestPos.x - uPrintFrame.x) / (2.0 * uPrintFrame.y) + 0.5;
   float pt = (uPrintFrame.z - vRestPos.y) / max(uPrintFrame.z - uPrintFrame.w, 1e-4);
@@ -125,10 +130,19 @@ if (uPrintOn > 0.5 && gl_FrontFacing) {
     pt = (uPrintUv.w - vPrintUv.y) / max(uPrintUv.w - uPrintUv.z, 1e-4);
   }
   if (ps > 0.0 && ps < 1.0 && pt > 0.0 && pt < 1.0) {
-    vec4 pc = vRestPos.z >= uPrintZ ? texture2D(uPrintFront, vec2(ps, 1.0 - pt)) : texture2D(uPrintBack, vec2(1.0 - ps, 1.0 - pt));
+    bool printFront = vRestPos.z >= uPrintZ;
+    vec2 puv = printFront ? vec2(ps, 1.0 - pt) : vec2(1.0 - ps, 1.0 - pt);
+    vec4 pc = printFront ? texture2D(uPrintFront, puv) : texture2D(uPrintBack, puv);
     diffuseColor.rgb = mix(diffuseColor.rgb, pc.rgb, pc.a);
+    if (uPrintRelief > 0.5) printH = printFront ? texture2D(uPrintReliefFront, puv).a : texture2D(uPrintReliefBack, puv).a;
   }
 }
+`
+
+/** Inclinación de la luz en los bordes del relieve (después de las normales del tejido). */
+const PRINT_RELIEF_NORMAL = /* glsl */ `
+vec2 printDh = vec2(dFdx(printH), dFdy(printH)) * 0.006;
+if (uPrintRelief > 0.5 && dot(printDh, printDh) > 1e-14) normal = perturbSeamNormal(-vViewPosition, normal, printDh, faceDirection);
 `
 
 /** Textura vacía (sin estampados en ese lado). */
@@ -150,6 +164,9 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
     uPrintOn: { value: 0 },
     uPrintFlat: { value: 0 },
     uPrintUv: { value: new THREE.Vector4(0, 1, 0, 1) },
+    uPrintReliefFront: { value: NO_PRINT as THREE.Texture },
+    uPrintReliefBack: { value: NO_PRINT as THREE.Texture },
+    uPrintRelief: { value: 0 },
   }
   m.userData.seams = uniforms.uSeams
   if (pocket) m.userData.pocket = uniforms.uPocket
@@ -204,7 +221,8 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
         `#include <normal_fragment_maps>
         // Solo donde hay relieve: si no, la fórmula puede dar una normal inválida en algunos píxeles (rayitas)
         vec2 seamDh = vec2(dFdx(seamH), dFdy(seamH)) * 0.01;
-        if (uSeams > 0.5 && dot(seamDh, seamDh) > 1e-14) normal = perturbSeamNormal(-vViewPosition, normal, seamDh, faceDirection);`,
+        if (uSeams > 0.5 && dot(seamDh, seamDh) > 1e-14) normal = perturbSeamNormal(-vViewPosition, normal, seamDh, faceDirection);
+        ${prints ? PRINT_RELIEF_NORMAL : ''}`,
       )
       // El interior de la prenda, algo más apagado (no mucho: en los pliegues del cuello salía a manchas)
       .replace('#include <opaque_fragment>', `outgoingLight *= gl_FrontFacing ? 1.0 : 0.84;\n#include <opaque_fragment>`)
@@ -339,13 +357,21 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
       t.anisotropy = 8
       return t
     }
-    return { front: make(design.prints?.front), back: make(design.prints?.back) }
+    const relief = (c: HTMLCanvasElement | null | undefined) => {
+      if (!c) return null
+      const t = new THREE.CanvasTexture(c)
+      t.anisotropy = 8
+      return t
+    }
+    return {
+      front: make(design.prints?.front),
+      back: make(design.prints?.back),
+      frontRelief: relief(design.prints?.frontRelief),
+      backRelief: relief(design.prints?.backRelief),
+    }
   }, [design.prints])
   useEffect(
-    () => () => {
-      printTextures.front?.dispose()
-      printTextures.back?.dispose()
-    },
+    () => () => Object.values(printTextures).forEach((t) => t?.dispose()),
     [printTextures],
   )
   useEffect(() => {
@@ -358,6 +384,9 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
       u.uPrintOn.value = on ? 1 : 0
       u.uPrintFront.value = printTextures.front ?? NO_PRINT
       u.uPrintBack.value = printTextures.back ?? NO_PRINT
+      u.uPrintReliefFront.value = printTextures.frontRelief ?? NO_PRINT
+      u.uPrintReliefBack.value = printTextures.backRelief ?? NO_PRINT
+      u.uPrintRelief.value = printTextures.frontRelief || printTextures.backRelief ? 1 : 0
       if (frame) {
         u.uPrintFrame.value.set(frame.cx, frame.half, frame.top, frame.bottom)
         u.uPrintZ.value = frame.cz
@@ -399,6 +428,9 @@ interface PrintUniforms {
   uPrintOn: { value: number }
   uPrintFlat: { value: number }
   uPrintUv: { value: THREE.Vector4 }
+  uPrintReliefFront: { value: THREE.Texture }
+  uPrintReliefBack: { value: THREE.Texture }
+  uPrintRelief: { value: number }
 }
 
 /**

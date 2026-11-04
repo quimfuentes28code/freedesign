@@ -56,5 +56,11 @@ export interface Design {
    * Estampados (desde el Diseñador): una imagen por lado que abarca el cuerpo de la prenda, de costado a costado
    * y del punto más alto del hombro al bajo (ver src/designer/printLayers.ts). La prenda la proyecta sobre su cuerpo.
    */
-  prints?: { front: HTMLCanvasElement | null; back: HTMLCanvasElement | null }
+  prints?: {
+    front: HTMLCanvasElement | null
+    back: HTMLCanvasElement | null
+    /** Mapa de relieve (blanco donde hay bordado, parche o fornitura), con el mismo encuadre. */
+    frontRelief?: HTMLCanvasElement | null
+    backRelief?: HTMLCanvasElement | null
+  }
 }

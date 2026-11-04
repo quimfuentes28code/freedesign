@@ -8,7 +8,7 @@ import { FlatView, type FlatContext } from '../../designer/FlatView'
 import { defaultMeasures } from '../../designer/measures'
 import { VIEWS, type GarmentTemplate, type View } from '../../designer/types'
 import { garmentPoms, type Body } from '../../production/measurements'
-import type { Callout, DesignData, Drawing, Print, Tracing } from '../../shared/designs'
+import type { Callout, DesignData, Detail, Drawing, Print, Tracing } from '../../shared/designs'
 import type { Material } from '../../shared/library'
 
 export type CanvasView = View | 'all'
@@ -58,6 +58,9 @@ interface Props {
   onSelectDrawing: (id: string | null) => void
   onDrawings: (d: Drawing[]) => void
   onTracings: (t: Tracing[]) => void
+  selectedDetail: string | null
+  onSelectDetail: (id: string | null) => void
+  onChangeDetail: (d: Detail) => void
   /** Medidas del cuerpo para las cotas y de dónde salen (talla o cliente). */
   body: Body
   bodyLabel: string
@@ -73,7 +76,7 @@ export function Canvas(props: Props) {
   const { selectedPiece, onPickPiece, selectedPrint, onSelectPrint, onChangePrint, selectedCallout, onSelectCallout, onCallouts, body, bodyLabel } = props
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
-  const { selectedDrawing, onSelectDrawing, onDrawings, onTracings } = props
+  const { selectedDrawing, onSelectDrawing, onDrawings, onTracings, selectedDetail, onSelectDetail, onChangeDetail } = props
   const [adding, setAdding] = useState(false)
   const [tool, setTool] = useState<DrawTool | null>(null)
   const [adjusting, setAdjusting] = useState(false)
@@ -365,6 +368,9 @@ export function Canvas(props: Props) {
                   }
                 }}
                 onChangePrint={onChangePrint}
+                selectedDetail={selectedDetail}
+                onSelectDetail={onSelectDetail}
+                onChangeDetail={onChangeDetail}
                 overlay={overlay(v)}
               />
               {view === 'all' && <figcaption>{VIEWS.find((x) => x.id === v)?.label}</figcaption>}

@@ -11,7 +11,9 @@ import { fileUrl } from '../../shared/library'
 import { getTemplate } from '../../designer/templates'
 import { OPTION_GROUPS, opt, type GarmentTemplate } from '../../designer/types'
 import { clientBody, standardBody } from '../../production/measurements'
-import type { Callout, DesignData, DesignInput, PieceStyle, Print } from '../../shared/designs'
+import { DETAIL_KINDS, type Callout, type DesignData, type DesignInput, type Detail, type PieceStyle, type Print } from '../../shared/designs'
+import { detailAspect, detailPrims, PrimsView } from '../../designer/details'
+import { DetailsPanel } from './DetailsPanel'
 import { Canvas, type CanvasSettings, type CanvasView } from './Canvas'
 import { ColorwaysBar, ColorwaysCompare } from './Colorways'
 import { Design3D } from './Design3D'
@@ -29,11 +31,12 @@ const VIEW_MODES: { id: ViewMode; label: string; title: string }[] = [
   { id: 'ambas', label: '2D + 3D', title: 'Las dos vistas a la vez' },
 ]
 
-type Tab = 'pieza' | 'prenda' | 'estampados' | 'notas' | 'datos'
+type Tab = 'pieza' | 'prenda' | 'estampados' | 'detalles' | 'notas' | 'datos'
 const TABS: { id: Tab; label: string }[] = [
   { id: 'pieza', label: 'Pieza' },
   { id: 'prenda', label: 'Prenda' },
   { id: 'estampados', label: 'Estampados' },
+  { id: 'detalles', label: 'Detalles' },
   { id: 'notas', label: 'Notas' },
   { id: 'datos', label: 'Datos' },
 ]
@@ -83,6 +86,7 @@ export function DesignEditor() {
   const [selectedPrint, setSelectedPrint] = useState<string | null>(null)
   const [selectedCallout, setSelectedCallout] = useState<string | null>(null)
   const [selectedDrawing, setSelectedDrawing] = useState<string | null>(null)
+  const [selectedDetail, setSelectedDetail] = useState<string | null>(null)
   const [comparing, setComparing] = useState(false)
   const [mode, setMode] = useState<ViewMode>(() => stored<{ v: ViewMode }>('fd:editor-mode-v2', { v: '2d' }).v)
   const [settings, setSettings] = useState<CanvasSettings>(() => stored('fd:canvas', DEFAULT_SETTINGS))
@@ -149,6 +153,9 @@ export function DesignEditor() {
         } else if (selectedCallout) {
           history.set({ ...design, data: { ...design.data, callouts: (design.data.callouts ?? []).filter((c) => c.id !== selectedCallout) } })
           setSelectedCallout(null)
+        } else if (selectedDetail) {
+          history.set({ ...design, data: { ...design.data, details: (design.data.details ?? []).filter((d) => d.id !== selectedDetail) } })
+          setSelectedDetail(null)
         } else if (selectedDrawing) {
           history.set({ ...design, data: { ...design.data, drawings: (design.data.drawings ?? []).filter((d) => d.id !== selectedDrawing) } })
           setSelectedDrawing(null)
@@ -204,7 +211,7 @@ export function DesignEditor() {
   const drawings = design.data.drawings ?? []
   const tracings = design.data.tracings ?? []
   /** Cambia una capa (estampado, trazo, nota o calco) por su id: ocultar, bloquear… */
-  const patchLayer = <K extends 'prints' | 'drawings' | 'callouts' | 'tracings'>(key: K, id: string, patch: Record<string, unknown>) =>
+  const patchLayer = <K extends 'prints' | 'drawings' | 'callouts' | 'tracings' | 'details'>(key: K, id: string, patch: Record<string, unknown>) =>
     setData({ [key]: ((design.data[key] ?? []) as { id: string }[]).map((x) => (x.id === id ? { ...x, ...patch } : x)) } as Partial<DesignData>)
   const callouts = design.data.callouts ?? []
   const setCallouts = (next: Callout[]) => setData({ callouts: next })
@@ -229,6 +236,16 @@ export function DesignEditor() {
       setTab('estampados')
     }
   }
+  const pickDetail = (d: string | null) => {
+    setSelectedDetail(d)
+    if (d) {
+      setSelectedPiece(null)
+      setSelectedPrint(null)
+      setTab('detalles')
+    }
+  }
+  const details = design.data.details ?? []
+  const setDetails = (next: Detail[]) => setData({ details: next })
   const pickCallout = (c: string | null) => {
     setSelectedCallout(c)
     if (c) {
@@ -356,6 +373,37 @@ export function DesignEditor() {
           </ul>
         )}
 
+        <h2>Detalles</h2>
+        {details.length === 0 ? (
+          <p className="muted small">Botones, cremalleras, parches… en la pestaña Detalles.</p>
+        ) : (
+          <ul className="layer-list">
+            {[...details].reverse().map((d) => (
+              <li key={d.id} className={d.hidden ? 'layer-row hidden' : 'layer-row'}>
+                <button
+                  className={selectedDetail === d.id ? 'layer active' : 'layer'}
+                  onClick={() => {
+                    pickDetail(d.id)
+                    if (view !== 'all' && view !== d.view) setView(d.view)
+                  }}
+                >
+                  <span className="layer-swatch">
+                    <DetailIcon d={d} />
+                  </span>
+                  <span className="layer-text">
+                    <span>
+                      {DETAIL_KINDS.find((k) => k.id === d.kind)?.label}
+                      {d.text ? ` «${d.text}»` : ''}
+                    </span>
+                    <span className="muted">{VIEW_LABEL[d.view]}</span>
+                  </span>
+                </button>
+                <LayerToggles hidden={d.hidden} locked={d.locked} onChange={(patch) => patchLayer('details', d.id, patch)} />
+              </li>
+            ))}
+          </ul>
+        )}
+
         <h2>Dibujos</h2>
         {drawings.length === 0 ? (
           <p className="muted small">Usa el lápiz, la línea o las formas de la barra del dibujo.</p>
@@ -451,6 +499,9 @@ export function DesignEditor() {
                 }}
                 onDrawings={(next) => setData({ drawings: next })}
                 onTracings={(next) => setData({ tracings: next })}
+                selectedDetail={selectedDetail}
+                onSelectDetail={pickDetail}
+                onChangeDetail={(d) => setDetails(details.map((x) => (x.id === d.id ? d : x)))}
                 body={body}
                 bodyLabel={bodyLabel}
               />
@@ -477,6 +528,10 @@ export function DesignEditor() {
               used={usedColors}
               materials={library.data ?? []}
               onChange={(patch) => setPiece(piece.id, patch)}
+              hardware={design.data.hardware}
+              onHardware={(hardware) => setData({ hardware })}
+              isZip={template.draw('front', design.data.options).some((s) => s.role === 'zip' && s.piece === piece.id)}
+              artworks={artworks.data ?? []}
               onApplyToAll={() => {
                 const src = pieceStyle(template, design.data, piece.id)
                 const pieces = { ...design.data.pieces }
@@ -542,6 +597,17 @@ export function DesignEditor() {
             onSelect={pickPrint}
             artworks={artworks.data ?? []}
             onArtworksChange={artworks.reload}
+          />
+        )}
+
+        {tab === 'detalles' && (
+          <DetailsPanel
+            details={details}
+            onChange={setDetails}
+            view={view === 'all' ? 'front' : view}
+            selected={selectedDetail}
+            onSelect={pickDetail}
+            artworks={artworks.data ?? []}
           />
         )}
 
@@ -623,6 +689,17 @@ export function DesignEditor() {
 }
 
 const VIEW_LABEL = { front: 'Delantero', back: 'Espalda', side: 'Lateral' } as const
+
+/** Miniatura de un detalle para la lista de capas. */
+function DetailIcon({ d }: { d: Detail }) {
+  const sample = { ...d, x: 0, y: 0, rotation: 0, ...(d.kind === 'cremallera' ? { length: d.w * 5 } : {}) }
+  const s = Math.max(sample.w, sample.w * detailAspect(sample)) * 1.2
+  return (
+    <svg viewBox={`${-s / 2} ${-s / 2} ${s} ${s}`} width="20" height="20" aria-hidden>
+      <PrimsView prims={detailPrims(sample)} />
+    </svg>
+  )
+}
 const DRAW_LABEL = { free: 'Trazo a mano', line: 'Línea', rect: 'Rectángulo', ellipse: 'Elipse' } as const
 
 /** Botones de una capa: mostrar/ocultar y (si se puede) bloquear/desbloquear. */

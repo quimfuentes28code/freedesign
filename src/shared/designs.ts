@@ -64,6 +64,103 @@ export interface Print {
   locked?: boolean
 }
 
+/** Tipos de detalle que se colocan sobre la prenda. */
+export const DETAIL_KINDS = [
+  { id: 'boton', label: 'Botón' },
+  { id: 'cremallera', label: 'Cremallera' },
+  { id: 'ojal', label: 'Ojal metálico' },
+  { id: 'remache', label: 'Remache' },
+  { id: 'herrete', label: 'Herrete' },
+  { id: 'etiqueta', label: 'Etiqueta' },
+  { id: 'parche', label: 'Parche' },
+] as const
+
+export type DetailKind = (typeof DETAIL_KINDS)[number]['id']
+
+/** Estilos de botón: de 2 o 4 agujeros, automático (corchete), de pie, de trenca o con la forma de un gráfico. */
+export const BUTTON_STYLES = [
+  { id: '2', label: '2 agujeros' },
+  { id: '4', label: '4 agujeros' },
+  { id: 'automatico', label: 'Automático' },
+  { id: 'pie', label: 'De pie' },
+  { id: 'trenca', label: 'Trenca' },
+  { id: 'logo', label: 'Con logo' },
+] as const
+export type ButtonStyle = (typeof BUTTON_STYLES)[number]['id']
+
+/** Cremalleras: dientes de metal, espiral de nylon, de plástico (Vislon) o invisible. */
+export const ZIP_STYLES = [
+  { id: 'metal', label: 'Metal' },
+  { id: 'nylon', label: 'Nylon (espiral)' },
+  { id: 'vislon', label: 'Plástico (Vislon)' },
+  { id: 'invisible', label: 'Invisible' },
+] as const
+export type ZipStyle = (typeof ZIP_STYLES)[number]['id']
+
+/** Tiradores de cremallera. `logo`: con la forma de un gráfico de la Biblioteca. */
+export const PULLER_STYLES = [
+  { id: 'clasico', label: 'Clásico' },
+  { id: 'aro', label: 'Aro' },
+  { id: 'cordon', label: 'Cordón' },
+  { id: 'logo', label: 'Con logo' },
+] as const
+export type PullerStyle = (typeof PULLER_STYLES)[number]['id']
+
+/** Formas de parche y de etiqueta. */
+export const PATCH_SHAPES = [
+  { id: 'rect', label: 'Rectangular' },
+  { id: 'redondo', label: 'Redondo' },
+  { id: 'escudo', label: 'Escudo' },
+] as const
+export type PatchShape = (typeof PATCH_SHAPES)[number]['id']
+
+/** Gráfico usado en un detalle (botón, tirador o parche con logo). */
+export interface DetailArt {
+  artworkId: string | null
+  file: string
+  /** Alto / ancho. */
+  aspect: number
+}
+
+/**
+ * Detalle colocado sobre una vista: botón, cremallera, ojal, remache, herrete, etiqueta o parche.
+ * Centro (x, y), ancho `w` y giro en unidades del lienzo; la cremallera además tiene su largo.
+ */
+export interface Detail {
+  id: string
+  view: 'front' | 'back' | 'side'
+  kind: DetailKind
+  /** Estilo según el tipo (ButtonStyle, ZipStyle o PatchShape). */
+  style: string
+  /** Tirador (solo cremalleras). */
+  puller?: PullerStyle
+  x: number
+  y: number
+  w: number
+  /** Largo de la cremallera. */
+  length?: number
+  rotation: number
+  /** Color principal y de contraste (cinta de la cremallera, borde del parche…). */
+  color: string
+  color2: string
+  /** Texto (etiqueta o parche). */
+  text?: string
+  art?: DetailArt | null
+  /** Bordado o en relieve (parches y etiquetas): se ve con volumen en 2D y en 3D. */
+  relief?: boolean
+  hidden?: boolean
+  locked?: boolean
+}
+
+/** Estilo de las fornituras que trae la prenda base (botones de la tapeta, cremallera y su tirador). */
+export interface HardwareStyle {
+  buttons?: ButtonStyle
+  buttonArt?: DetailArt | null
+  zip?: ZipStyle
+  puller?: PullerStyle
+  pullerArt?: DetailArt | null
+}
+
 /** Trazo dibujado a mano sobre el plano (costuras, cortes, detalles). Puntos en unidades del lienzo: x0, y0, x1, y1… */
 export interface Drawing {
   id: string
@@ -117,6 +214,10 @@ export interface DesignData {
   tracings?: Tracing[]
   /** Plantilla de la marca: aparece al crear un diseño nuevo, como punto de partida. */
   brandTemplate?: boolean
+  /** Detalles colocados a mano (botones, cremalleras, parches…). */
+  details?: Detail[]
+  /** Estilo de los botones y la cremallera que trae la prenda base. */
+  hardware?: HardwareStyle
   notes: string
 }
 

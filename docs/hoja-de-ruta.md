@@ -17,12 +17,12 @@ Se marca cada fase al terminarla.
 - [x] Cuellos intercambiables: redondo, pico, polo, camisero, mao, alto o cisne, solapa de chaqueta y capucha
 - [x] Plantillas propias: guardar un diseño como base de la marca
 
-## 3. Detalles
+## 3. Detalles ✓
 
-- [ ] Cremalleras (metal, nylon, invisible) con tirador a elegir, también con la forma de un logo de la Biblioteca
-- [ ] Botones de varios tipos (2 o 4 agujeros, automáticos, de pie, de trenca, forma propia)
-- [ ] Ojales, remaches, herretes, etiquetas y parches
-- [ ] Bordado y parches con relieve (también en 3D)
+- [x] Cremalleras (metal, nylon, invisible) con tirador a elegir, también con la forma de un logo de la Biblioteca
+- [x] Botones de varios tipos (2 o 4 agujeros, automáticos, de pie, de trenca, forma propia)
+- [x] Ojales, remaches, herretes, etiquetas y parches
+- [x] Bordado y parches con relieve (también en 3D)
 
 ## 4. Texto
 

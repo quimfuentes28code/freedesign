@@ -18,7 +18,8 @@ import { defaultAssembly, defaultConstruction } from '../../production/construct
 import { clientBody, garmentPoms, measurementLabel, standardBody } from '../../production/measurements'
 import { TECHNIQUES, type Artwork } from '../../shared/artworks'
 import type { Client } from '../../shared/clients'
-import type { Design, PieceStyle, Print } from '../../shared/designs'
+import { BUTTON_STYLES, DETAIL_KINDS, PATCH_SHAPES, PULLER_STYLES, ZIP_STYLES, type Design, type DetailArt, type PieceStyle, type Print } from '../../shared/designs'
+import { buttonPrims, detailPrims, PrimsView, zipperPrims, type Prim } from '../../designer/details'
 import { fileUrl, MATERIAL_CATEGORIES, type Material } from '../../shared/library'
 import { EMPTY_TECH_PACK, SIZES, type ConstructionRow, type Size, type SpecColumn, type TechPack, type TechPackData } from '../../shared/production'
 import type { Project } from '../../shared/projects'
@@ -372,6 +373,7 @@ function Document(props: {
         ) : (
           <PrintsTable template={template} prints={prints} artworks={artworks} />
         )}
+        <DetailsTable template={template} design={design} artworks={artworks} />
       </article>
 
       {/* 3. Medidas */}
@@ -548,6 +550,134 @@ function ColorwaysTable({ template, design }: { template: GarmentTemplate; desig
         </tbody>
       </table>
     </>
+  )
+}
+
+/** Fornituras de la prenda (botones, cremallera) y detalles colocados a mano, con estilo, sitio, tamaño y color. */
+function DetailsTable({ template, design, artworks }: { template: GarmentTemplate; design: Design; artworks: Map<string, Artwork> }) {
+  const hw = design.data.hardware ?? {}
+  const front = template.draw('front', design.data.options)
+  const buttons = front.filter((s) => s.role === 'button').length
+  const zip = front.some((s) => s.role === 'zip')
+  const details = (design.data.details ?? []).filter((d) => !d.hidden)
+  if (!buttons && !zip && !details.length) return null
+  const label = <T extends { id: string; label: string }>(list: readonly T[], id?: string) => list.find((x) => x.id === id)?.label ?? id ?? ''
+  const cm = (u: number) => (Math.round((u / UNITS_PER_CM) * 2) / 2).toLocaleString('es-ES')
+  const artName = (a?: DetailArt | null) => (a ? (artworks.get(a.artworkId ?? '')?.name ?? 'gráfico') : '')
+  const colorOf = (piece: string) => design.data.pieces[piece] ?? { color: template.pieces.find((p) => p.id === piece)?.defaultColor ?? '#cccccc', materialId: null }
+  const zipPiece = front.find((s) => s.role === 'zip')?.piece
+  return (
+    <>
+      <h3>Fornituras y detalles</h3>
+      <table className="spec-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Detalle</th>
+            <th>Tipo</th>
+            <th>Vista y posición</th>
+            <th>Tamaño</th>
+            <th>Color</th>
+          </tr>
+        </thead>
+        <tbody>
+          {buttons > 0 && (
+            <tr>
+              <td className="print-cell">
+                <MiniPrims prims={buttonPrims(hw.buttons ?? '4', 8, colorOf('botones').color, hw.buttonArt)} />
+              </td>
+              <td>Botones de la prenda ({buttons} por delante)</td>
+              <td>
+                {label(BUTTON_STYLES, hw.buttons ?? '4')}
+                {hw.buttons === 'logo' && ` · ${artName(hw.buttonArt)}`}
+              </td>
+              <td>Tapeta, puños y cierres</td>
+              <td>—</td>
+              <td>
+                <ColorCell style={colorOf('botones')} />
+              </td>
+            </tr>
+          )}
+          {zip && zipPiece && (
+            <tr>
+              <td className="print-cell">
+                <MiniPrims prims={zipperPrims(hw.zip ?? 'metal', hw.puller ?? 'clasico', 6, 26, colorOf(zipPiece).color, '#555555', hw.pullerArt)} />
+              </td>
+              <td>Cremallera de la prenda</td>
+              <td>
+                {label(ZIP_STYLES, hw.zip ?? 'metal')} · tirador {label(PULLER_STYLES, hw.puller ?? 'clasico').toLowerCase()}
+                {hw.puller === 'logo' && ` (${artName(hw.pullerArt)})`}
+              </td>
+              <td>Centro delantero</td>
+              <td>—</td>
+              <td>
+                <ColorCell style={colorOf(zipPiece)} />
+              </td>
+            </tr>
+          )}
+          {details.map((d) => {
+            const zones = template.printZones[d.view] ?? []
+            const zone = [...zones].sort((a, b) => Math.hypot(a.x - d.x, a.y - d.y) - Math.hypot(b.x - d.x, b.y - d.y))[0]
+            const style =
+              d.kind === 'boton'
+                ? label(BUTTON_STYLES, d.style)
+                : d.kind === 'cremallera'
+                  ? `${label(ZIP_STYLES, d.style)} · tirador ${label(PULLER_STYLES, d.puller).toLowerCase()}`
+                  : d.kind === 'parche'
+                    ? label(PATCH_SHAPES, d.style)
+                    : ''
+            return (
+              <tr key={d.id}>
+                <td className="print-cell">
+                  <MiniPrims prims={detailPrims({ ...d, rotation: 0, ...(d.kind === 'cremallera' ? { length: d.w * 4 } : {}) })} />
+                </td>
+                <td>
+                  {DETAIL_KINDS.find((k) => k.id === d.kind)?.label}
+                  {d.text && ` «${d.text}»`}
+                  {d.art && ` · ${artName(d.art)}`}
+                  {d.relief && <span className="muted"> · bordado / relieve</span>}
+                </td>
+                <td>{style || '—'}</td>
+                <td>
+                  {VIEWS.find((v) => v.id === d.view)?.label}
+                  {zone && <span className="muted"> · cerca de: {zone.label.toLowerCase()}</span>}
+                  {d.rotation ? <span className="muted"> · girado {Math.round(d.rotation)}°</span> : null}
+                </td>
+                <td>{d.kind === 'cremallera' ? `${cm(d.length ?? 0)} cm de largo` : `${cm(d.w)} cm`}</td>
+                <td>
+                  <span className="color-cell">
+                    <span className="color-chip" style={{ background: d.color }} /> {d.color.toUpperCase()}
+                    {['cremallera', 'etiqueta', 'parche'].includes(d.kind) && (
+                      <>
+                        {' '}
+                        <span className="color-chip" style={{ background: d.color2 }} /> {d.color2.toUpperCase()}
+                      </>
+                    )}
+                  </span>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </>
+  )
+}
+
+/** Miniatura de unos trazos de detalle, ajustada a su caja. */
+function MiniPrims({ prims }: { prims: Prim[] }) {
+  return (
+    <svg width="36" height="36" viewBox="-20 -20 40 40" aria-hidden>
+      <g ref={(g) => {
+        // Ajusta la vista a lo que se ha dibujado (cada detalle tiene un tamaño distinto)
+        const svg = g?.ownerSVGElement
+        if (!g || !svg) return
+        const b = g.getBBox()
+        if (b.width) svg.setAttribute('viewBox', `${b.x - 1} ${b.y - 1} ${b.width + 2} ${b.height + 2}`)
+      }}>
+        <PrimsView prims={prims} />
+      </g>
+    </svg>
   )
 }
 

@@ -240,7 +240,7 @@ function pockets(c: TopCfg, f: Frame, offs: number[]): Shape[] {
       out.push({ kind: 'fill', piece: P.pocket, d: rect(x0, f.hemTop - 66, 40, 54, 3) })
       out.push({ kind: 'fill', piece: P.pocket, d: rect(x0 - 1, f.hemTop - 72, 42, 18, 3) })
       out.push({ kind: 'stitch', piece: P.pocket, d: rect(x0 + 3, f.hemTop - 50, 34, 35, 2) })
-      out.push({ kind: 'hardware', piece: P.hardware, d: rect(x0 + 17, f.hemTop - 64, 6, 6, 3) })
+      out.push({ kind: 'hardware', piece: P.hardware, role: 'button', d: rect(x0 + 17, f.hemTop - 64, 6, 6, 3) })
     }
   } else if (c.pocket === 'pecho') {
     out.push({ kind: 'fill', piece: P.pocket, d: rect(CX + 24, 140, 30, 34, 3) })
@@ -271,7 +271,7 @@ function sleeves(c: TopCfg, f: Frame, front: boolean, offs: number[]): Shape[] {
     side([
       { kind: 'fill', piece: P.cuffs, d: quad(Aout, cOut, cIn, Ain) },
       shirt
-        ? { kind: 'hardware', piece: P.buttons, d: rect(mid[0] - 3, mid[1] - 3, 6, 6, 3) }
+        ? { kind: 'hardware', piece: P.buttons, role: 'button', d: rect(mid[0] - 3, mid[1] - 3, 6, 6, 3) }
         : { kind: 'rib', piece: P.cuffs, d: ribLines(Aout, Ain, cOut, cIn) },
       ...offs.map((d): Shape => ({ kind: 'stitch', piece: P.sleeves, d: line(sub(Aout, mul(f.dir, d - 1)), sub(Ain, mul(f.dir, d - 1))) })),
     ])
@@ -542,16 +542,14 @@ function placket(c: TopCfg, f: Frame, top: number, offs: number[]): Shape[] {
   const gap = (bottom - top - (full ? 24 : 18)) / Math.max(1, n - (full ? 1 : 0))
   for (let i = 0; i < n; i++) {
     const y = top + 12 + i * gap
-    out.push({ kind: 'hardware', piece: P.buttons, d: rect(CX - 3.2, y - 3.2, 6.4, 6.4, 3.2) })
+    out.push({ kind: 'hardware', piece: P.buttons, role: 'button', d: rect(CX - 3.2, y - 3.2, 6.4, 6.4, 3.2) })
   }
   return out
 }
 
 function zipper(top: number, bottom: number, piece: string, offs: number[]): Shape[] {
   return [
-    { kind: 'hardware', piece, d: rect(CX - 3, top, 6, bottom - top) },
-    { kind: 'rib', piece, d: ribLines([CX - 3, top], [CX - 3, bottom], [CX + 3, top], [CX + 3, bottom], 2.5) },
-    { kind: 'hardware', piece, d: rect(CX - 4, top + 2, 8, 14, 2) },
+    { kind: 'hardware', piece, role: 'zip', d: rect(CX - 3, top, 6, bottom - top) },
     ...offs.flatMap((d): Shape[] => [
       { kind: 'stitch', piece, d: line([CX - 3 - d, top + 2], [CX - 3 - d, bottom - 2]) },
       { kind: 'stitch', piece, d: line([CX + 3 + d, top + 2], [CX + 3 + d, bottom - 2]) },

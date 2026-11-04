@@ -23,6 +23,11 @@ export interface Shape {
   d: string
   /** Pieza a la que pertenece (para su color y material). */
   piece?: string
+  /**
+   * Fornitura que se pinta con su estilo (ver details.tsx): `button` es un botón (su caja da el centro y el tamaño)
+   * y `zip` una cremallera vertical (su caja da el ancho de la cinta y el largo).
+   */
+  role?: 'button' | 'zip'
 }
 
 export interface PieceDef {

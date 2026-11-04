@@ -197,7 +197,7 @@ function waistband(c: PantsCfg, offs: number[], front: boolean): Shape[] {
     }
     if (front) {
       out.push({ kind: 'line', piece: P.waistband, d: line([CX, WAIST_Y + 6], [CX, TOP]) })
-      out.push({ kind: 'hardware', piece: P.buttons, d: rect(CX - 10, WAIST_Y + 12, 7, 7, 3.5) })
+      out.push({ kind: 'hardware', piece: P.buttons, role: 'button', d: rect(CX - 10, WAIST_Y + 12, 7, 7, 3.5) })
     }
     return out
   }

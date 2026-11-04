@@ -1,5 +1,21 @@
 import { TECHNIQUES, type Technique } from '../src/shared/artworks'
-import type { Callout, Colorway, Design, DesignData, DesignInput, Drawing, Print, Tracing } from '../src/shared/designs'
+import {
+  BUTTON_STYLES,
+  DETAIL_KINDS,
+  PULLER_STYLES,
+  ZIP_STYLES,
+  type Callout,
+  type Colorway,
+  type Design,
+  type DesignData,
+  type DesignInput,
+  type Detail,
+  type DetailArt,
+  type Drawing,
+  type HardwareStyle,
+  type Print,
+  type Tracing,
+} from '../src/shared/designs'
 import { isFileKey } from './files'
 import { HttpError, json, noContent, now, ownedRef, readBody, required, text, type Env } from './http'
 
@@ -104,6 +120,8 @@ async function readDesign(request: Request, env: Env, uid: string): Promise<Desi
   const callouts = Array.isArray(data.callouts) ? data.callouts.slice(0, 60).map(readCallout).filter((c): c is Callout => !!c) : []
   const drawings = Array.isArray(data.drawings) ? data.drawings.slice(0, 300).map(readDrawing).filter((d): d is Drawing => !!d) : []
   const tracings = Array.isArray(data.tracings) ? data.tracings.slice(0, 3).map(readTracing).filter((d): d is Tracing => !!d) : []
+  const details = Array.isArray(data.details) ? data.details.slice(0, 120).map(readDetail).filter((d): d is Detail => !!d) : []
+  const hardware = readHardware(data.hardware)
   const measures: Record<string, number> = {}
   if (data.measures && typeof data.measures === 'object') {
     for (const [k, v] of Object.entries(data.measures).slice(0, 40)) {
@@ -126,6 +144,8 @@ async function readDesign(request: Request, env: Env, uid: string): Promise<Desi
       ...(drawings.length ? { drawings } : {}),
       ...(tracings.length ? { tracings } : {}),
       ...(data.brandTemplate === true ? { brandTemplate: true } : {}),
+      ...(details.length ? { details } : {}),
+      ...(hardware ? { hardware } : {}),
     },
   }
 }
@@ -168,6 +188,59 @@ function readDrawing(raw: unknown): Drawing | null {
     ...(d.hidden === true ? { hidden: true } : {}),
     ...(d.locked === true ? { locked: true } : {}),
   }
+}
+
+const hex = (v: unknown, def: string) => {
+  const c = text(v)
+  return /^#[0-9a-f]{6}$/i.test(c) ? c : def
+}
+const oneOf = <T extends string>(v: unknown, list: readonly { id: T }[], def: T): T => (list.some((x) => x.id === v) ? (v as T) : def)
+
+function readArt(raw: unknown): DetailArt | null {
+  if (!raw || typeof raw !== 'object') return null
+  const a = raw as Record<string, unknown>
+  const file = text(a.file)
+  if (!isFileKey(file)) return null
+  return { artworkId: text(a.artworkId) || null, file, aspect: Math.max(0.05, finite(a.aspect, 1)) }
+}
+
+function readDetail(raw: unknown): Detail | null {
+  if (!raw || typeof raw !== 'object') return null
+  const d = raw as Record<string, unknown>
+  const kind = oneOf(d.kind, DETAIL_KINDS, 'boton')
+  const art = readArt(d.art)
+  return {
+    id: text(d.id) || crypto.randomUUID(),
+    view: viewOf(d.view),
+    kind,
+    style: text(d.style).slice(0, 20),
+    ...(kind === 'cremallera' ? { puller: oneOf(d.puller, PULLER_STYLES, 'clasico'), length: Math.max(10, finite(d.length, 120)) } : {}),
+    x: finite(d.x, 200),
+    y: finite(d.y, 200),
+    w: Math.min(300, Math.max(2, finite(d.w, 10))),
+    rotation: finite(d.rotation, 0),
+    color: hex(d.color, '#c9c9c9'),
+    color2: hex(d.color2, '#1d1c1a'),
+    ...(text(d.text) ? { text: text(d.text).slice(0, 80) } : {}),
+    ...(art ? { art } : {}),
+    ...(d.relief === true ? { relief: true } : {}),
+    ...(d.hidden === true ? { hidden: true } : {}),
+    ...(d.locked === true ? { locked: true } : {}),
+  }
+}
+
+function readHardware(raw: unknown): HardwareStyle | null {
+  if (!raw || typeof raw !== 'object') return null
+  const h = raw as Record<string, unknown>
+  const out: HardwareStyle = {}
+  if (BUTTON_STYLES.some((x) => x.id === h.buttons)) out.buttons = h.buttons as HardwareStyle['buttons']
+  if (ZIP_STYLES.some((x) => x.id === h.zip)) out.zip = h.zip as HardwareStyle['zip']
+  if (PULLER_STYLES.some((x) => x.id === h.puller)) out.puller = h.puller as HardwareStyle['puller']
+  const ba = readArt(h.buttonArt)
+  const pa = readArt(h.pullerArt)
+  if (ba) out.buttonArt = ba
+  if (pa) out.pullerArt = pa
+  return Object.keys(out).length ? out : null
 }
 
 function readTracing(raw: unknown): Tracing | null {
