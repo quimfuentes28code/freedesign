@@ -1,16 +1,16 @@
 import { TECHNIQUES, type Technique } from '../src/shared/artworks'
 import type { Design, DesignData, DesignInput, Print } from '../src/shared/designs'
 import { isFileKey } from './files'
-import { HttpError, json, noContent, now, readBody, required, text, type Env } from './http'
+import { HttpError, json, noContent, now, ownedRef, readBody, required, text, type Env } from './http'
 
 /** /api/designs — prendas diseñadas en el Diseñador. */
-export async function designsRoute(request: Request, env: Env, id: string | undefined, url: URL) {
-  if (!id && request.method === 'GET') return json(await listDesigns(env, url.searchParams.get('project') ?? ''))
-  if (!id && request.method === 'POST') return json(await createDesign(env, await readDesign(request)), 201)
-  if (id && request.method === 'GET') return json(await getDesign(env, id))
-  if (id && request.method === 'PUT') return json(await updateDesign(env, id, await readDesign(request)))
+export async function designsRoute(request: Request, env: Env, uid: string, id: string | undefined, url: URL) {
+  if (!id && request.method === 'GET') return json(await listDesigns(env, uid, url.searchParams.get('project') ?? ''))
+  if (!id && request.method === 'POST') return json(await createDesign(env, uid, await readDesign(request, env, uid)), 201)
+  if (id && request.method === 'GET') return json(await getDesign(env, uid, id))
+  if (id && request.method === 'PUT') return json(await updateDesign(env, uid, id, await readDesign(request, env, uid)))
   if (id && request.method === 'DELETE') {
-    await env.DB.prepare('DELETE FROM designs WHERE id = ?').bind(id).run()
+    await env.DB.prepare('DELETE FROM designs WHERE id = ? AND user_id = ?').bind(id, uid).run()
     return noContent()
   }
   throw new HttpError(405, 'Método no permitido')
@@ -47,41 +47,43 @@ function toDesign(r: DesignRow): Design {
   }
 }
 
-async function listDesigns(env: Env, project: string) {
-  const { results } = await env.DB.prepare(`${SELECT} WHERE (?1 = '' OR d.project_id = ?1) ORDER BY d.updated_at DESC`)
-    .bind(project)
+async function listDesigns(env: Env, uid: string, project: string) {
+  const { results } = await env.DB.prepare(
+    `${SELECT} WHERE d.user_id = ?2 AND (?1 = '' OR d.project_id = ?1) ORDER BY d.updated_at DESC`,
+  )
+    .bind(project, uid)
     .all<DesignRow>()
   return results.map(toDesign)
 }
 
-async function getDesign(env: Env, id: string) {
-  const row = await env.DB.prepare(`${SELECT} WHERE d.id = ?`).bind(id).first<DesignRow>()
+async function getDesign(env: Env, uid: string, id: string) {
+  const row = await env.DB.prepare(`${SELECT} WHERE d.id = ? AND d.user_id = ?`).bind(id, uid).first<DesignRow>()
   if (!row) throw new HttpError(404, 'Diseño no encontrado')
   return toDesign(row)
 }
 
-async function createDesign(env: Env, d: DesignInput) {
+async function createDesign(env: Env, uid: string, d: DesignInput) {
   const id = crypto.randomUUID()
   const t = now()
   await env.DB.prepare(
-    'INSERT INTO designs (id, name, template, client_id, project_id, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO designs (id, user_id, name, template, client_id, project_id, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
   )
-    .bind(id, d.name, d.template, d.clientId, d.projectId, JSON.stringify(d.data), t, t)
+    .bind(id, uid, d.name, d.template, d.clientId, d.projectId, JSON.stringify(d.data), t, t)
     .run()
-  return getDesign(env, id)
+  return getDesign(env, uid, id)
 }
 
-async function updateDesign(env: Env, id: string, d: DesignInput) {
+async function updateDesign(env: Env, uid: string, id: string, d: DesignInput) {
   const { meta } = await env.DB.prepare(
-    'UPDATE designs SET name = ?, template = ?, client_id = ?, project_id = ?, data = ?, updated_at = ? WHERE id = ?',
+    'UPDATE designs SET name = ?, template = ?, client_id = ?, project_id = ?, data = ?, updated_at = ? WHERE id = ? AND user_id = ?',
   )
-    .bind(d.name, d.template, d.clientId, d.projectId, JSON.stringify(d.data), now(), id)
+    .bind(d.name, d.template, d.clientId, d.projectId, JSON.stringify(d.data), now(), id, uid)
     .run()
   if (meta.changes === 0) throw new HttpError(404, 'Diseño no encontrado')
-  return getDesign(env, id)
+  return getDesign(env, uid, id)
 }
 
-async function readDesign(request: Request): Promise<DesignInput> {
+async function readDesign(request: Request, env: Env, uid: string): Promise<DesignInput> {
   const b = await readBody(request)
   const data = (b.data ?? {}) as Partial<DesignData>
   if (typeof data !== 'object') throw new HttpError(400, 'Datos del diseño no válidos')
@@ -103,8 +105,8 @@ async function readDesign(request: Request): Promise<DesignInput> {
   return {
     name: required(b.name, 'El nombre'),
     template: required(b.template, 'La prenda base'),
-    clientId: text(b.clientId) || null,
-    projectId: text(b.projectId) || null,
+    clientId: await ownedRef(env, 'clients', text(b.clientId) || null, uid, 'El cliente'),
+    projectId: await ownedRef(env, 'projects', text(b.projectId) || null, uid, 'El proyecto'),
     data: { options, pieces, prints, notes: text(data.notes) },
   }
 }

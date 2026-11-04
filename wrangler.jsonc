@@ -29,10 +29,5 @@
       "binding": "FILES",
       "id": "f48e0a146bb4423c98d121f15dd24eee"
     }
-  ],
-  "vars": {
-    // Correos que pueden usar la app en producción (protegida con Cloudflare Access), separados por comas.
-    // Vacío = sin comprobación (solo para desarrollo local).
-    "ALLOWED_EMAILS": ""
-  }
+  ]
 }
