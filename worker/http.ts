@@ -3,7 +3,7 @@
 export interface Env {
   DB: D1Database
   /** Almacén de archivos (fotos de materiales, y más adelante bocetos, estampados…). */
-  FILES: R2Bucket
+  FILES: KVNamespace
   ASSETS: Fetcher
   /** Correos con acceso, separados por comas. Vacío = sin comprobación (desarrollo local). */
   ALLOWED_EMAILS: string
