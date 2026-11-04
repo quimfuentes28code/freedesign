@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { Design, GarmentSlot, Measurements } from '../../types'
 import type { ModelInfo } from '../body'
 import { Part } from '../pose'
-import { Cloth, type Panel } from './Cloth'
+import { Cloth, type EdgeKind, type Panel } from './Cloth'
 
 /** Holgura en el contorno de pecho según el corte, en cm. */
 const EASE = { ajustado: 8, normal: 18, holgado: 32 } as const
@@ -15,6 +15,18 @@ export interface HoodieResult {
   slots: GarmentSlot[]
   /** Bolsillo canguro en coordenadas del patrón del delantero (cm), si lo lleva. */
   pocket: { panel: number; inside: (x: number, y: number) => boolean; shape: PocketShape } | null
+  /** Puntos de cada capa, para que la tela no se atraviese a sí misma (ver relax). */
+  layers: {
+    /** Capucha (va por encima del cuerpo). */
+    hood: number[]
+    /** Delantero y espalda. */
+    torso: number[]
+    /** Mangas lejos de la sisa y cuerpo por debajo de la axila (se tocan con los brazos bajados). */
+    sleevesLow: number[]
+    torsoLow: number[]
+  }
+  /** Puntos de la abertura de la capucha a la altura del cuello, a cada lado (de donde salen los cordones). */
+  cordExits: number[]
 }
 
 /** Trapecio del bolsillo canguro en el patrón del delantero (cm): de `y0` a `y0 + h`, semiancho de `w0` abajo a `w1` arriba. */
@@ -116,12 +128,16 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   }
   const edge = new THREE.Vector3()
 
+  // Fila de la axila: por encima, el borde lateral es la sisa (pespunteada); por debajo, la costura del costado
+  const armpitRow = Math.floor(((L - slope - armhole) / (L - slope)) * (nv - 1))
   const torsoPanel = (front: boolean) => {
     const drop = front ? frontDrop : backDrop
     const towards = front ? 1 : -1
+    const side = (j: number): EdgeKind => (j > armpitRow ? 'pespunte' : 'plana')
     return cloth.addPanel({
       nu,
       nv,
+      edges: { u0: side, u1: side, v0: 'recubierta', v1: 'pespunte' },
       flat: (u, v, out) => {
         const x = (u - 0.5) * W
         out.set(x, v * yTop(x, drop))
@@ -147,7 +163,6 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const back = add(torsoPanel(false), [Part.Torso, Part.Neck, Part.ArmL, Part.ArmR], 'cuerpo')
 
   // Costados (solo por debajo de la sisa) y hombros
-  const armpitRow = Math.floor(((L - slope - armhole) / (L - slope)) * (nv - 1))
   for (const i of [0, nu - 1]) {
     cloth.sew(front.col(i).slice(0, armpitRow + 1), back.col(i).slice(0, armpitRow + 1))
   }
@@ -165,6 +180,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   }
 
   // --- Mangas y puños ---
+  const sleevePanels: { panel: Panel; len: number }[] = []
   for (const side of [1, -1] as const) {
     const ax = arm(side)
     const edge = side > 0 ? nu - 1 : 0
@@ -194,6 +210,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
       [side > 0 ? Part.ArmL : Part.ArmR, Part.Torso],
       'mangas',
     )
+    sleevePanels.push({ panel: sleeve, len: sleeveLen })
     const top = sleeve.row(0)
     const mid = (ns - 1) / 2
     cloth.sew(frontEdge, top.slice(0, mid + 1))
@@ -208,6 +225,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
         nv: 4,
         material: 1,
         bend: 2,
+        edges: { v1: 'doblez' },
         flat: (u, v, out) => out.set((u - 0.5) * cuffC, -v * ribH),
         place: (u, v, out) => {
           const c = end.clone().addScaledVector(ax.dir, v * ribH * unit)
@@ -237,6 +255,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
       nv: 4,
       material: 1,
       bend: 2,
+      edges: { v0: 'doblez' },
       flat: (u, v, out) => out.set(u * bandC, v * ribH),
       place: (u, v, out) => {
         loopPoint(u, bandC / bodyC, out)
@@ -259,6 +278,12 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   }
   const neckLen = Math.PI * 0.5 * (neckW / 2 + (frontDrop + backDrop) / 2) * 2
 
+  const hoodPanels: Panel[] = []
+  const cordExits: number[] = []
+  // Cabeza (para la capucha puesta): centro y radio con la holgura de la capucha
+  const headY = info.neckY + (info.height - info.neckY) * 0.52
+  const headSlice = sliceCenter(points, headY, info.shoulderX * 0.5)
+  const head = { y: headY, z: headSlice.z, r: (info.height - info.neckY) * 0.42 + 2.5 * s * unit }
   if (design.hood) {
     const hoodH = 34 * s
     const hoodD = 26 * s
@@ -280,11 +305,31 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
         cloth.addPanel({
           nu: nh,
           nv: nt,
+          // Abertura con el canal del cordón; costura central y de arriba pespunteadas
+          edges: { u0: 'jareta', u1: 'pespunte', v1: 'pespunte' },
           flat: (u, v, out) => out.set(side * u * width(v), v * hoodH),
           place: (u, v, out) => {
+            const p = base(u)
+            if (design.hoodUp) {
+              // Capucha puesta: cada mitad es un gajo alrededor de la cabeza. La costura central y la de arriba
+              // van por el centro (x = 0) de la nuca a la frente; la abertura enmarca la cara.
+              // Ángulo en el plano de perfil (0 = delante, 90° = arriba, 180° = detrás) de las cuatro esquinas del gajo
+              const g = THREE.MathUtils.degToRad(
+                (1 - u) * (1 - v) * -40 + u * (1 - v) * 215 + (1 - u) * v * 60 + u * v * 100,
+              )
+              // Separación del centro: 0 en las costuras; en el cuello y la abertura sale hacia los lados
+              const lat = (Math.PI / 2) * Math.min(1, (1 - v) * Math.sin(Math.PI * u) + (1 - u) * 0.72 * Math.sin(Math.PI * v))
+              const r = head.r
+              const onHead = new THREE.Vector3(
+                side * r * Math.sin(lat),
+                head.y + r * Math.cos(lat) * Math.sin(g),
+                head.z + r * Math.cos(lat) * Math.cos(g),
+              )
+              // Junto al cuello parte de la línea del escote
+              return out.copy(p).lerp(onHead, THREE.MathUtils.smoothstep(v, 0, 0.3))
+            }
             // Capucha bajada: desde el cuello sube un poco, se va hacia atrás y cae sobre la espalda.
             // La costura central (borde trasero y borde de arriba) queda en el centro de la espalda (x = 0).
-            const p = base(u)
             const toCenter = Math.max(THREE.MathUtils.smoothstep(v, 0.2, 1), u ** 3)
             const rise = 4 * s * unit * Math.sin(Math.min(v / 0.3, 1) * Math.PI * 0.5)
             const fall = THREE.MathUtils.smoothstep(v, 0.25, 1) * hoodH * 0.55 * unit
@@ -292,10 +337,14 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
             out.set(p.x * (1 + 0.6 * Math.sin(Math.PI * v)) * (1 - toCenter), p.y + rise - fall, z)
           },
         }),
-        [Part.Torso, Part.Neck],
+        // Puesta, la capucha se mueve con la cabeza
+        design.hoodUp ? [Part.Neck, Part.Head] : [Part.Torso, Part.Neck],
         'capucha',
       )
       cloth.sew(panel.row(0), neck)
+      hoodPanels.push(panel)
+      // Los cordones salen de la abertura a unos 4 cm del cuello
+      if (design.cords !== false) cordExits.push(panel.index(0, Math.min(nt - 1, Math.round((4 * s) / (hoodH / (nt - 1))))))
       return panel
     })
     const [left, right] = hoods
@@ -311,6 +360,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
         nv: 3,
         material: 1,
         bend: 2,
+        edges: { v1: 'doblez' },
         flat: (u, v, out) => out.set(u * neckLen * 0.9, v * 3),
         place: (u, v, out) => {
           const k = u * pts.length
@@ -342,7 +392,21 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
       }
     : null
 
-  return { cloth, follows, slots, pocket }
+  // --- Capas: qué piezas no se pueden atravesar entre sí ---
+  const all = (p: Panel) => Array.from({ length: p.nu * p.nv }, (_, k) => p.index(k % p.nu, Math.floor(k / p.nu)))
+  const torsoAll = [...all(front), ...all(back)]
+  // Por debajo de la axila (con un margen) el cuerpo roza con las mangas de los brazos bajados
+  const torsoLow = torsoAll.filter((_, k) => Math.floor((k % (nu * nv)) / nu) < armpitRow - 2)
+  // De la manga, lo que queda lejos de la sisa (cerca de ella están cosidas al cuerpo)
+  const sleevesLow = sleevePanels.flatMap(({ panel, len }) =>
+    all(panel).filter((_, k) => (Math.floor(k / panel.nu) / (panel.nv - 1)) * len > 9 * s),
+  )
+  // De la capucha, lo que queda lejos del escote (junto a él está cosida al cuerpo y no se puede separar)
+  const hoodH = 34 * s
+  const hoodFree = hoodPanels.flatMap((p) => all(p).filter((_, k) => (Math.floor(k / p.nu) / (p.nv - 1)) * hoodH > 8 * s))
+  const layers = { hood: hoodFree, torso: torsoAll, sleevesLow, torsoLow }
+
+  return { cloth, follows, slots, pocket, layers, cordExits }
 }
 
 /** Perímetro aproximado de una elipse (Ramanujan). */

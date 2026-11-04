@@ -7,7 +7,7 @@ export interface Collider {
 }
 
 /** Rejilla espacial rápida (tabla hash numérica) para encontrar el punto de la piel más cercano. */
-class SpatialHash {
+export class SpatialHash {
   private size: number
   private start: Int32Array
   private items: Int32Array
@@ -77,6 +77,74 @@ export interface RelaxOptions {
   gravity: number
   /** Tamaño de celda para buscar la piel más cercana (unidades del modelo). */
   cell: number
+  /**
+   * Choques entre piezas de la propia prenda (la tela no se atraviesa a sí misma):
+   * - outside: los puntos de `outer` quedan por fuera de los de `inner` (la capucha encima de la espalda)
+   * - apart: los dos grupos se separan entre sí (mangas y costados del cuerpo)
+   */
+  layers?: Layer[]
+}
+
+export interface Layer {
+  mode: 'outside' | 'apart'
+  outer: number[]
+  inner: number[]
+  /** Separación mínima (unidades del modelo). */
+  gap: number
+}
+
+/**
+ * Separa las capas de tela: para cada punto de `outer` busca el punto de `inner` más cercano y, si está demasiado
+ * cerca (o por dentro, en modo «outside»), lo empuja. En «outside» la dirección es la de la piel bajo ese punto.
+ */
+function separateLayers(
+  pos: Float32Array,
+  prev: Float32Array,
+  layers: Layer[],
+  skinNormal: (i: number) => [number, number, number] | null,
+  cell: number,
+) {
+  // Mueve un punto sin darle velocidad (se mueve también su posición anterior)
+  const move = (p: number, x: number, y: number, z: number) => {
+    pos[p] += x
+    pos[p + 1] += y
+    pos[p + 2] += z
+    prev[p] += x
+    prev[p + 1] += y
+    prev[p + 2] += z
+  }
+  for (const layer of layers) {
+    const inner = new Float32Array(layer.inner.length * 3)
+    layer.inner.forEach((v, k) => inner.set([pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]], k * 3))
+    const hash = new SpatialHash(inner, cell)
+    const gap = layer.gap
+    for (const v of layer.outer) {
+      const p = v * 3
+      const k = hash.nearest(pos[p], pos[p + 1], pos[p + 2])
+      if (k < 0) continue
+      const q = layer.inner[k] * 3
+      const ex = pos[p] - pos[q]
+      const ey = pos[p + 1] - pos[q + 1]
+      const ez = pos[p + 2] - pos[q + 2]
+      if (layer.mode === 'outside') {
+        const n = skinNormal(layer.inner[k])
+        if (!n) continue
+        const d = ex * n[0] + ey * n[1] + ez * n[2]
+        // Solo si de verdad está encima (cerca en horizontal): si no, son zonas distintas de la prenda
+        const lateral2 = ex * ex + ey * ey + ez * ez - d * d
+        if (d >= gap || lateral2 > (cell * 1.2) ** 2 || d < -cell * 2) continue
+        // Poco a poco (como mucho, la separación por paso): si no, la tela salta
+        const push = Math.min(gap - d, gap) * 0.7
+        move(p, n[0] * push, n[1] * push, n[2] * push)
+      } else {
+        const len = Math.sqrt(ex * ex + ey * ey + ez * ez)
+        if (len >= gap || len < 1e-6) continue
+        const push = ((gap - len) / len) * 0.35
+        move(p, ex * push, ey * push, ez * push)
+        move(q, -ex * push, -ey * push, -ez * push)
+      }
+    }
+  }
 }
 
 /**
@@ -208,6 +276,22 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
       pos[p + 2] += nz * push
       for (let c = 0; c < 3; c++) prev[p + c] += (pos[p + c] - prev[p + c]) * 0.6
     }
+
+    // 5. Capas de la propia prenda (cada pocos pasos: es más caro y cambia poco)
+    if (opts.layers && step % 2 === 0 && t > 0.15) separateLayers(pos, prev, opts.layers, skinNormal, opts.cell)
+  }
+
+  // Al terminar, varias pasadas más sin movimiento para que ninguna capa quede atravesada
+  if (opts.layers) {
+    refresh()
+    for (let it = 0; it < 8; it++) separateLayers(pos, prev, opts.layers, skinNormal, opts.cell)
   }
   return pos
+
+  /** Normal de la piel bajo un punto de la tela (hacia fuera del cuerpo). */
+  function skinNormal(i: number): [number, number, number] | null {
+    const k = nearest[i]
+    if (k < 0) return null
+    return [body.normals[k * 3], body.normals[k * 3 + 1], body.normals[k * 3 + 2]]
+  }
 }
