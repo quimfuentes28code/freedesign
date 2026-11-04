@@ -23,11 +23,11 @@
     }
   ],
   // Archivos (fotos de materiales y, más adelante, bocetos, estampados…). Para publicar:
-  // `npx wrangler r2 bucket create freedesign-files`
-  "r2_buckets": [
+  // `npx wrangler kv namespace create freedesign-files` y poner aquí el id que devuelve.
+  "kv_namespaces": [
     {
       "binding": "FILES",
-      "bucket_name": "freedesign-files"
+      "id": "f48e0a146bb4423c98d121f15dd24eee"
     }
   ],
   "vars": {

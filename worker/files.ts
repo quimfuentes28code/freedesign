@@ -11,7 +11,7 @@ const IMAGE_TYPES: Record<string, string> = {
 const MAX_BYTES = 8 * 1024 * 1024
 
 /**
- * /api/files — archivos guardados en R2 (de momento, imágenes).
+ * /api/files — archivos guardados en Workers KV (de momento, imágenes).
  * POST con la imagen como cuerpo → { key }. GET /api/files/:key → la imagen.
  */
 export async function filesRoute(request: Request, env: Env, key: string | undefined) {
@@ -23,15 +23,15 @@ export async function filesRoute(request: Request, env: Env, key: string | undef
     if (data.byteLength === 0) throw new HttpError(400, 'El archivo está vacío')
     if (data.byteLength > MAX_BYTES) throw new HttpError(413, 'La imagen pesa más de 8 MB')
     const newKey = `${crypto.randomUUID()}.${ext}`
-    await env.FILES.put(newKey, data, { httpMetadata: { contentType: type } })
+    await env.FILES.put(newKey, data, { metadata: { contentType: type } })
     return json({ key: newKey }, 201)
   }
   if (key && request.method === 'GET') {
-    const obj = await env.FILES.get(key)
-    if (!obj) throw new HttpError(404, 'Archivo no encontrado')
-    return new Response(obj.body, {
+    const obj = await env.FILES.getWithMetadata<{ contentType?: string }>(key, 'stream')
+    if (!obj.value) throw new HttpError(404, 'Archivo no encontrado')
+    return new Response(obj.value, {
       headers: {
-        'Content-Type': obj.httpMetadata?.contentType ?? 'application/octet-stream',
+        'Content-Type': obj.metadata?.contentType ?? 'application/octet-stream',
         // Las claves no se reutilizan nunca: el navegador puede guardar la imagen para siempre
         'Cache-Control': 'private, max-age=31536000, immutable',
         // Los SVG se muestran como imagen, sin ejecutar nada que traigan dentro

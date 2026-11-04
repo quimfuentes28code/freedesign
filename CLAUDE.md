@@ -27,11 +27,11 @@ Herramienta de taller para diseñar y fabricar prendas personalizadas (outfits p
 - Proyectos (`src/pages/projects/`): tablero por fases (arrastrar cambia la fase), lista, ficha (datos, diseños, archivos, materiales y costes, tareas, notas) y colecciones. Fases y categorías de archivo en `src/shared/projects.ts`. Las partes de un proyecto (archivos, materiales, costes, tareas) se guardan al momento con `api.projectPart`; los datos principales con «Guardar cambios»
 - `src/designer/` — Diseñador 2D: dibujos técnicos (flats) paramétricos en SVG. `templates.ts` es el catálogo de prendas base (piezas, opciones y cómo se dibujan); `top.ts` dibuja las prendas de torso (sudadera, camiseta, bomber) y `pants.ts` el pantalón; `FlatView.tsx` pinta una vista con los colores y materiales de cada pieza. Añadir una prenda base = una entrada en `TEMPLATES` (puede reutilizar `drawTop` o `drawPants`)
 - Estampados: `src/designer/prints.tsx` dibuja los estampados (gráficos o textos) sobre el flat y `Transformable` permite moverlos, escalarlos y girarlos (también se usa en el creador). `printZones` de cada plantilla son las posiciones rápidas. 1 unidad del lienzo ≈ 0,5 cm (`UNITS_PER_CM`)
-- Gráficos: `src/pages/library/Artworks.tsx` (lista y subida) y `ArtworkCreator.tsx` (creador de logos por capas, `artLayers.tsx`); al guardar se exporta un SVG a R2. Las imágenes de gráficos no se borran al editar o eliminar el gráfico, porque los diseños guardan su propia referencia. Solo se usan tipografías del sistema (`FONTS`) para que el SVG se vea igual en cualquier sitio
+- Gráficos: `src/pages/library/Artworks.tsx` (lista y subida) y `ArtworkCreator.tsx` (creador de logos por capas, `artLayers.tsx`); al guardar se exporta un SVG a Workers KV. Las imágenes de gráficos no se borran al editar o eliminar el gráfico, porque los diseños guardan su propia referencia. Solo se usan tipografías del sistema (`FONTS`) para que el SVG se vea igual en cualquier sitio
 - `src/components/ui.tsx` — piezas comunes (cabecera de página, campos, precio, estados de carga)
 - `src/api/client.ts` — llamadas a la API, `useApi` para cargar datos y subida de imágenes (se reducen antes de subirlas)
 - `src/shared/` — tipos compartidos por la web y la API (`clients.ts` con la lista de medidas, `library.ts` con categorías y unidades de precio)
-- `worker/` — API: `index.ts` (rutas y acceso), `clients.ts`, `library.ts` (materiales y proveedores), `designs.ts` (diseños), `artworks.ts` (gráficos), `projects.ts` (proyectos, colecciones y tareas), `files.ts` (imágenes en R2), `http.ts` (utilidades)
+- `worker/` — API: `index.ts` (rutas y acceso), `clients.ts`, `library.ts` (materiales y proveedores), `designs.ts` (diseños), `artworks.ts` (gráficos), `projects.ts` (proyectos, colecciones y tareas), `files.ts` (imágenes en Workers KV), `http.ts` (utilidades)
 - `migrations/` — tablas de la base de datos (una migración nueva por cada cambio; nunca editar las ya aplicadas)
 
 ### Vista previa 3D (`/disenador/3d`)
@@ -69,5 +69,5 @@ Herramienta de taller para diseñar y fabricar prendas personalizadas (outfits p
 
 - La configuración pública va en `wrangler.jsonc` (sí se sube).
 - Los secretos (API keys, tokens) **nunca** van en el repo: en local en `.dev.vars` (está en `.gitignore`) y en producción con `npx wrangler secret put NOMBRE` o desde el panel de Cloudflare.
-- D1 guarda los datos y R2 (binding `FILES`) las imágenes; ver README para crearlos en producción. Al quitar o cambiar una foto, la API borra la anterior de R2.
+- D1 guarda los datos y Workers KV (binding `FILES`) las imágenes; ver README para crearlos en producción. Al quitar o cambiar una foto, la API borra la anterior de KV.
 - La app es solo para nosotros dos: en producción va detrás de **Cloudflare Access**, y el Worker comprueba además `ALLOWED_EMAILS`.
