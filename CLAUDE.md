@@ -44,6 +44,8 @@ Herramienta de taller para diseñar y fabricar prendas personalizadas (outfits p
 - `src/three/Avatar.tsx` — carga el maniquí, lo pinta gris mate, reproduce la animación y lo ajusta a las medidas
 - `src/three/body.ts` — mide el maniquí (alturas, contornos) y deforma su malla para las medidas elegidas, sin tocar los huesos
 - `src/three/Garment.tsx` — prendas (un material por zona: cuerpo, mangas, capucha, cuello, bolsillo, puños y bajo; el bolsillo se recorta a su forma exacta en el shader): la sudadera con patrón de costura (`src/three/cloth/`: piezas, costuras, simulación ligera en un Web Worker, texturas de tejido) y el resto con tubos que envuelven el cuerpo
+- Detalle de confección (sudadera): cada pieza del patrón dice el acabado de sus bordes (`edges` en `cloth/hoodie.ts`: costura plana, pespunte, recubierta, doblez, jareta) y `Cloth.edgeInfo()` lo pasa a la malla como atributo `edge`; el shader de `Garment.tsx` (`SEAM_GLSL`) dibuja hendiduras, pespuntes y rebordes. La tela no se atraviesa a sí misma gracias a las capas de `relax` (capucha por fuera del cuerpo, mangas separadas del costado). La capucha puede ir puesta (`hoodUp`) o bajada, y lleva cordones con ojales y herretes (`addCords` en `cloth/dress.ts`)
+- En desarrollo, `window.__three.look([x, y, z], [tx, ty, tz])` mueve la cámara de la vista 3D (para revisar detalles)
 - `src/three/wrap.ts` — construye esa tela "como una cinta métrica" sobre el cuerpo y le da los pesos de los huesos
 - `src/three/pose.ts` — pose de reposo de la animación (la ropa se construye ahí) y vuelta a la postura base del esqueleto
 - `src/three/Scene.tsx` — canvas, luces, cámara orbital
