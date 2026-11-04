@@ -1,6 +1,6 @@
 import { ContactShadows, Environment, Lightformer, OrbitControls, useProgress } from '@react-three/drei'
-import { Canvas } from '@react-three/fiber'
-import { Suspense } from 'react'
+import { Canvas, useThree } from '@react-three/fiber'
+import { Suspense, useEffect } from 'react'
 import type { Design, Measurements } from '../types'
 import { Mannequin } from './Avatar'
 import { useDressing } from './cloth/dressClient'
@@ -10,6 +10,32 @@ interface Props {
   design: Design
   autoRotate: boolean
   animate: boolean
+}
+
+/**
+ * Solo en desarrollo: deja la escena en `window.__three` para poder mover la cámara desde la consola
+ * y revisar detalles (p. ej. `__three.look([0, 1.4, -1], [0, 1.3, 0])`).
+ */
+function DevHandle() {
+  const { camera, controls, scene, invalidate } = useThree()
+  useEffect(() => {
+    const w = window as unknown as { __three?: unknown }
+    w.__three = {
+      camera,
+      scene,
+      look: (pos: [number, number, number], target: [number, number, number]) => {
+        camera.position.set(...pos)
+        const c = controls as unknown as { target: { set: (...v: number[]) => void }; update: () => void } | null
+        c?.target.set(...target)
+        c?.update()
+        invalidate()
+      },
+    }
+    return () => {
+      delete w.__three
+    }
+  }, [camera, controls, scene, invalidate])
+  return null
 }
 
 /** Escena 3D: maniquí con la prenda, en un estudio con luces suaves y cámara orbital para verlo en 360°. */
@@ -54,12 +80,15 @@ export function Scene({ measurements, design, autoRotate, animate }: Props) {
         <OrbitControls
           target={[0, H * 0.53, 0]}
           enablePan={false}
-          minDistance={1.2}
+          // Se puede acercar mucho para ver costuras y pespuntes
+          minDistance={0.45}
           maxDistance={6}
           maxPolarAngle={Math.PI * 0.85}
           autoRotate={autoRotate}
           autoRotateSpeed={1.2}
+          makeDefault
         />
+        {import.meta.env.DEV && <DevHandle />}
       </Canvas>
     </>
   )

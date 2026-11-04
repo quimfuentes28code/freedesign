@@ -95,6 +95,11 @@ export function DesignPanel(props: Props) {
             <button className={design.hood ? 'chip active' : 'chip'} onClick={() => setDesign({ hood: !design.hood })}>
               Capucha
             </button>
+            {design.hood && (
+              <button className={design.hoodUp ? 'chip active' : 'chip'} onClick={() => setDesign({ hoodUp: !design.hoodUp })}>
+                Capucha puesta
+              </button>
+            )}
             <button className={design.pocket ? 'chip active' : 'chip'} onClick={() => setDesign({ pocket: !design.pocket })}>
               Bolsillo canguro
             </button>

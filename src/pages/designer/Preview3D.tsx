@@ -11,6 +11,7 @@ const DEFAULT_DESIGN: Design = {
   fabric: 'felpa',
   color: '#c9b89f',
   hood: true,
+  hoodUp: true,
   pocket: true,
   bodyLength: 70,
   sleeveLength: 64,

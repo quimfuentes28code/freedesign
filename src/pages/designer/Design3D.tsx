@@ -17,7 +17,8 @@ interface Props {
 
 /** Vista 3D del diseño que se está editando: el maniquí con la prenda, sus colores y materiales, al momento. */
 export function Design3D({ template, data, materials, client }: Props) {
-  const design = useMemo(() => designTo3D(template, data, materials), [template, data, materials])
+  const [hoodUp, setHoodUp] = useState(true)
+  const design = useMemo(() => ({ ...designTo3D(template, data, materials), hoodUp }), [template, data, materials, hoodUp])
   const measurements = useMemo(() => mannequinMeasurements(client?.measurements), [client])
   const [autoRotate, setAutoRotate] = useState(false)
   const [animate, setAnimate] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
@@ -28,6 +29,12 @@ export function Design3D({ template, data, materials, client }: Props) {
       <div className="viewport">
         <Scene measurements={measurements} design={design} autoRotate={autoRotate} animate={animate} />
         <div className="design-3d-bar">
+          {design.hood && (
+            <label className="toggle">
+              <input type="checkbox" checked={hoodUp} onChange={(e) => setHoodUp(e.target.checked)} />
+              Capucha puesta
+            </label>
+          )}
           <label className="toggle">
             <input type="checkbox" checked={animate} onChange={(e) => setAnimate(e.target.checked)} />
             Animación

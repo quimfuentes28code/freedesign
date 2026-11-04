@@ -46,6 +46,8 @@ const SLOT_OF: Record<string, GarmentSlot> = {
   bolsillo: 'bolsillo',
   punos: 'punos',
   bajo: 'bajo',
+  cordones: 'cordones',
+  fornituras: 'ojales',
 }
 
 export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<string, Material>): Design {
@@ -53,7 +55,8 @@ export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<s
   const pieces: Partial<Record<GarmentSlot, SlotStyle>> = {}
   for (const p of t.pieces) {
     const slot = SLOT_OF[p.id]
-    if (!slot || !active.includes(p.id) || pieces[slot]) continue
+    // Las fornituras (cremallera, remates) dan su metal a los ojales aunque no haya cremallera
+    if (!slot || (!active.includes(p.id) && slot !== 'ojales') || pieces[slot]) continue
     const style = data.pieces[p.id]
     const { catalog } = resolveMaterial(t.id, p.id, style?.materialId, library)
     pieces[slot] = { color: style?.color ?? p.defaultColor, look: catalog.look }
@@ -71,6 +74,7 @@ export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<s
     color: pieces.cuerpo?.color ?? '#cccccc',
     hood,
     pocket: t.id === 'sudadera' && opt(t, data.options, 'bolsillo') === 'canguro',
+    cords: hood && opt<boolean>(t, data.options, 'cordones'),
     bodyLength: BODY_LENGTH[String(opt(t, data.options, 'largo'))] ?? 70,
     sleeveLength: 64,
     pieces,
