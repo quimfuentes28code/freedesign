@@ -76,7 +76,10 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     // La tela no se atraviesa a sí misma: la capucha queda encima de la espalda y las mangas no se meten en el cuerpo
     layers: [
       { mode: 'outside', outer: layers.hood, inner: layers.torso, gap: 0.9 * unit },
-      { mode: 'apart', outer: layers.sleevesLow, inner: layers.torsoLow, gap: 2 * unit },
+      // Separación algo mayor que la malla (2,2 cm): con menos, los triángulos se cruzaban entre punto y punto
+      { mode: 'apart', outer: layers.sleevesLow, inner: layers.torsoLow, gap: 3 * unit },
+      // Junto a la sisa están más cerca (a un lado y otro de la costura): separación más corta
+      { mode: 'apart', outer: layers.sleeveCap, inner: layers.torsoArmhole, gap: 1.5 * unit },
     ],
     bodyOnly: layers.bodyOnly,
     pins: layers.collarPins,

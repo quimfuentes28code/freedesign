@@ -287,7 +287,7 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
   // las distancias del patrón y el choque con el cuerpo reparten el movimiento por la tela (si no, salen picos)
   if (opts.layers) {
     refresh()
-    for (let it = 0; it < 10; it++) {
+    for (let it = 0; it < 16; it++) {
       separateLayers(pos, prev, opts.layers, skinNormal, opts.cell)
       for (let k = 0; k < 3; k++) {
         satisfyLinks()

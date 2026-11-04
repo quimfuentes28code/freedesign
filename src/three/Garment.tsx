@@ -180,8 +180,8 @@ function useSlotMaterials(design: Design) {
         // En la sisa la manga y el cuerpo se tocan: el cuerpo se dibuja por delante para que no asomen trocitos de manga
         if (slot === 'cuerpo') {
           m.polygonOffset = true
-          m.polygonOffsetFactor = -1
-          m.polygonOffsetUnits = -2
+          m.polygonOffsetFactor = -1.5
+          m.polygonOffsetUnits = -6
         }
         if (slot === 'bolsillo') {
           // El bolsillo va cosido encima del delantero: siempre por delante de él
@@ -282,17 +282,6 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
     if (shape && pocketUniform) pocketUniform.value.set(shape.y0, shape.h, shape.w0, shape.w1)
     // Costuras y rebordes solo en las prendas de patrón (las demás no saben dónde están sus bordes)
     for (const m of materials) if (m.userData.seams) (m.userData.seams as { value: number }).value = pattern ? 1 : 0
-    // En la sudadera, el interior del cuerpo y de las mangas nunca se ve (lo tapan capucha, puños y bajo): se dibujan
-    // solo por fuera. Si no, en los pliegues de la sisa asomaba su cara interior como una cuña oscura.
-    // Capucha, bolsillo y canalés siguen por las dos caras (su interior sí se ve, p. ej. dentro de la capucha).
-    for (const slot of ['cuerpo', 'mangas'] as const) {
-      const m = materials[slotIndex(slot)]
-      const side = pattern ? THREE.FrontSide : THREE.DoubleSide
-      if (m.side !== side) {
-        m.side = side
-        m.needsUpdate = true
-      }
-    }
     const meshes = geometries.map(({ g, slot }) => {
       const mesh = new THREE.SkinnedMesh(g, slot ? materials[slotIndex(slot)] : materials)
       mesh.castShadow = true

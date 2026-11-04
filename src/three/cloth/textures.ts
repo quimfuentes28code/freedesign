@@ -57,22 +57,40 @@ const HEIGHT: Record<Knit, (x: number, y: number) => number> = {
   acolchado: (_x, y) => Math.sqrt(Math.abs(Math.sin(Math.PI * y))),
 }
 
-/** Mapa de normales del tejido, generado por código (sin descargar imágenes). */
+/**
+ * Mapa de normales del tejido, generado por código (sin descargar imágenes).
+ * A 512 px y con el relieve suavizado: con aristas duras y poca resolución, de cerca se veía "pixelado"
+ * y de lejos hacía muaré (rayas onduladas sobre la tela).
+ */
 export function knitNormalMap(knit: Knit) {
   const hit = cache.get(knit)
   if (hit) return hit
-  const n = 256
-  const h = new Float32Array(n * n)
+  const n = 512
+  let h = new Float32Array(n * n)
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) h[j * n + i] = HEIGHT[knit](i / n, j / n)
+  // Suavizado (dos pasadas de media 3x3, con la textura repetida en los bordes)
+  for (let pass = 0; pass < 2; pass++) {
+    const src = h
+    const out = new Float32Array(n * n)
+    for (let j = 0; j < n; j++) {
+      for (let i = 0; i < n; i++) {
+        let s = 0
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) s += src[((j + dj + n) % n) * n + ((i + di + n) % n)]
+        out[j * n + i] = s / 9
+      }
+    }
+    h = out
+  }
   const at = (i: number, j: number) => h[((j + n) % n) * n + ((i + n) % n)]
+  const strength = 2.5 * (n / 256)
   const canvas = document.createElement('canvas')
   canvas.width = canvas.height = n
   const ctx = canvas.getContext('2d')!
   const img = ctx.createImageData(n, n)
   for (let j = 0; j < n; j++) {
     for (let i = 0; i < n; i++) {
-      const dx = (at(i + 1, j) - at(i - 1, j)) * 2.5
-      const dy = (at(i, j + 1) - at(i, j - 1)) * 2.5
+      const dx = (at(i + 1, j) - at(i - 1, j)) * strength
+      const dy = (at(i, j + 1) - at(i, j - 1)) * strength
       const len = Math.hypot(dx, dy, 1)
       const k = (j * n + i) * 4
       img.data[k] = (-dx / len) * 127.5 + 127.5
@@ -86,6 +104,8 @@ export function knitNormalMap(knit: Knit) {
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping
   tex.repeat.set(1 / SIZE[knit], 1 / SIZE[knit])
   tex.anisotropy = 8
+  tex.minFilter = THREE.LinearMipmapLinearFilter
+  tex.generateMipmaps = true
   tex.colorSpace = THREE.NoColorSpace
   cache.set(knit, tex)
   return tex

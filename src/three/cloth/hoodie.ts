@@ -33,6 +33,9 @@ export interface HoodieResult {
     /** Mangas lejos de la sisa y cuerpo por debajo de la axila (se tocan con los brazos bajados). */
     sleevesLow: number[]
     torsoLow: number[]
+    /** Franjas junto a la sisa (manga y cuerpo, sin los puntos cosidos). */
+    sleeveCap: number[]
+    torsoArmhole: number[]
     /** Bajo y parte baja del cuerpo: solo chocan con el tronco y las piernas, no con brazos ni manos. */
     bodyOnly: number[]
     /** Capucha bajada: puntos del cuello vuelto que se sujetan a su sitio. */
@@ -95,8 +98,9 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const sleeveLen = design.sleeveLength - 6
   const cuffC = 19 * s
   const ribH = 7 * s
-  // El bajo de canalé es algo más estrecho que el cuerpo (la tela se ahueca un poco encima, sin fruncirse de más)
-  const bandC = bodyC * 0.94
+  // El bajo de canalé recoge el cuerpo y se ajusta a la cadera (como mucho la cadera más 10 cm); el cuerpo se
+  // ahueca encima. Si fuera casi tan ancho como el cuerpo, colgaría abierto como una falda
+  const bandC = Math.min(bodyC * 0.88, m.hips + 10)
 
   // --- Referencias del cuerpo (unidades del modelo, postura en T) ---
   const topY = info.neckY + 1.5 * unit
@@ -266,12 +270,18 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
 
   // --- Bajo de canalé ---
   const hemLoop = [...front.row(0), ...back.row(0).reverse()]
-  const loopPoint = (u: number, scale: number, out: THREE.Vector3) => {
-    // Recorre delantero (izquierda → derecha) y luego espalda (derecha → izquierda)
+  // El bajo nace alrededor de la cadera real (centrado en ella y con su forma, más ancho que ella), no en una elipse
+  // centrada en el pecho: así, al ser más estrecho que el cuerpo, no empieza metido en los glúteos
+  const bandY = hemY - (ribH / 2) * unit
+  const hip = zExtent(points, bandY - 3 * unit, bandY + 3 * unit, info.shoulderX * 0.55)
+  const hipZ = (hip.min + hip.max) / 2
+  const hipRatio = 0.8
+  const bandA = (bandC * unit) / ellipsePerimeter(1, hipRatio)
+  const bandPoint = (u: number, out: THREE.Vector3) => {
+    // Recorre delantero (izquierda → derecha) y luego espalda (derecha → izquierda), como el bajo del cuerpo
     const isFront = u <= 0.5
     const th = isFront ? -Math.PI / 2 + u * 2 * Math.PI : Math.PI / 2 - (u * 2 - 1) * Math.PI
-    out.set(cx + a * scale * Math.sin(th), 0, cz + (isFront ? 1 : -1) * b * scale * Math.cos(th))
-    return out
+    return out.set(cx + bandA * Math.sin(th), 0, hipZ + (isFront ? 1 : -1) * bandA * hipRatio * Math.cos(th))
   }
   const nb = grid(bandC, 1.6)
   const band = add(
@@ -284,9 +294,8 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
       edges: { v0: 'doblez', v1: 'ninguno', u0: 'ninguno', u1: 'ninguno' },
       flat: (u, v, out) => out.set(u * bandC, v * ribH),
       place: (u, v, out) => {
-        loopPoint(u, bandC / bodyC, out)
+        bandPoint(u, out)
         out.y = hemY - (1 - v) * ribH * unit
-        clampLow(out)
       },
     }),
     [Part.Torso],
@@ -451,6 +460,21 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const sleevesLow = sleevePanels.flatMap(({ panel, len }) =>
     all(panel).filter((_, k) => (Math.floor(k / panel.nu) / (panel.nv - 1)) * len > 5 * s),
   )
+  // Junto a la sisa: la franja de la manga (sin la fila cosida) y la del cuerpo (sin la columna cosida), que si no
+  // se montaban una sobre otra formando una cuña en la parte delantera del brazo
+  const sleeveCap = sleevePanels.flatMap(({ panel, len }) =>
+    all(panel).filter((_, k) => {
+      const row = Math.floor(k / panel.nu)
+      return row >= 1 && (row / (panel.nv - 1)) * len <= 6 * s
+    }),
+  )
+  const torsoArmhole = torsoAll.filter((_, k) => {
+    const kk = k % (nu * nv)
+    const i = kk % nu
+    const j = Math.floor(kk / nu)
+    const fromSide = Math.min(i, nu - 1 - i)
+    return j >= armpitRow - 1 && fromSide >= 1 && fromSide <= 3
+  })
   // De la capucha, lo que queda lejos del escote (junto a él está cosida al cuerpo y no se puede separar)
   const hoodH = 36 * s
   const hoodFree = hoodPanels.flatMap((p) => all(p).filter((_, k) => (Math.floor(k / p.nu) / (p.nv - 1)) * hoodH > 8 * s))
@@ -462,7 +486,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const collarPins = design.hoodUp
     ? []
     : hoodPanels.flatMap((p) => all(p).filter((_, k) => (k % p.nu) / (p.nu - 1) < 0.35 && Math.floor(k / p.nu) / (p.nv - 1) < 0.45))
-  const layers = { hood: hoodFree, hoodAll: hoodPanels.flatMap(all), torso: torsoAll, sleevesLow, torsoLow, bodyOnly, collarPins }
+  const layers = { hood: hoodFree, hoodAll: hoodPanels.flatMap(all), torso: torsoAll, sleevesLow, torsoLow, sleeveCap, torsoArmhole, bodyOnly, collarPins }
 
   return { cloth, follows, slots, pocket, layers, cordExits, rims }
 }
