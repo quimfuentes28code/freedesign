@@ -1,18 +1,24 @@
 import type { Knit } from '../three/cloth/textures'
 
-/** Propiedades visuales y de caída de cada tela. */
-export interface Fabric {
-  name: string
-  defaultColor: string
+/** Cómo se ve y cae un material en 3D (lo comparten las telas de la vista previa y el catálogo del Diseñador). */
+export interface FabricLook {
   roughness: number
   sheen: number
   sheenRoughness: number
   clearcoat: number
+  /** Brillo metálico (fornituras de metal). */
+  metalness?: number
   /** Relieve del tejido y su intensidad. */
   knit: Knit
   knitDepth: number
   /** Rigidez a la flexión: 1 = tela de grosor medio; menos, más fluida; más, más tiesa. */
   stiffness: number
+}
+
+/** Propiedades visuales y de caída de cada tela. */
+export interface Fabric extends FabricLook {
+  name: string
+  defaultColor: string
 }
 
 export const FABRICS = {

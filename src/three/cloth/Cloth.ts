@@ -70,9 +70,40 @@ export class Cloth {
       index: at,
       row: (j) => Array.from({ length: nu }, (_, i) => at(i, j)),
       col: (i) => Array.from({ length: nv }, (_, j) => at(i, j)),
+      edges: { u0: 'plana', u1: 'plana', v0: 'plana', v1: 'plana', ...spec.edges },
     }
     this.panels.push(panel)
     return panel
+  }
+
+  /**
+   * Para cada punto: distancia (cm, en el patrón) al borde más cercano de su pieza, posición a lo largo de ese borde (cm)
+   * y el acabado del borde. Sirve para dibujar costuras, pespuntes y rebordes en el material.
+   */
+  edgeInfo(): Float32Array {
+    const out = new Float32Array((this.pos.length / 3) * 3)
+    const f = this.flat
+    const dist = (a: number, b: number) => Math.hypot(f[a * 2] - f[b * 2], f[a * 2 + 1] - f[b * 2 + 1])
+    const kindAt = (k: PanelEdges[keyof PanelEdges], t: number) => EDGE_CODES[typeof k === 'function' ? k(t) : k]
+    for (const p of this.panels) {
+      const { nu, nv, index: at, edges } = p
+      for (let j = 0; j < nv; j++) {
+        for (let i = 0; i < nu; i++) {
+          const v = at(i, j)
+          // Candidatos: los cuatro bordes de la pieza (distancia, posición a lo largo, acabado)
+          const cands: [number, number, number][] = [
+            [dist(v, at(0, j)), f[at(0, j) * 2 + 1], kindAt(edges.u0, j)],
+            [dist(v, at(nu - 1, j)), f[at(nu - 1, j) * 2 + 1], kindAt(edges.u1, j)],
+            [dist(v, at(i, 0)), f[at(i, 0) * 2], kindAt(edges.v0, i)],
+            [dist(v, at(i, nv - 1)), f[at(i, nv - 1) * 2], kindAt(edges.v1, i)],
+          ]
+          let best: [number, number, number] = [99, 0, EDGE_CODES.ninguno]
+          for (const c of cands) if (c[2] !== EDGE_CODES.ninguno && c[0] < best[0]) best = c
+          out.set(best, v * 3)
+        }
+      }
+    }
+    return out
   }
 
   /** Cose dos bordes (listas ordenadas de puntos), emparejando por longitud recorrida. */
@@ -117,6 +148,26 @@ export class Cloth {
   }
 }
 
+/**
+ * Acabado de un borde de pieza, para dibujar costuras y rebordes (ver Garment.tsx):
+ * - plana: costura sin pespunte visible (unión con remallado)
+ * - pespunte: costura con un pespunte a 6 mm de este lado
+ * - recubierta: costura con doble pespunte (recubridora), como encima de puños y bajo
+ * - doblez: borde doblado y redondeado (bajo de canalé, final del puño)
+ * - jareta: borde doblado con el pespunte del canal del cordón (abertura de la capucha)
+ * - ninguno: sin marca
+ */
+export type EdgeKind = 'plana' | 'pespunte' | 'recubierta' | 'doblez' | 'jareta' | 'ninguno'
+export const EDGE_CODES: Record<EdgeKind, number> = { plana: 0, pespunte: 1, recubierta: 2, doblez: 3, jareta: 4, ninguno: 9 }
+
+/** Acabado de cada borde: columna 0, última columna, fila 0 y última fila (o una función del índice a lo largo del borde). */
+export interface PanelEdges {
+  u0: EdgeKind | ((j: number) => EdgeKind)
+  u1: EdgeKind | ((j: number) => EdgeKind)
+  v0: EdgeKind | ((i: number) => EdgeKind)
+  v1: EdgeKind | ((i: number) => EdgeKind)
+}
+
 export interface PanelSpec {
   nu: number
   nv: number
@@ -126,6 +177,8 @@ export interface PanelSpec {
   material?: 0 | 1
   /** Multiplicador de la rigidez a la flexión. */
   bend?: number
+  /** Acabado de sus bordes (por defecto, costuras planas). */
+  edges?: Partial<PanelEdges>
 }
 
 export interface Panel {
@@ -135,4 +188,5 @@ export interface Panel {
   index: (i: number, j: number) => number
   row: (j: number) => number[]
   col: (i: number) => number[]
+  edges: PanelEdges
 }

@@ -4,10 +4,12 @@ import type { Cloth } from './Cloth'
 export interface Collider {
   points: Float32Array
   normals: Float32Array
+  /** Zona del cuerpo de cada punto (Part), para que algunas piezas no choquen con brazos y manos. */
+  parts?: Uint8Array
 }
 
 /** Rejilla espacial rápida (tabla hash numérica) para encontrar el punto de la piel más cercano. */
-class SpatialHash {
+export class SpatialHash {
   private size: number
   private start: Int32Array
   private items: Int32Array
@@ -77,6 +79,86 @@ export interface RelaxOptions {
   gravity: number
   /** Tamaño de celda para buscar la piel más cercana (unidades del modelo). */
   cell: number
+  /**
+   * Choques entre piezas de la propia prenda (la tela no se atraviesa a sí misma):
+   * - outside: los puntos de `outer` quedan por fuera de los de `inner` (la capucha encima de la espalda)
+   * - apart: los dos grupos se separan entre sí (mangas y costados del cuerpo)
+   */
+  layers?: Layer[]
+  /**
+   * Puntos de tela que solo chocan con el tronco y las piernas (no con brazos ni manos): p. ej. el bajo de canalé,
+   * que si no se retuerce al chocar con la mano que cuelga a su altura.
+   */
+  bodyOnly?: number[]
+  /** Zonas del cuerpo que cuentan como "tronco y piernas" para `bodyOnly`. */
+  bodyParts?: number[]
+  /**
+   * Puntos sujetos con suavidad a su posición inicial (p. ej. el cuello vuelto que forma la capucha bajada,
+   * que si no se iría hacia atrás arrastrado por el peso de la capucha).
+   */
+  pins?: number[]
+}
+
+export interface Layer {
+  mode: 'outside' | 'apart'
+  outer: number[]
+  inner: number[]
+  /** Separación mínima (unidades del modelo). */
+  gap: number
+}
+
+/**
+ * Separa las capas de tela: para cada punto de `outer` busca el punto de `inner` más cercano y, si está demasiado
+ * cerca (o por dentro, en modo «outside»), lo empuja. En «outside» la dirección es la de la piel bajo ese punto.
+ */
+function separateLayers(
+  pos: Float32Array,
+  prev: Float32Array,
+  layers: Layer[],
+  skinNormal: (i: number) => [number, number, number] | null,
+  cell: number,
+) {
+  // Mueve un punto sin darle velocidad (se mueve también su posición anterior)
+  const move = (p: number, x: number, y: number, z: number) => {
+    pos[p] += x
+    pos[p + 1] += y
+    pos[p + 2] += z
+    prev[p] += x
+    prev[p + 1] += y
+    prev[p + 2] += z
+  }
+  for (const layer of layers) {
+    const inner = new Float32Array(layer.inner.length * 3)
+    layer.inner.forEach((v, k) => inner.set([pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]], k * 3))
+    const hash = new SpatialHash(inner, cell)
+    const gap = layer.gap
+    for (const v of layer.outer) {
+      const p = v * 3
+      const k = hash.nearest(pos[p], pos[p + 1], pos[p + 2])
+      if (k < 0) continue
+      const q = layer.inner[k] * 3
+      const ex = pos[p] - pos[q]
+      const ey = pos[p + 1] - pos[q + 1]
+      const ez = pos[p + 2] - pos[q + 2]
+      if (layer.mode === 'outside') {
+        const n = skinNormal(layer.inner[k])
+        if (!n) continue
+        const d = ex * n[0] + ey * n[1] + ez * n[2]
+        // Solo si de verdad está encima (cerca en horizontal): si no, son zonas distintas de la prenda
+        const lateral2 = ex * ex + ey * ey + ez * ez - d * d
+        if (d >= gap || lateral2 > (cell * 1.2) ** 2 || d < -cell * 2) continue
+        // Poco a poco (como mucho, la separación por paso): si no, la tela salta
+        const push = Math.min(gap - d, gap) * 0.7
+        move(p, n[0] * push, n[1] * push, n[2] * push)
+      } else {
+        const len = Math.sqrt(ex * ex + ey * ey + ez * ez)
+        if (len >= gap || len < 1e-6) continue
+        const push = ((gap - len) / len) * 0.35
+        move(p, ex * push, ey * push, ez * push)
+        move(q, -ex * push, -ey * push, -ez * push)
+      }
+    }
+  }
 }
 
 /**
@@ -87,6 +169,8 @@ export interface RelaxOptions {
 export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
   const pos = Float32Array.from(cloth.pos)
   const prev = Float32Array.from(pos)
+  const pins = opts.pins?.length ? opts.pins : null
+  const pinPos = Float32Array.from(pos)
   const n = pos.length / 3
   const fps = 60
   const substeps = 10
@@ -114,8 +198,25 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
   const reach2 = (opts.cell * 1.5) ** 2
   const maxPush = opts.thickness
   const nearest = new Int32Array(n).fill(-1)
+  // Piel solo del tronco y las piernas, para los puntos que no deben chocar con brazos ni manos
+  const onlyBody = new Uint8Array(n)
+  let bodyHash: SpatialHash | null = null
+  let bodyIndex: number[] = []
+  if (opts.bodyOnly?.length && body.parts && opts.bodyParts) {
+    for (const v of opts.bodyOnly) onlyBody[v] = 1
+    const allowed = new Set(opts.bodyParts)
+    bodyIndex = Array.from(body.parts.keys()).filter((k) => allowed.has(body.parts![k]))
+    const pts = new Float32Array(bodyIndex.length * 3)
+    bodyIndex.forEach((k, j) => pts.set(body.points.subarray(k * 3, k * 3 + 3), j * 3))
+    bodyHash = new SpatialHash(pts, opts.cell)
+  }
   const refresh = () => {
-    for (let i = 0; i < n; i++) nearest[i] = hash.nearest(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2])
+    for (let i = 0; i < n; i++) {
+      if (bodyHash && onlyBody[i]) {
+        const k = bodyHash.nearest(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2])
+        nearest[i] = k < 0 ? -1 : bodyIndex[k]
+      } else nearest[i] = hash.nearest(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2])
+    }
   }
 
   // 0. Antes de empezar, sacamos del cuerpo de una vez la tela que haya quedado dentro
@@ -164,6 +265,47 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
     }
 
     // 3. Distancias del patrón
+    satisfyLinks()
+
+    // Puntos sujetos: vuelven un poco hacia su sitio en cada paso
+    if (pins) {
+      for (const v of pins) {
+        for (let c = 0; c < 3; c++) pos[v * 3 + c] += (pinPos[v * 3 + c] - pos[v * 3 + c]) * 0.08
+      }
+    }
+
+    // 4. Choque con el cuerpo (con rozamiento para que la tela se quede apoyada en hombros y pecho)
+    // La piel más cercana cambia poco de un paso a otro: se recalcula de vez en cuando
+    if (step % 20 === 0) refresh()
+    collideBody()
+
+    // 5. Capas de la propia prenda (cada pocos pasos: es más caro y cambia poco)
+    if (opts.layers && step % 2 === 0 && t > 0.15) separateLayers(pos, prev, opts.layers, skinNormal, opts.cell)
+  }
+
+  // Al terminar, varias pasadas sin movimiento para que ninguna capa quede atravesada. Tras cada empujón,
+  // las distancias del patrón y el choque con el cuerpo reparten el movimiento por la tela (si no, salen picos)
+  if (opts.layers) {
+    refresh()
+    for (let it = 0; it < 16; it++) {
+      separateLayers(pos, prev, opts.layers, skinNormal, opts.cell)
+      for (let k = 0; k < 3; k++) {
+        satisfyLinks()
+        collideBody()
+      }
+    }
+  }
+  return pos
+
+  /** Normal de la piel bajo un punto de la tela (hacia fuera del cuerpo). */
+  function skinNormal(i: number): [number, number, number] | null {
+    const k = nearest[i]
+    if (k < 0) return null
+    return [body.normals[k * 3], body.normals[k * 3 + 1], body.normals[k * 3 + 2]]
+  }
+
+  /** Cada par de puntos unidos intenta recuperar su distancia del patrón. */
+  function satisfyLinks() {
     for (let l = 0; l < la.length; l++) {
       const a = la[l] * 3
       const b = lb[l] * 3
@@ -183,10 +325,10 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
       pos[b + 1] -= dy * corr
       pos[b + 2] -= dz * corr
     }
+  }
 
-    // 4. Choque con el cuerpo (con rozamiento para que la tela se quede apoyada en hombros y pecho)
-    // La piel más cercana cambia poco de un paso a otro: se recalcula de vez en cuando
-    if (step % 20 === 0) refresh()
+  /** Saca la tela de la piel (con rozamiento, para que se quede apoyada en hombros y pecho). */
+  function collideBody() {
     for (let i = 0; i < n; i++) {
       const k = nearest[i]
       if (k < 0) continue
@@ -209,5 +351,4 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
       for (let c = 0; c < 3; c++) prev[p + c] += (pos[p + c] - prev[p + c]) * 0.6
     }
   }
-  return pos
 }

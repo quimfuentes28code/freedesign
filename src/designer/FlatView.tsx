@@ -2,7 +2,9 @@ import { useId, useLayoutEffect, useRef, useState } from 'react'
 import type { DesignData, Print } from '../shared/designs'
 import { fileUrl, type Material } from '../shared/library'
 import { VIEW_H, VIEW_W } from './geometry'
+import { resolveMaterial, type CatalogMaterial } from './materials'
 import { PrintShape, printSize, Transformable } from './prints'
+import { GlossGradient, hasWeave, WeavePattern } from './swatches'
 import type { GarmentTemplate, Shape, View } from './types'
 
 interface Props {
@@ -47,17 +49,27 @@ export function FlatView(props: Props) {
     setBox(`${b.x - pad} ${b.y - pad} ${b.width + pad * 2} ${b.height + pad * 2}`)
   }, [key, frame])
 
+  // Material de cada pieza: foto si es de la Biblioteca y la tiene; si no, textura y brillo del catálogo
   const textured = new Map<string, string>()
-  for (const [id, s] of Object.entries(data.pieces)) {
-    const m = s.materialId ? materials?.get(s.materialId) : undefined
-    if (m?.photo) textured.set(id, fileUrl(m.photo))
+  const looks = new Map<string, CatalogMaterial>()
+  for (const p of template.pieces) {
+    const r = resolveMaterial(template.id, p.id, data.pieces[p.id]?.materialId, materials)
+    if (r.library?.photo) textured.set(p.id, fileUrl(r.library.photo))
+    else looks.set(p.id, r.catalog)
   }
   const colorOf = (piece?: string) =>
     (piece && data.pieces[piece]?.color) || template.pieces.find((p) => p.id === piece)?.defaultColor || '#d9d6cf'
+  const weaveOf = (piece?: string) => {
+    const m = piece ? looks.get(piece) : undefined
+    return m && hasWeave(m.weave) ? `url(#${uid}-w-${piece})` : undefined
+  }
+  const glossOf = (piece?: string) => (piece ? (looks.get(piece)?.gloss ?? 0) : 0)
 
   const renderShape = (s: Shape, i: number) => {
     const color = colorOf(s.piece)
     const tex = s.piece ? textured.get(s.piece) : undefined
+    const weave = weaveOf(s.piece)
+    const gloss = glossOf(s.piece)
     switch (s.kind) {
       case 'fill':
       case 'shade':
@@ -65,13 +77,22 @@ export function FlatView(props: Props) {
           <g key={i}>
             <path d={s.d} fill={color} />
             {tex && <path d={s.d} fill={`url(#${uid}-${s.piece})`} style={{ mixBlendMode: 'multiply' }} opacity={0.55} />}
+            {weave && <path d={s.d} fill={weave} />}
+            {gloss > 0.05 && <path d={s.d} fill={`url(#${uid}-gloss)`} opacity={Math.min(0.8, gloss * 0.7)} />}
             {s.kind === 'shade' && <path d={s.d} fill="#000" opacity={0.2} />}
             {highlight && s.piece === highlight && <path d={s.d} fill="#3b82f6" opacity={0.18} />}
             <path d={s.d} fill="none" stroke="#1d1c1a" strokeWidth={1.4} strokeLinejoin="round" />
           </g>
         )
       case 'hardware':
-        return <path key={i} d={s.d} fill={color} stroke="#1d1c1a" strokeWidth={1} strokeLinejoin="round" />
+        return (
+          <g key={i}>
+            <path d={s.d} fill={color} />
+            {weave && <path d={s.d} fill={weave} />}
+            {gloss > 0.05 && <path d={s.d} fill={`url(#${uid}-${looks.get(s.piece!)?.weave === 'metal' ? 'metal' : 'gloss'})`} opacity={Math.min(1, gloss)} />}
+            <path d={s.d} fill="none" stroke="#1d1c1a" strokeWidth={1} strokeLinejoin="round" />
+          </g>
+        )
       case 'line':
         return <path key={i} d={s.d} fill="none" stroke={isDark(color) ? '#f4f1ea' : '#1d1c1a'} strokeWidth={1.2} strokeLinecap="round" />
       case 'stitch':
@@ -109,6 +130,11 @@ export function FlatView(props: Props) {
             <image href={url} width="70" height="70" preserveAspectRatio="xMidYMid slice" />
           </pattern>
         ))}
+        {[...looks].map(([piece, m]) => (
+          <WeavePattern key={piece} id={`${uid}-w-${piece}`} weave={m.weave} />
+        ))}
+        <GlossGradient id={`${uid}-gloss`} />
+        <GlossGradient id={`${uid}-metal`} metal />
         <clipPath id={`${uid}-garment`}>
           {shapes.filter((s) => s.kind === 'fill').map((s, i) => (
             <path key={i} d={s.d} />
