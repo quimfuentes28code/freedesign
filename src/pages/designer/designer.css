@@ -1,0 +1,519 @@
+/* Diseñador: lista de diseños, catálogo de prendas base y editor. */
+
+/* --- Lista y catálogo --- */
+
+.design-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.design-card {
+  padding: 0;
+  overflow: hidden;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+button.design-card {
+  cursor: pointer;
+}
+
+.design-card:hover {
+  border-color: var(--muted);
+}
+
+.design-thumb {
+  background: var(--soft);
+  border-bottom: 1px solid var(--border);
+  padding: 10px;
+  aspect-ratio: 5 / 6;
+}
+
+.design-thumb svg {
+  width: 100%;
+  height: 100%;
+}
+
+.design-body {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+/* --- Editor --- */
+
+.editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  height: 100%;
+  min-height: 0;
+}
+
+.editor-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px 20px;
+  gap: 12px;
+}
+
+.editor-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.editor-name {
+  font-size: 18px;
+  font-weight: 600;
+  border-color: transparent;
+  background: transparent;
+  width: auto;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.editor-name:hover,
+.editor-name:focus {
+  border-color: var(--border);
+  background: var(--panel);
+}
+
+.editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.save-state {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.save-state.dirty {
+  color: #9a6700;
+}
+
+.editor-panel {
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 4px 20px 32px;
+}
+
+.editor-panel section {
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+
+.editor-panel section:first-child {
+  border-top: none;
+}
+
+.editor-panel h2 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+
+.editor-panel .field {
+  margin-top: 10px;
+}
+
+.spaced-top {
+  margin-top: 16px;
+}
+
+/* Piezas */
+
+.piece {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.piece:hover {
+  border-color: var(--muted);
+}
+
+.piece-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.piece-head .muted {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.piece-color {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+}
+
+.piece-color input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  padding: 0;
+}
+
+.piece-color span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 1px solid rgb(0 0 0 / 0.2);
+}
+
+.palette {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 24px);
+  gap: 6px;
+}
+
+.swatch-button {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid rgb(0 0 0 / 0.15);
+  padding: 0;
+  cursor: pointer;
+}
+
+.swatch-button.active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.piece select {
+  font-size: 13px;
+  padding: 6px 8px;
+}
+
+/* Opciones */
+
+.option-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 14px;
+}
+
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.toggle-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+/* --- Lienzo --- */
+
+.canvas {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.canvas-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.segmented button,
+.zoom button {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  border: none;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.segmented button + button {
+  border-left: 1px solid var(--border);
+}
+
+.segmented button.active {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.zoom {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.zoom button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.zoom-value {
+  min-width: 58px;
+  border-left: 1px solid var(--border) !important;
+  border-right: 1px solid var(--border) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.canvas-stage {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  background:
+    radial-gradient(circle, rgb(0 0 0 / 0.06) 1px, transparent 1px) 0 0 / 16px 16px,
+    var(--soft);
+  touch-action: none;
+}
+
+.canvas-stage.zoomed {
+  cursor: grab;
+}
+
+.canvas-stage.zoomed:active {
+  cursor: grabbing;
+}
+
+.canvas-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  gap: 8px;
+  padding: 16px;
+  transform-origin: center;
+}
+
+.canvas-view {
+  margin: 0;
+  flex: 1;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.canvas-view svg {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+}
+
+.canvas-view figcaption {
+  font-size: 12px;
+  color: var(--muted);
+  padding-top: 4px;
+}
+
+.canvas-hint {
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 900px) {
+  .editor {
+    grid-template-columns: 1fr;
+    grid-template-rows: 70dvh auto;
+    height: auto;
+  }
+
+  .editor-panel {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
+
+/* --- Estampados --- */
+
+.print-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.print-actions .button {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.artwork-picker {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.artwork-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 6px;
+}
+
+.artwork-tile {
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background:
+    repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 12px 12px;
+  padding: 4px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font: inherit;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.artwork-tile.upload {
+  background: var(--soft);
+}
+
+.artwork-tile:hover {
+  border-color: var(--muted);
+}
+
+.artwork-tile img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.print-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.print-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.print-row.active {
+  border-color: #3b82f6;
+  background: color-mix(in srgb, #3b82f6 6%, var(--panel));
+}
+
+.print-thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--soft);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 12px;
+  overflow: hidden;
+}
+
+.print-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.print-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.print-editor {
+  border: 1px solid #3b82f6;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.print-editor .fields {
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.print-editor input[type='range'] {
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.print-editor input[type='color'] {
+  height: 36px;
+  padding: 2px;
+}

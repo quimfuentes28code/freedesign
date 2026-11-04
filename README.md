@@ -1,6 +1,8 @@
 # FreeDesign
 
-App web para diseñar ropa sobre un avatar 3D: ajusta las medidas del cuerpo, elige prenda, ajuste, tela y color, y gira el modelo 360° para ver cómo queda.
+Herramienta de taller para diseñar y fabricar prendas personalizadas: clientes con sus medidas, diseñador de prendas, proyectos, producción (fichas técnicas y tech packs), biblioteca de materiales y economía. Incluye una vista previa 3D de la prenda sobre un maniquí animado.
+
+Apartados: **Dashboard · Clientes · Diseñador · Proyectos · Producción · Biblioteca · Economía** (de momento están hechos el Dashboard, Clientes, el Diseñador 2D con estampados, Proyectos, la Biblioteca y la vista previa 3D; el resto se irá construyendo por fases).
 
 ## Empezar (para cada uno de nosotros, una sola vez)
 
@@ -41,3 +43,23 @@ Al fusionar en `main`, Cloudflare despliega automáticamente a producción. Cada
 3. Invita a tu compañero a la cuenta en **Manage Account → Members**.
 
 Las normas detalladas para trabajar (y para Claude) están en [CLAUDE.md](CLAUDE.md).
+
+## Base de datos en la nube (configuración inicial, una vez)
+
+Los datos (clientes, materiales, proveedores…) se guardan en **Cloudflare D1** y las fotos en **Cloudflare R2**. En local no hace falta nada: `npm run dev` crea una base de datos y un almacén locales en `.wrangler/` y aplica las migraciones de `migrations/`.
+
+Para publicarla, quien tenga la cuenta de Cloudflare:
+
+1. Crear la base de datos y copiar el `database_id` que devuelve en `wrangler.jsonc`:
+   ```bash
+   npx wrangler d1 create freedesign
+   ```
+2. Crear el almacén de archivos (fotos de la biblioteca, y más adelante bocetos y estampados):
+   ```bash
+   npx wrangler r2 bucket create freedesign-files
+   ```
+3. Crear las tablas en la base de datos de producción:
+   ```bash
+   npm run db:migrate:remote
+   ```
+4. **Proteger la app** para que solo entremos nosotros: en el panel de Cloudflare, **Zero Trust → Access → Applications → Add an application → Self-hosted**, con el dominio de la app y una política que permita solo nuestros correos. Poner esos mismos correos (separados por comas) en `ALLOWED_EMAILS` de `wrangler.jsonc`.

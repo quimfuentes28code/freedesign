@@ -1,0 +1,465 @@
+/* Proyectos: tablero, lista, ficha y colecciones. */
+@import '../designer/designer.css';
+
+.page.wide {
+  max-width: none;
+}
+
+/* Colores de cada fase */
+.s-idea { --c: #8e8a83; }
+.s-boceto { --c: #a37b45; }
+.s-diseno { --c: #6d5bd0; }
+.s-muestra { --c: #3b82f6; }
+.s-aprobado { --c: #0f9d8a; }
+.s-produccion { --c: #d97706; }
+.s-entregado { --c: #2e6b3a; }
+.s-pausa { --c: #9ca3af; }
+.s-cancelado { --c: #b3261e; }
+
+.status-badge {
+  display: inline-block;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 12%, transparent);
+}
+
+.status-select {
+  width: auto;
+  padding: 4px 8px;
+  font-size: 13px;
+  color: var(--c);
+  border-color: color-mix(in srgb, var(--c) 40%, transparent);
+  background: color-mix(in srgb, var(--c) 8%, var(--panel));
+}
+
+.project-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.project-toolbar .search {
+  margin: 0;
+  flex: 1 1 220px;
+  max-width: 340px;
+}
+
+.project-toolbar select {
+  width: auto;
+}
+
+/* Tablero */
+
+.board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 1fr);
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  align-items: start;
+}
+
+.board-col {
+  background: color-mix(in srgb, var(--panel) 55%, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.board-col.over {
+  border-color: #3b82f6;
+  background: color-mix(in srgb, #3b82f6 6%, var(--panel));
+}
+
+.board-col header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 4px 4px;
+}
+
+.board-col .count {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c);
+}
+
+.project-card {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-decoration: none;
+  font-size: 14px;
+  cursor: grab;
+}
+
+.project-card:hover {
+  border-color: var(--muted);
+}
+
+.project-card img {
+  width: calc(100% + 24px);
+  margin: -10px -12px 6px;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.project-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.tag.late {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+}
+
+.late-text {
+  color: var(--danger);
+}
+
+/* Ficha */
+
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.step-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  background: var(--soft);
+}
+
+.step.done {
+  color: var(--text);
+}
+
+.step.done .step-dot {
+  background: var(--ok);
+  color: #fff;
+}
+
+.step.current {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.step.current .step-dot {
+  background: var(--accent-text);
+  color: var(--accent);
+}
+
+.step.side {
+  border-style: dashed;
+}
+
+.stepper-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  margin: 0 6px;
+}
+
+.project-section {
+  margin-top: 16px;
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.inline-actions select {
+  width: auto;
+}
+
+.mini-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.mini-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  text-decoration: none;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+}
+
+.mini-card:hover {
+  border-color: var(--muted);
+}
+
+.mini-card span {
+  padding: 8px 10px;
+}
+
+.mini-thumb {
+  aspect-ratio: 5 / 6;
+  background: var(--soft);
+  padding: 8px;
+}
+
+.mini-thumb svg {
+  width: 100%;
+  height: 100%;
+}
+
+.file-group h3,
+.project-section h3.sub {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 16px 0 8px;
+}
+
+.file-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.file-tile {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--soft);
+}
+
+.file-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.file-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.table.compact td,
+.table.compact th {
+  padding: 8px 10px;
+}
+
+.qty {
+  width: 84px;
+  text-align: right;
+  padding: 5px 8px;
+}
+
+.add-row td {
+  background: var(--soft);
+}
+
+.icon-button {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.icon-button:hover {
+  color: var(--danger);
+}
+
+.totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.totals div {
+  background: var(--soft);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.totals span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.totals strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.totals .negative strong {
+  color: var(--danger);
+}
+
+.task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.task-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.task-list label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  cursor: pointer;
+}
+
+.task-list input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ok);
+}
+
+.task-list li.done span {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.task-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.task-add input[type='date'] {
+  width: auto;
+}
+
+/* Colecciones */
+
+.collection-form {
+  margin-bottom: 16px;
+}
+
+.collection-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.collection-card > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.collection-card p {
+  margin: 0;
+}
+
+.collection-card .button {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+/* Dashboard: proyectos por fase */
+
+.phase-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.phase-bar {
+  display: grid;
+  grid-template-columns: 90px 1fr 24px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.phase-bar div {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--soft);
+  overflow: hidden;
+}
+
+.phase-bar i {
+  display: block;
+  height: 100%;
+  background: var(--c);
+  border-radius: 999px;
+}
+
+.phase-bar strong {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

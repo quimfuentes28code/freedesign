@@ -1,37 +1,60 @@
 # FreeDesign
 
-App web para diseñar ropa sobre un avatar 3D que se puede girar 360°: medidas del cuerpo, tipo de prenda, ajuste, telas y color. Somos dos personas trabajando en paralelo, cada una con su propio Claude, sobre este mismo repositorio.
+Herramienta de taller para diseñar y fabricar prendas personalizadas (outfits para clientes concretos y, más adelante, una marca propia). Apartados: Dashboard, Clientes, Diseñador, Proyectos, Producción, Biblioteca y Economía; se construyen por fases. Incluye una vista previa 3D (maniquí animado con la prenda). Somos dos personas trabajando en paralelo, cada una con su propio Claude, sobre este mismo repositorio.
 
 ## Stack
 
 - **Vite + React 19 + TypeScript** (`src/`)
 - **Three.js** con **@react-three/fiber** y **@react-three/drei** para el 3D
-- **Cloudflare Workers** (static assets) para el despliegue, configurado en `wrangler.jsonc`
+- **React Router** para las páginas de cada apartado
+- **Cloudflare Workers**: sirve la web (static assets) y la API `/api/*` (`worker/index.ts`), configurado en `wrangler.jsonc`
+- **Cloudflare D1** (SQLite) para los datos; migraciones en `migrations/`. En local, `npm run dev` arranca web + API + base de datos local (plugin `@cloudflare/vite-plugin`)
 
 ## Comandos
 
 - `npm install` — instalar dependencias
-- `npm run dev` — servidor local en http://localhost:5173
-- `npm run build` — comprobación de tipos + build a `dist/`. **Ejecutarlo antes de cada commit**: si falla, no se sube.
+- `npm run dev` — aplica las migraciones a la base de datos local y arranca web + API en http://localhost:5173
+- `npm run db:migrate:remote` — aplica las migraciones a la base de datos de producción
+- `npm run build` — comprobación de tipos (web y API) + build a `dist/`. **Ejecutarlo antes de cada commit**: si falla, no se sube.
 - `npm run deploy` — build + `wrangler deploy` (normalmente no hace falta: Cloudflare despliega solo al fusionar en `main`)
 
 ## Estructura
 
-- `src/three/body.ts` — geometría del cuerpo: convierte medidas (cm) en dimensiones 3D (m) y genera perfiles del torso y de las prendas
-- `src/three/Avatar.tsx` — maniquí paramétrico
-- `src/three/Garment.tsx` — prenda generada sobre el cuerpo
+### App y datos
+
+- `src/App.tsx` — rutas de cada apartado; `src/layout/AppLayout.tsx` — menú lateral
+- `src/pages/` — una página por apartado (`Dashboard.tsx`, `clients/`, `library/`, `designer/`, `projects/` y `Sections.tsx` con los que aún están por hacer)
+- Proyectos (`src/pages/projects/`): tablero por fases (arrastrar cambia la fase), lista, ficha (datos, diseños, archivos, materiales y costes, tareas, notas) y colecciones. Fases y categorías de archivo en `src/shared/projects.ts`. Las partes de un proyecto (archivos, materiales, costes, tareas) se guardan al momento con `api.projectPart`; los datos principales con «Guardar cambios»
+- `src/designer/` — Diseñador 2D: dibujos técnicos (flats) paramétricos en SVG. `templates.ts` es el catálogo de prendas base (piezas, opciones y cómo se dibujan); `top.ts` dibuja las prendas de torso (sudadera, camiseta, bomber) y `pants.ts` el pantalón; `FlatView.tsx` pinta una vista con los colores y materiales de cada pieza. Añadir una prenda base = una entrada en `TEMPLATES` (puede reutilizar `drawTop` o `drawPants`)
+- Estampados: `src/designer/prints.tsx` dibuja los estampados (gráficos o textos) sobre el flat y `Transformable` permite moverlos, escalarlos y girarlos (también se usa en el creador). `printZones` de cada plantilla son las posiciones rápidas. 1 unidad del lienzo ≈ 0,5 cm (`UNITS_PER_CM`)
+- Gráficos: `src/pages/library/Artworks.tsx` (lista y subida) y `ArtworkCreator.tsx` (creador de logos por capas, `artLayers.tsx`); al guardar se exporta un SVG a R2. Las imágenes de gráficos no se borran al editar o eliminar el gráfico, porque los diseños guardan su propia referencia. Solo se usan tipografías del sistema (`FONTS`) para que el SVG se vea igual en cualquier sitio
+- `src/components/ui.tsx` — piezas comunes (cabecera de página, campos, precio, estados de carga)
+- `src/api/client.ts` — llamadas a la API, `useApi` para cargar datos y subida de imágenes (se reducen antes de subirlas)
+- `src/shared/` — tipos compartidos por la web y la API (`clients.ts` con la lista de medidas, `library.ts` con categorías y unidades de precio)
+- `worker/` — API: `index.ts` (rutas y acceso), `clients.ts`, `library.ts` (materiales y proveedores), `designs.ts` (diseños), `artworks.ts` (gráficos), `projects.ts` (proyectos, colecciones y tareas), `files.ts` (imágenes en R2), `http.ts` (utilidades)
+- `migrations/` — tablas de la base de datos (una migración nueva por cada cambio; nunca editar las ya aplicadas)
+
+### Vista previa 3D (`/disenador/3d`)
+
+- `src/pages/designer/Preview3D.tsx` + `studio.css` — página de la vista 3D y su panel (`src/components/DesignPanel.tsx`)
+- `public/models/maniqui.glb` — maniquí de Mixamo (esqueleto + animación Breathing Idle). Se genera desde el `.fbx` de Mixamo con `npm run model -- <entrada.fbx> public/models/maniqui.glb` (`scripts/convert-model.mjs`)
+- `src/three/Avatar.tsx` — carga el maniquí, lo pinta gris mate, reproduce la animación y lo ajusta a las medidas
+- `src/three/body.ts` — mide el maniquí (alturas, contornos) y deforma su malla para las medidas elegidas, sin tocar los huesos
+- `src/three/Garment.tsx` — prendas: la sudadera con patrón de costura (`src/three/cloth/`: piezas, costuras, simulación ligera en un Web Worker, texturas de tejido) y el resto con tubos que envuelven el cuerpo
+- `src/three/wrap.ts` — construye esa tela "como una cinta métrica" sobre el cuerpo y le da los pesos de los huesos
+- `src/three/pose.ts` — pose de reposo de la animación (la ropa se construye ahí) y vuelta a la postura base del esqueleto
 - `src/three/Scene.tsx` — canvas, luces, cámara orbital
-- `src/components/` — interfaz (panel de diseño)
 - `src/data/fabrics.ts` — catálogo de telas y sus propiedades de material
-- `src/types.ts` — tipos compartidos (`Measurements`, `Design`…)
+- `src/types.ts` — tipos de la vista 3D (`Design`, medidas del maniquí)
 
 ## Convenciones
 
 - Interfaz y textos para el usuario **en español**. Nombres de código (variables, funciones, tipos) en inglés; comentarios en español.
-- Medidas que ve el usuario en **centímetros**; dentro de la escena 3D todo en **metros** (1 unidad = 1 m), con el suelo en `y = 0`.
+- Medidas que ve el usuario en **centímetros**; en la escena 3D todo en **metros** (1 unidad = 1 m), con el suelo en `y = 0`. El maniquí y su ropa trabajan internamente en las unidades del modelo (cm) y se escalan a metros en `Avatar.tsx`.
 - Componentes funcionales con hooks, sin librerías de estado global mientras no haga falta.
-- Las prendas se derivan de las medidas del cuerpo (`bodyDims`); no metas tamaños fijos en los componentes 3D.
-- Añadir una tela = una entrada en `FABRICS`. Añadir una prenda = un caso en `GarmentType`, `garmentProfile` y `Garment`.
+- Las prendas se derivan del cuerpo del maniquí (articulaciones y alturas de `ModelInfo`); no metas tamaños fijos en los componentes 3D.
+- Añadir una tela = una entrada en `FABRICS`. Añadir una prenda = un caso en `GarmentType` y en `buildGarment` (`Garment.tsx`).
+- Los modelos 3D van como `.glb` ligeros (Cloudflare no admite archivos de más de 25 MB); nunca subas el `.fbx` original.
 
 ## Cómo trabajamos los dos (importante)
 
@@ -46,4 +69,5 @@ App web para diseñar ropa sobre un avatar 3D que se puede girar 360°: medidas 
 
 - La configuración pública va en `wrangler.jsonc` (sí se sube).
 - Los secretos (API keys, tokens) **nunca** van en el repo: en local en `.dev.vars` (está en `.gitignore`) y en producción con `npx wrangler secret put NOMBRE` o desde el panel de Cloudflare.
-- Futuro previsto: D1 (base de datos de diseños y usuarios) y R2 (texturas, imágenes y modelos 3D).
+- D1 guarda los datos y R2 (binding `FILES`) las imágenes; ver README para crearlos en producción. Al quitar o cambiar una foto, la API borra la anterior de R2.
+- La app es solo para nosotros dos: en producción va detrás de **Cloudflare Access**, y el Worker comprueba además `ALLOWED_EMAILS`.

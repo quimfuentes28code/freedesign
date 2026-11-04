@@ -1,0 +1,124 @@
+/* Creador de estampados y logos (reutiliza la estructura del editor del Diseñador). */
+@import '../designer/designer.css';
+
+.creator {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  height: 100%;
+  min-height: 0;
+}
+
+.creator-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.creator-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.creator-tools .button {
+  padding: 7px 12px;
+  font-size: 13px;
+}
+
+.artboard {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: repeating-conic-gradient(#ececec 0% 25%, #fafafa 0% 50%) 50% / 24px 24px;
+  overflow: hidden;
+}
+
+.artboard svg {
+  width: min(100%, 72dvh);
+  aspect-ratio: 1;
+  outline: 1px dashed rgb(0 0 0 / 0.15);
+  touch-action: none;
+}
+
+.artboard-empty {
+  position: absolute;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+/* Copia invisible para exportar (tiene que estar en la página para poder medirla) */
+.export-stage {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  left: -10000px;
+  top: 0;
+  visibility: hidden;
+}
+
+.toggle-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.color-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.color-line .swatch-button {
+  width: 22px;
+  height: 22px;
+}
+
+.swatch-button.none {
+  background: linear-gradient(135deg, #fff 45%, #b3261e 45% 55%, #fff 55%);
+}
+
+.color-line input[type='color'] {
+  width: 34px;
+  height: 26px;
+  padding: 1px;
+}
+
+.material-photo.artwork-photo {
+  background: repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 16px 16px;
+}
+
+.material-photo.artwork-photo img {
+  object-fit: contain;
+  padding: 12px;
+}
+
+.artwork-preview {
+  display: grid;
+  place-items: center;
+  background: repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 20px 20px;
+  min-height: 300px;
+  margin-bottom: 12px;
+}
+
+.artwork-preview img {
+  max-width: 100%;
+  max-height: 60dvh;
+}
+
+@media (max-width: 900px) {
+  .creator {
+    grid-template-columns: 1fr;
+    grid-template-rows: 75dvh auto;
+    height: auto;
+  }
+}
