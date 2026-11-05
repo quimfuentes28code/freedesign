@@ -1,7 +1,7 @@
 import { ContactShadows, Environment, Lightformer, OrbitControls, useProgress } from '@react-three/drei'
 import { Canvas, useThree } from '@react-three/fiber'
 import { Suspense, useEffect } from 'react'
-import type { Design, Measurements } from '../types'
+import type { Design, Measurements, ShoeStyle } from '../types'
 import { Mannequin } from './Avatar'
 import { useDressing } from './cloth/dressClient'
 import { PhotoStudio, StudioEffects, WARM } from './PhotoStudio'
@@ -19,6 +19,8 @@ interface Props {
   focus?: number
   /** Decorado: el estudio claro de siempre o el plató de fotos oscuro con fondo blanco y focos (portada). */
   stage?: 'neutral' | 'studio'
+  /** Calzado del maniquí. */
+  shoes?: ShoeStyle | null
 }
 
 /**
@@ -48,7 +50,7 @@ function DevHandle() {
 }
 
 /** Escena 3D: maniquí con la prenda, en un estudio con luces suaves y cámara orbital para verlo en 360°. */
-export function Scene({ measurements, design, outfit, autoRotate, animate, showBody = true, focus = 0.53, stage = 'neutral' }: Props) {
+export function Scene({ measurements, design, outfit, autoRotate, animate, showBody = true, focus = 0.53, stage = 'neutral', shoes }: Props) {
   const studio = stage === 'studio'
   const H = measurements.height / 100
   // Aviso de carga fuera de la escena 3D (el modelo pesa varios MB)
@@ -75,8 +77,8 @@ export function Scene({ measurements, design, outfit, autoRotate, animate, showB
           </>
         ) : (
           <>
-        <color attach="background" args={['#e4dfd6']} />
-        <fog attach="fog" args={['#e4dfd6', 6, 14]} />
+        <color attach="background" args={['#1b1612']} />
+        <fog attach="fog" args={['#1b1612', 6, 14]} />
 
         <hemisphereLight args={['#ffffff', '#b7ae9f', 0.7]} />
         <directionalLight
@@ -102,7 +104,7 @@ export function Scene({ measurements, design, outfit, autoRotate, animate, showB
         )}
 
         <Suspense fallback={null}>
-          <Mannequin measurements={measurements} design={design} outfit={outfit} animate={animate} showBody={showBody} />
+          <Mannequin measurements={measurements} design={design} outfit={outfit} animate={animate} showBody={showBody} shoes={shoes} />
         </Suspense>
 
         <ContactShadows position={[0, 0.002, 0]} opacity={studio ? 0.65 : 0.5} scale={4} blur={2.2} far={2} resolution={512} />

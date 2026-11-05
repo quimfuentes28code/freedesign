@@ -9,6 +9,8 @@ import { isPants } from '../../designer/types'
 import { bodyKind, type Design as SavedDesign } from '../../shared/designs'
 import type { Material } from '../../shared/library'
 import { Scene } from '../../three/Scene'
+import { SHOE_STYLES } from '../../three/Shoes'
+import type { ShoeStyle } from '../../types'
 import { bodyOf, outfitOf, useDesign3D } from './Design3D'
 import './studio.css'
 
@@ -27,6 +29,7 @@ export function Probador() {
   const [topId, setTopId] = useState<string | null>(null)
   const [bottomId, setBottomId] = useState<string | null>(null)
   const [hoodUp, setHoodUp] = useState(false)
+  const [shoes, setShoes] = useState<ShoeStyle | null>('baloncesto')
   const [autoRotate, setAutoRotate] = useState(false)
   const [animate, setAnimate] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
 
@@ -55,7 +58,7 @@ export function Probador() {
     <div className="studio probador">
       <main className="viewport">
         {shown ? (
-          <Scene measurements={measurements} design={shown} outfit={worn!.outfit} autoRotate={autoRotate} animate={animate} />
+          <Scene stage="studio" measurements={measurements} design={shown} outfit={worn!.outfit} autoRotate={autoRotate} animate={animate} shoes={shoes} />
         ) : (
           <div className="probador-empty">
             <p>Elige una prenda de arriba y un pantalón para vestir al maniquí.</p>
@@ -99,6 +102,17 @@ export function Probador() {
 
         <Picker title="Arriba" empty="Aún no hay sudaderas, camisetas ni chaquetas diseñadas." list={tops} selected={topId} onSelect={setTopId} materials={materials} />
         <Picker title="Abajo" empty="Aún no hay pantalones diseñados." list={bottoms} selected={bottomId} onSelect={setBottomId} materials={materials} />
+
+        <section>
+          <h2>Calzado</h2>
+          <div className="chips">
+            {[{ id: null, label: 'Descalzo' }, ...SHOE_STYLES].map((o) => (
+              <button key={o.id ?? 'none'} className={shoes === o.id ? 'chip active' : 'chip'} onClick={() => setShoes(o.id)}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </section>
 
         <section>
           <h2>Vista</h2>

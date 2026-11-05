@@ -2,9 +2,10 @@ import { useFrame, useLoader } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import type { Design, Measurements } from '../types'
+import type { Design, Measurements, ShoeStyle } from '../types'
 import { feminize, fitBody, measureModel, morphPositions, smoothNormals, type ModelInfo } from './body'
 import { Garment } from './Garment'
+import { Shoes } from './Shoes'
 import type { Cloud } from './wrap'
 
 /**
@@ -50,10 +51,12 @@ interface Props {
   animate: boolean
   /** Ver el maniquí (en el Probador) o solo la ropa (en el editor del Diseñador). */
   showBody?: boolean
+  /** Calzado (solo con el maniquí a la vista). */
+  shoes?: ShoeStyle | null
 }
 
 /** Maniquí animado, ajustado a las medidas, con la prenda puesta. */
-export function Mannequin({ measurements, design, outfit = [], animate, showBody = true }: Props) {
+export function Mannequin({ measurements, design, outfit = [], animate, showBody = true, shoes }: Props) {
   const gltf = useLoader(GLTFLoader, MODEL_URL)
   const base = useMemo(() => prepare(gltf.scene, gltf.animations), [gltf])
   const female = !!measurements.female
@@ -118,6 +121,7 @@ export function Mannequin({ measurements, design, outfit = [], animate, showBody
         <Garment key={i} model={model} fit={fit} cloud={cloud} measurements={measurements} design={d} />
       ))}
       <Garment model={model} fit={fit} cloud={cloud} measurements={measurements} design={design} />
+      {shoes && showBody && <Shoes model={model} cloud={cloud} style={shoes} />}
     </group>
   )
 }

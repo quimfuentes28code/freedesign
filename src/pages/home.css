@@ -99,8 +99,17 @@
   .home-card {
     right: 12px;
     left: 80px;
-    bottom: 12px;
+    /* Arriba, para que se vean los pies y el calzado */
+    top: 12px;
+    bottom: auto;
     width: auto;
+    padding: 12px 14px;
+  }
+  .home-title {
+    font-size: 19px;
+  }
+  .home-actions {
+    margin-top: 8px;
   }
   .home-hint {
     display: none;

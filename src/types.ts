@@ -1,6 +1,9 @@
 import type { FabricId, FabricLook } from './data/fabrics'
 
 /** Medidas del cuerpo, en centímetros. */
+/** Calzado del maniquí (ver three/Shoes.tsx). */
+export type ShoeStyle = 'baloncesto' | 'bota' | 'skate'
+
 export interface Measurements {
   height: number
   chest: number
