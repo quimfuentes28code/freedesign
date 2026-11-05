@@ -8,6 +8,8 @@ import { useDressing } from './cloth/dressClient'
 interface Props {
   measurements: Measurements
   design: Design
+  /** Otras prendas que lleva el maniquí a la vez (van por debajo de `design`). */
+  outfit?: Design[]
   autoRotate: boolean
   animate: boolean
 }
@@ -39,7 +41,7 @@ function DevHandle() {
 }
 
 /** Escena 3D: maniquí con la prenda, en un estudio con luces suaves y cámara orbital para verlo en 360°. */
-export function Scene({ measurements, design, autoRotate, animate }: Props) {
+export function Scene({ measurements, design, outfit, autoRotate, animate }: Props) {
   const H = measurements.height / 100
   // Aviso de carga fuera de la escena 3D (el modelo pesa varios MB)
   const { active } = useProgress()
@@ -75,7 +77,7 @@ export function Scene({ measurements, design, autoRotate, animate }: Props) {
         </Environment>
 
         <Suspense fallback={null}>
-          <Mannequin measurements={measurements} design={design} animate={animate} />
+          <Mannequin measurements={measurements} design={design} outfit={outfit} animate={animate} />
         </Suspense>
 
         <ContactShadows position={[0, 0.001, 0]} opacity={0.5} scale={4} blur={2.2} far={2} resolution={512} />

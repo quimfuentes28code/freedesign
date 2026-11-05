@@ -45,11 +45,13 @@ function prepare(root: THREE.Group, animations: THREE.AnimationClip[]): Model {
 interface Props {
   measurements: Measurements
   design: Design
+  /** Otras prendas que lleva a la vez (p. ej. el pantalón bajo la sudadera). */
+  outfit?: Design[]
   animate: boolean
 }
 
 /** Maniquí animado, ajustado a las medidas, con la prenda puesta. */
-export function Mannequin({ measurements, design, animate }: Props) {
+export function Mannequin({ measurements, design, outfit = [], animate }: Props) {
   const gltf = useLoader(GLTFLoader, MODEL_URL)
   const model = useMemo(() => prepare(gltf.scene, gltf.animations), [gltf])
   const fit = useMemo(() => fitBody(model.info, measurements), [model, measurements])
@@ -90,6 +92,9 @@ export function Mannequin({ measurements, design, animate }: Props) {
   return (
     <group scale={fit.scale}>
       <primitive object={model.root} />
+      {outfit.map((d, i) => (
+        <Garment key={i} model={model} fit={fit} cloud={cloud} measurements={measurements} design={d} />
+      ))}
       <Garment model={model} fit={fit} cloud={cloud} measurements={measurements} design={design} />
     </group>
   )

@@ -713,3 +713,27 @@ button.design-card {
   height: 36px;
   padding: 2px;
 }
+
+/* «Llevar con…» en la barra de la vista 3D del editor */
+.outfit-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.outfit-pick select {
+  width: auto;
+  max-width: 170px;
+  font-size: 13px;
+  padding: 2px 6px;
+}
+.design-3d-bar {
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  left: 12px;
+  margin-left: auto;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  border-radius: 14px;
+}

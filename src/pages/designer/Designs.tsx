@@ -19,8 +19,8 @@ export function DesignsList() {
         subtitle="Tus prendas diseñadas"
         actions={
           <>
-            <Link to="/disenador/3d" className="button">
-              Vista previa 3D
+            <Link to="/disenador/probador" className="button">
+              Probador 3D
             </Link>
             <Link to="/disenador/nuevo" className="button primary">
               Nuevo diseño

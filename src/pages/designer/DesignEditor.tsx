@@ -556,7 +556,7 @@ export function DesignEditor() {
                 }}
               />
             ))}
-          {mode !== '2d' && <Design3D template={template} data={design.data} materials={materials} client={client} />}
+          {mode !== '2d' && <Design3D template={template} data={design.data} materials={materials} client={client} designId={id} />}
         </div>
       </div>
 

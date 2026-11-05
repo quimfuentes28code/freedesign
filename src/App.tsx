@@ -9,6 +9,7 @@ import { Dashboard } from './pages/Dashboard'
 import { DesignEditor } from './pages/designer/DesignEditor'
 import { DesignsList, NewDesign } from './pages/designer/Designs'
 import { Preview3D } from './pages/designer/Preview3D'
+import { Probador } from './pages/designer/Probador'
 import { ArtworkCreator } from './pages/library/ArtworkCreator'
 import { ArtworksList } from './pages/library/Artworks'
 import { MaterialForm } from './pages/library/MaterialForm'
@@ -43,6 +44,7 @@ export default function App() {
               <Route path="disenador" element={<DesignsList />} />
               <Route path="disenador/nuevo" element={<NewDesign />} />
               <Route path="disenador/3d" element={<Preview3D />} />
+              <Route path="disenador/probador" element={<Probador />} />
               <Route path="disenador/:id" element={<DesignEditor />} />
               <Route path="proyectos" element={<ProjectsPage />} />
               <Route path="proyectos/nuevo" element={<ProjectDetail />} />

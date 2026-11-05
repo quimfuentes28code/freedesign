@@ -20,7 +20,7 @@ export function AppLayout() {
   const name = user ? displayName(user) : ''
   // En el editor de un diseño el menú se recoge a iconos
   const { pathname } = useLocation()
-  const compact = /^\/disenador\/(?!nuevo$|3d$)[^/]+$/.test(pathname)
+  const compact = /^\/disenador\/(?!nuevo$|3d$|probador$)[^/]+$/.test(pathname)
   return (
     <div className={compact ? 'app compact' : 'app'}>
       <aside className="sidebar">

@@ -364,7 +364,7 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
     const grid = new CloudGrid(pose.points)
     return buildGarment(model, cloud, pose, grid, fit, design, fabric)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, cloud, pose, fit, pattern, design.garment, design.fit, design.legLength, fabric])
+  }, [model, cloud, pose, fit, pattern, design.garment, design.fit, design.legLength, design.under, fabric])
   useEffect(() => () => wrapGeoms.forEach(({ g }) => g.dispose()), [wrapGeoms])
 
   // Estampados: una textura por lado, que se proyecta sobre el cuerpo de la prenda (ver PRINT_GLSL)
@@ -554,7 +554,7 @@ function buildGarment(
   const isBody = (i: number) => parts[i] === Part.Torso || parts[i] === Part.Neck
   const isLegs = (i: number) => parts[i] === Part.LegL || parts[i] === Part.LegR
 
-  const torso = (from: number, to: number, extra?: Pick<TubeSpec, 'flare' | 'folds'>) =>
+  const torso = (from: number, to: number, extra?: Pick<TubeSpec, 'flare' | 'folds'> & { ease?: number }) =>
     wrapTube(
       pose.points,
       {
@@ -647,7 +647,8 @@ function buildGarment(
       break
     }
     case 'pantalon':
-      pieces.push({ g: torso(crotchY + 1, waistY + 3), allow: torsoAndLegs, smoothing: 4, slot: 'cuerpo' })
+      // Debajo de otra prenda, la cintura y la cadera se ciñen al cuerpo para quedar por dentro
+      pieces.push({ g: torso(crotchY + 1, waistY + 3, design.under ? { ease: Math.min(ease, toModel(0.004, fit) + 0.3) } : undefined), allow: torsoAndLegs, smoothing: 4, slot: 'cuerpo' })
       pieces.push({ g: leg(1), allow: only(Part.LegL, Part.Torso), smoothing: 3, slot: 'cuerpo' })
       pieces.push({ g: leg(-1), allow: only(Part.LegR, Part.Torso), smoothing: 3, slot: 'cuerpo' })
       break
