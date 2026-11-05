@@ -3,8 +3,18 @@
  * Compartido por la web (src/) y la API (worker/).
  */
 
+/** Lo que comparten todas las capas del creador: ocultarla, bloquearla y agruparla con otras. */
+export interface ArtLayerMeta {
+  /** Oculta: no se ve ni se exporta. */
+  hidden?: boolean
+  /** Bloqueada: no se puede seleccionar ni mover en el lienzo. */
+  locked?: boolean
+  /** Grupo: las capas del mismo grupo se seleccionan y se mueven juntas. */
+  group?: string
+}
+
 /** Capas del creador de estampados. Posiciones en el lienzo del creador (600 × 600), (x, y) = centro. */
-export type ArtLayer =
+export type ArtLayer = ArtLayerMeta & (
   | {
       id: string
       type: 'text'
@@ -48,6 +58,7 @@ export type ArtLayer =
       h: number
       rotation: number
     }
+)
 
 export interface ArtworkData {
   layers: ArtLayer[]
