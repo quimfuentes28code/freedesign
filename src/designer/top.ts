@@ -94,7 +94,9 @@ function frame(c: TopCfg) {
   // Las medidas propias estiran el ancho (y con él los hombros), la sisa (ancho de manga) y el puño
   const F = { ...base, half: base.half * k.width, drop: (58 + base.drop) * k.width - 58, arm: base.arm * k.sleeveWidth, cuffW: base.cuffW * k.cuff }
   const rib = c.ribScale ?? 1
-  const nw = c.neck === 'bomber' ? 30 : 26
+  // El escote se estira con sus medidas: ancho (de costura a costura) y caída en el delantero
+  const nw = (c.neck === 'bomber' ? 30 : 26) * k.neckWidth
+  const neckY = 100 + (NECK_Y[c.neck] - 100) * k.neckDrop
   const neckPt: Pt = [CX + nw, 100]
   const S: Pt = [CX + 58 + F.drop, 110 + base.drop * 0.35]
   const U: Pt = [CX + F.half, 106 + F.arm]
@@ -109,7 +111,7 @@ function frame(c: TopCfg) {
   // Puño de canalé (también en manga corta, como en los polos) o puño camisero
   const cuffH = c.cuff === 'canale' ? (long ? 16 : 10) * rib : long && c.cuff === 'camisero' ? 18 : 0
   const endW = long ? F.cuffW + (c.cuff === 'recto' ? 6 : 0) : len(sub(S, U)) * 0.82 * k.cuff
-  return { F, rib, nw, neckPt, S, U, hemY, ribH, hemTop, long, sleeveLen, dir, inward, cuffH, endW }
+  return { F, rib, nw, neckY, neckPt, S, U, hemY, ribH, hemTop, long, sleeveLen, dir, inward, cuffH, endW }
 }
 
 type Frame = ReturnType<typeof frame>
@@ -123,7 +125,7 @@ export function drawTop(view: View, c: TopCfg): Shape[] {
   const stitchOffsets = c.stitch === 'doble' ? [4, 8] : [4]
 
   // --- Cuerpo ---
-  const neckY = front ? NECK_Y[c.neck] : 104
+  const neckY = front ? f.neckY : 104
   const neckSeg: Seg = front && V_NECKS.includes(c.neck) ? { to: f.neckPt } : { to: f.neckPt, c: [CX + f.nw * 0.95, neckY - 2] }
   const curved = c.hem === 'curvo'
   out.push({
@@ -377,13 +379,14 @@ function neck(c: TopCfg, f: Frame, front: boolean, offs: number[]): Shape[] {
     return out
   }
 
-  if (c.neck !== 'redondo' && c.neck !== 'pico') return [...out, ...collar(c.neck, nw, front, offs)]
+  if (c.neck !== 'redondo' && c.neck !== 'pico') return [...out, ...collar(c.neck, nw, f.neckY, front, offs)]
 
   // Cuello de canalé redondo o de pico
   if (front) {
     const v = c.neck === 'pico'
-    const innerY = v ? 140 : 114
-    const outerY = v ? 150 : 122
+    // La tira de canalé sigue al escote (que se estira con su caída)
+    const outerY = f.neckY
+    const innerY = outerY - (v ? 10 : 8)
     const band: [Pt, Seg[]] = [
       [CX, innerY],
       [
@@ -415,7 +418,7 @@ function neck(c: TopCfg, f: Frame, front: boolean, offs: number[]): Shape[] {
 }
 
 /** Cuellos con forma propia: polo, camisero, mao, alto, solapa y cubano (de frente y de espalda). */
-function collar(neck: Neck, nw: number, front: boolean, offs: number[]): Shape[] {
+function collar(neck: Neck, nw: number, neckY: number, front: boolean, offs: number[]): Shape[] {
   const P = TOP_PIECES
   const out: Shape[] = []
   const both2 = (shape: [Pt, Seg[]], kind: Shape['kind'] = 'fill') => {
@@ -486,7 +489,7 @@ function collar(neck: Neck, nw: number, front: boolean, offs: number[]): Shape[]
 
   // Solapa (chaqueta, con muesca) y cubano (cuello abierto de camisa): solapas en pico hasta `by`
   const notch = neck === 'solapa'
-  const by = NECK_Y[neck]
+  const by = neckY
   const s = notch ? 1 : 0.62
   out.push({
     kind: 'shade',

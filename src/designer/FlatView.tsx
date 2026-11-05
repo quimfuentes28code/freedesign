@@ -45,6 +45,8 @@ interface Props {
   selectedDetail?: string | null
   onSelectDetail?: (id: string | null) => void
   onChangeDetail?: (d: Detail) => void
+  /** Mantiene el encuadre aunque cambie la forma (al estirar la prenda, para que el punto siga al cursor). */
+  lockFrame?: boolean
 }
 
 /** Estilo de cremallera según el material elegido para la fornitura (si no se ha elegido uno a propósito). */
@@ -95,7 +97,7 @@ function boxWithoutBlocks(el: SVGGraphicsElement): Box | null {
 /** Dibujo técnico (flat) de una prenda en una vista, con los colores y materiales de cada pieza y sus estampados. */
 export function FlatView(props: Props) {
   const { template, data, view, materials, highlight, className, frame = 'ajustado', selectedPrint, onSelectPrint, onChangePrint } = props
-  const { mode = 'color', selectedPiece, onPickPiece, overlay, pad = 12, body, selectedDetail, onSelectDetail, onChangeDetail } = props
+  const { mode = 'color', selectedPiece, onPickPiece, overlay, pad = 12, body, selectedDetail, onSelectDetail, onChangeDetail, lockFrame } = props
   const line = mode === 'linea'
   const uid = useId().replace(/:/g, '')
   // Al terminar de descargar una fuente se vuelve a pintar (cambia el tamaño de los textos)
@@ -126,6 +128,7 @@ export function FlatView(props: Props) {
       }
       setPieceBoxes(boxes)
     }
+    if (lockFrame) return
     if (frame === 'comun') {
       setBox({ x: 40, y: 0, w: VIEW_W - 80, h: VIEW_H })
       return
@@ -135,7 +138,7 @@ export function FlatView(props: Props) {
     if (!b || !b.w) return
     setBox({ x: b.x - pad, y: b.y - pad, w: b.w + pad * 2, h: b.h + pad * 2 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, frame, pad, !!overlay])
+  }, [key, frame, pad, !!overlay, lockFrame])
 
   // Material de cada pieza: foto si es de la Biblioteca y la tiene; si no, textura y brillo del catálogo.
   // En modo línea no hay ni color ni textura: todo blanco con su contorno.

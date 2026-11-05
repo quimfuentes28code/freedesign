@@ -1085,3 +1085,11 @@
 .studio-editor .editor-views.mode-ambas {
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
 }
+
+/* Que la columna de herramientas siempre quepa en el lienzo */
+.studio-editor .canvas {
+  min-height: 440px;
+}
+.tool-rail {
+  overflow-y: auto;
+}

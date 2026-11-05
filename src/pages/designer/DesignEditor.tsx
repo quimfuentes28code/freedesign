@@ -547,6 +547,7 @@ export function DesignEditor() {
                   setBlockTool(false)
                 }}
                 onCancelBlock={() => setBlockTool(false)}
+                onMeasures={(measures) => setData({ measures })}
                 onBlockTool={() => {
                   if (!piece || !piece.materials.includes('tejido')) return false
                   setBlockTool(true)

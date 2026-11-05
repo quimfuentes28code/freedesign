@@ -18,13 +18,16 @@ export interface DrawScale {
   hip: number
   knee: number
   hem: number
+  /** Escote: ancho (de costura a costura del cuello) y caída en el delantero. */
+  neckWidth: number
+  neckDrop: number
 }
 
-export const NO_SCALE: DrawScale = { width: 1, length: 1, sleeve: 1, sleeveWidth: 1, cuff: 1, hip: 1, knee: 1, hem: 1 }
+export const NO_SCALE: DrawScale = { width: 1, length: 1, sleeve: 1, sleeveWidth: 1, cuff: 1, hip: 1, knee: 1, hem: 1, neckWidth: 1, neckDrop: 1 }
 
 /** Qué punto de medida mueve cada parte del dibujo. */
-const DRIVERS: Record<'top' | 'pants', Partial<Record<keyof DrawScale, string[]>>> = {
-  top: { width: ['pecho'], length: ['largo'], sleeve: ['manga'], sleeveWidth: ['biceps'], cuff: ['puno', 'boca-manga'] },
+export const DRIVERS: Record<'top' | 'pants', Partial<Record<keyof DrawScale, string[]>>> = {
+  top: { width: ['pecho'], length: ['largo'], sleeve: ['manga'], sleeveWidth: ['biceps'], cuff: ['puno', 'boca-manga'], neckWidth: ['escote'], neckDrop: ['caida-escote'] },
   pants: { length: ['largo'], hip: ['cadera'], knee: ['rodilla'], hem: ['bajo'] },
 }
 
@@ -34,7 +37,7 @@ export function drawingPoms(t: GarmentTemplate) {
 }
 
 /** Medida que sale del corte y el cuerpo, sin tener en cuenta ninguna medida propia. */
-function rawMeasures(t: GarmentTemplate, data: DesignData, body: Body = standardBody('M')) {
+export function rawMeasures(t: GarmentTemplate, data: DesignData, body: Body = standardBody('M')) {
   return new Map(garmentPoms(t, data.options).map((p) => [p.id, p.value(body)]))
 }
 

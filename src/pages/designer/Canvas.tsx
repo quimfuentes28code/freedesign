@@ -5,6 +5,7 @@ import { DrawingsLayer, TracingLayer, type Brush, type DrawTool } from '../../de
 import { CX } from '../../designer/geometry'
 import { UNITS_PER_CM } from '../../designer/prints'
 import { FlatView, type FlatContext } from '../../designer/FlatView'
+import { ShapeHandles } from '../../designer/handles'
 import { defaultMeasures } from '../../designer/measures'
 import { VIEWS, type GarmentTemplate, type View } from '../../designer/types'
 import { garmentPoms, type Body } from '../../production/measurements'
@@ -46,6 +47,7 @@ const RAIL_ICONS = {
   ellipse: 'M3 10a7 5 0 1 0 14 0a7 5 0 1 0-14 0',
   note: 'M4 4h12v9H9.5L6 16v-3H4z',
   block: 'M4 4h12v12H4zM4 16L16 4',
+  shape: 'M4 4h5M4 4v5M16 16h-5M16 16v-5M4 4l12 12',
   trace: 'M3 5h14v10H3zM3 13l4-4 3 3 2-2 5 5',
 } as const
 type RailIcon = keyof typeof RAIL_ICONS
@@ -93,6 +95,8 @@ interface Props {
   onCancelBlock?: () => void
   /** Activa la herramienta de dividir la pieza seleccionada; devuelve false si no hay una pieza de tela elegida. */
   onBlockTool?: () => boolean
+  /** Medidas propias del diseño (al estirar la forma con los puntos). */
+  onMeasures?: (m: Record<string, number>) => void
 }
 
 /**
@@ -105,13 +109,15 @@ export function Canvas(props: Props) {
   const { selectedPiece, onPickPiece, selectedPrint, onSelectPrint, onChangePrint, selectedCallout, onSelectCallout, onCallouts, body, bodyLabel } = props
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
-  const { selectedDrawing, onSelectDrawing, onDrawings, onTracings, selectedDetail, onSelectDetail, onChangeDetail, blockPiece, onAddBlock, onCancelBlock, onBlockTool } = props
+  const { selectedDrawing, onSelectDrawing, onDrawings, onTracings, selectedDetail, onSelectDetail, onChangeDetail, blockPiece, onAddBlock, onCancelBlock, onBlockTool, onMeasures } = props
   const cancelBlock = useRef(onCancelBlock)
   cancelBlock.current = onCancelBlock
   const [adding, setAdding] = useState(false)
   const [tool, setTool] = useState<DrawTool | null>(null)
   const [adjusting, setAdjusting] = useState(false)
   const [calco, setCalco] = useState(false)
+  // «Estirar forma»: puntos para cambiar escote, largo, mangas… arrastrándolos
+  const [shaping, setShaping] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   // Los avisos se van solos al rato
   useEffect(() => {
@@ -140,6 +146,7 @@ export function Canvas(props: Props) {
       setAdding(false)
       setAdjusting(false)
       setCalco(false)
+      setShaping(false)
       setNotice(null)
       cancelBlock.current?.()
     }
@@ -251,6 +258,7 @@ export function Canvas(props: Props) {
         />
       )}
       <ScaleBar ctx={ctx} />
+      {shaping && onMeasures && <ShapeHandles template={template} data={data} view={v} body={body} onMeasures={onMeasures} />}
     </>
   )
   const poms = settings.dims ? garmentPoms(template, data.options) : []
@@ -310,12 +318,14 @@ export function Canvas(props: Props) {
               key={t.label}
               icon={t.icon}
               label={t.title}
-              active={tool === t.id && !adding && !blockPiece && !(t.id === null && calco)}
+              active={tool === t.id && !adding && !blockPiece && !(t.id === null && (calco || shaping))}
               onClick={() => {
                 setTool(t.id)
                 setAdding(false)
                 setAdjusting(false)
                 setCalco(false)
+                setShaping(false)
+              setShaping(false)
                 setNotice(null)
                 onCancelBlock?.()
                 if (t.id) onSelectDrawing(null)
@@ -331,8 +341,22 @@ export function Canvas(props: Props) {
               if (!settings.notes) onSettings({ ...settings, notes: true })
               setTool(null)
               setCalco(false)
+              setShaping(false)
               setNotice(null)
               setAdding((a) => !a)
+            }}
+          />
+          <RailButton
+            icon="shape"
+            label="Estirar forma: arrastra los puntos azules para cambiar el escote, el largo, las mangas…"
+            active={shaping}
+            onClick={() => {
+              setTool(null)
+              setAdding(false)
+              setCalco(false)
+              setNotice(null)
+              onCancelBlock?.()
+              setShaping((v) => !v)
             }}
           />
           <RailButton
@@ -343,6 +367,7 @@ export function Canvas(props: Props) {
               setTool(null)
               setAdding(false)
               setCalco(false)
+              setShaping(false)
               if (blockPiece) return onCancelBlock?.()
               if (!onBlockTool?.()) setNotice('Elige primero una pieza de tela (un clic en el dibujo) y luego esta herramienta.')
             }}
@@ -355,6 +380,7 @@ export function Canvas(props: Props) {
               setTool(null)
               setAdding(false)
               setNotice(null)
+              setShaping(false)
               setCalco((c) => !c)
             }}
           />
@@ -411,9 +437,11 @@ export function Canvas(props: Props) {
               {uploadError && <span className="status error small">{uploadError}</span>}
             </div>
           )}
-          {(adding || blockPiece || notice) && (
+          {(adding || blockPiece || notice || shaping) && (
             <div className="canvas-context hint">
-              {adding
+              {shaping
+                ? 'Arrastra los puntos azules para estirar la prenda · las medidas se apuntan en la ficha · Esc termina'
+                : adding
                 ? 'Haz clic en el dibujo donde quieras la nota · Esc cancela'
                 : blockPiece
                   ? 'Arrastra una línea de lado a lado de la pieza para dividirla · Esc cancela'
@@ -460,6 +488,7 @@ export function Canvas(props: Props) {
                 onSelectDetail={onSelectDetail}
                 onChangeDetail={onChangeDetail}
                 overlay={overlay(v)}
+                lockFrame={shaping}
               />
               {view === 'all' && <figcaption>{VIEWS.find((x) => x.id === v)?.label}</figcaption>}
             </figure>
