@@ -3,6 +3,19 @@
  * Compartido por la web (src/) y la API (worker/).
  */
 
+/** Formas del texto en el creador. */
+export const TEXT_WARPS = [
+  { id: 'recta', label: 'Recto' },
+  { id: 'arco', label: 'Arco' },
+  { id: 'circulo', label: 'Círculo' },
+  { id: 'onda', label: 'Onda' },
+  { id: 'bandera', label: 'Bandera' },
+  { id: 'abombado', label: 'Abombado' },
+  { id: 'perspectiva', label: 'Perspectiva' },
+  { id: 'vertical', label: 'Vertical' },
+] as const
+export type TextWarp = (typeof TEXT_WARPS)[number]['id']
+
 /** Lo que comparten todas las capas del creador: ocultarla, bloquearla y agruparla con otras. */
 export interface ArtLayerMeta {
   /** Oculta: no se ve ni se exporta. */
@@ -30,6 +43,23 @@ export type ArtLayer = ArtLayerMeta & (
       strokeWidth: number
       /** Curvatura: 0 = recto, positivo = en arco hacia arriba, negativo = hacia abajo (−100…100). */
       arc: number
+      /** Forma del texto (sin poner: recto, o en arco si `arc` no es 0) y su intensidad (−100…100). */
+      warp?: TextWarp
+      warpAmount?: number
+      /** Varias líneas (el texto lleva saltos de línea): alineación e interlineado (× el tamaño). */
+      align?: 'left' | 'center' | 'right'
+      lineHeight?: number
+      /** Segundo contorno, por fuera del primero. */
+      stroke2?: string
+      stroke2Width?: number
+      /** Degradado: el relleno va del color al segundo color, con este ángulo (grados). */
+      gradient?: string
+      gradientAngle?: number
+      /** Sombra: color, desplazamiento y desenfoque. */
+      shadow?: string
+      shadowX?: number
+      shadowY?: number
+      shadowBlur?: number
       x: number
       y: number
       rotation: number

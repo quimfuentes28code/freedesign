@@ -5,10 +5,10 @@ import { Field, Status } from '../../components/ui'
 import { Transformable } from '../../designer/prints'
 import { FontPicker } from '../../components/FontPicker'
 import { loadFont, useFontsVersion } from '../../designer/fonts'
-import type { ArtLayer } from '../../shared/artworks'
+import { TEXT_WARPS, type ArtLayer } from '../../shared/artworks'
 import { fileUrl } from '../../shared/library'
 import { useHistory } from '../designer/useHistory'
-import { ART_SIZE, ArtLayerView, exportSvg, layerSize } from './artLayers'
+import { ART_SIZE, ArtLayerView, exportSvg, layerSize, warpOf } from './artLayers'
 import './creator.css'
 
 const SWATCHES = ['#1d1d1f', '#ffffff', '#f2efe8', '#b3261e', '#c4643a', '#e3b341', '#2f4a3a', '#1f2a44', '#3b5b8c', '#a99bc9']
@@ -32,7 +32,7 @@ const union = (boxes: Box[]): Box => ({
 })
 
 const layerName = (l: ArtLayer) =>
-  l.type === 'text' ? l.text || 'Texto' : l.type === 'image' ? 'Imagen' : { rect: 'Rectángulo', circle: 'Círculo', star: 'Estrella' }[l.shape]
+  l.type === 'text' ? l.text.split('\n')[0] || 'Texto' : l.type === 'image' ? 'Imagen' : { rect: 'Rectángulo', circle: 'Círculo', star: 'Estrella' }[l.shape]
 
 /**
  * Creador de estampados y logos: textos (rectos o en arco), formas e imágenes en capas.
@@ -49,7 +49,12 @@ export function ArtworkCreator() {
   const layers = history.state
   const layersRef = useRef(layers)
   layersRef.current = layers
-  const setLayers = (next: ArtLayer[] | ((all: ArtLayer[]) => ArtLayer[])) => history.set(typeof next === 'function' ? next(layersRef.current) : next)
+  const setLayers = (next: ArtLayer[] | ((all: ArtLayer[]) => ArtLayer[])) => {
+    // Se guarda al momento para que varios cambios seguidos (p. ej. flechas muy rápidas) partan del último
+    const value = typeof next === 'function' ? next(layersRef.current) : next
+    layersRef.current = value
+    history.set(value)
+  }
   const [selection, setSelection] = useState<string[]>([])
   const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] })
   const [zoom, setZoom] = useState(1)
@@ -165,7 +170,7 @@ export function ArtworkCreator() {
   }
   const ungroupSelected = () => setLayers(layers.map((l) => (selection.includes(l.id) ? ({ ...l, group: undefined } as ArtLayer) : l)))
   const nudge = (dx: number, dy: number) =>
-    selection.length && setLayers(layers.map((l) => (selection.includes(l.id) && !l.locked ? ({ ...l, x: l.x + dx, y: l.y + dy } as ArtLayer) : l)))
+    selection.length && setLayers((all) => all.map((l) => (selection.includes(l.id) && !l.locked ? ({ ...l, x: l.x + dx, y: l.y + dy } as ArtLayer) : l)))
 
   /** Unidades que se alinean: cada grupo junto y cada capa suelta por su cuenta. */
   const units = () => {
@@ -582,8 +587,8 @@ export function ArtworkCreator() {
             <h2>Capa seleccionada</h2>
             {current.type === 'text' && (
               <>
-                <Field label="Texto">
-                  <input value={current.text} onChange={(e) => update({ text: e.target.value })} />
+                <Field label="Texto (Intro para otra línea)">
+                  <textarea rows={Math.min(5, current.text.split('\n').length + 1)} value={current.text} onChange={(e) => update({ text: e.target.value })} />
                 </Field>
                 <FontPicker value={current.font} onChange={(font) => update({ font })} />
                 <ColorField label="Color" value={current.color} onChange={(color) => update({ color })} />
@@ -597,10 +602,56 @@ export function ArtworkCreator() {
                     <input type="checkbox" checked={current.italic} onChange={(e) => update({ italic: e.target.checked })} />
                   </label>
                 </div>
+                <ChipRow
+                  label="Forma"
+                  value={warpOf(current)}
+                  options={TEXT_WARPS}
+                  onChange={(warp) => update({ warp, ...(warp === 'arco' && !current.arc ? { arc: 40 } : {}) })}
+                />
+                {warpOf(current) === 'arco' && <Range label="Curvatura" value={current.arc} min={-100} max={100} onChange={(arc) => update({ arc })} />}
+                {['circulo', 'onda', 'bandera', 'abombado', 'perspectiva'].includes(warpOf(current)) && (
+                  <Range
+                    label={warpOf(current) === 'circulo' ? 'Hueco abajo' : 'Intensidad'}
+                    value={current.warpAmount ?? 50}
+                    min={warpOf(current) === 'circulo' ? 0 : -100}
+                    max={100}
+                    onChange={(warpAmount) => update({ warpAmount })}
+                  />
+                )}
+                {current.text.includes('\n') && (
+                  <>
+                    <ChipRow
+                      label="Alineación"
+                      value={current.align ?? 'center'}
+                      options={[
+                        { id: 'left', label: 'Izquierda' },
+                        { id: 'center', label: 'Centro' },
+                        { id: 'right', label: 'Derecha' },
+                      ]}
+                      onChange={(align) => update({ align })}
+                    />
+                    <Range label="Interlineado" value={Math.round((current.lineHeight ?? 1.15) * 100)} min={70} max={220} onChange={(v) => update({ lineHeight: v / 100 })} />
+                  </>
+                )}
                 <Range label="Espaciado" value={current.letterSpacing} min={-5} max={40} onChange={(letterSpacing) => update({ letterSpacing })} />
-                <Range label="Curvatura" value={current.arc} min={-100} max={100} onChange={(arc) => update({ arc })} />
+
+                <h3 className="form-sub">Relleno y contornos</h3>
+                <ColorField label="Degradado hasta" value={current.gradient ?? ''} optional onChange={(gradient) => update({ gradient: gradient || undefined })} />
+                {current.gradient && <Range label="Ángulo del degradado" value={current.gradientAngle ?? 90} min={0} max={360} onChange={(gradientAngle) => update({ gradientAngle })} />}
                 <ColorField label="Contorno" value={current.stroke} optional onChange={(stroke) => update({ stroke })} />
                 {current.stroke && <Range label="Grosor del contorno" value={current.strokeWidth} min={1} max={20} onChange={(strokeWidth) => update({ strokeWidth })} />}
+                <ColorField label="Segundo contorno (por fuera)" value={current.stroke2 ?? ''} optional onChange={(stroke2) => update({ stroke2: stroke2 || undefined })} />
+                {current.stroke2 && <Range label="Grosor del segundo contorno" value={current.stroke2Width ?? 6} min={1} max={30} onChange={(stroke2Width) => update({ stroke2Width })} />}
+
+                <h3 className="form-sub">Sombra</h3>
+                <ColorField label="Color de la sombra" value={current.shadow ?? ''} optional onChange={(shadow) => update({ shadow: shadow || undefined })} />
+                {current.shadow && (
+                  <>
+                    <Range label="Desplazamiento horizontal" value={current.shadowX ?? 4} min={-40} max={40} onChange={(shadowX) => update({ shadowX })} />
+                    <Range label="Desplazamiento vertical" value={current.shadowY ?? 4} min={-40} max={40} onChange={(shadowY) => update({ shadowY })} />
+                    <Range label="Desenfoque" value={current.shadowBlur ?? 0} min={0} max={20} onChange={(shadowBlur) => update({ shadowBlur })} />
+                  </>
+                )}
               </>
             )}
             {current.type === 'shape' && (
@@ -637,6 +688,22 @@ export function ArtworkCreator() {
           </section>
         )}
       </aside>
+    </div>
+  )
+}
+
+/** Fila de opciones (una elegida). */
+function ChipRow<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: readonly { id: T; label: string }[]; onChange: (v: T) => void }) {
+  return (
+    <div className="field">
+      <span>{label}</span>
+      <div className="chips">
+        {options.map((o) => (
+          <button key={o.id} className={value === o.id ? 'chip active' : 'chip'} onClick={() => onChange(o.id)}>
+            {o.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
