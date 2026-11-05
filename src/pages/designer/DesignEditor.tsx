@@ -11,7 +11,7 @@ import { fileUrl } from '../../shared/library'
 import { getTemplate } from '../../designer/templates'
 import { OPTION_GROUPS, opt, type GarmentTemplate } from '../../designer/types'
 import { clientBody, standardBody } from '../../production/measurements'
-import { DETAIL_KINDS, LONG_DETAILS, type Callout, type DesignData, type DesignInput, type Detail, type PieceStyle, type Print } from '../../shared/designs'
+import { bodyKind, DETAIL_KINDS, GENDERS, genderOf, LONG_DETAILS, type Callout, type DesignData, type DesignInput, type Detail, type PieceStyle, type Print } from '../../shared/designs'
 import { detailAspect, detailPrims, PrimsView } from '../../designer/details'
 import { DetailsPanel } from './DetailsPanel'
 import { Canvas, type CanvasSettings, type CanvasView } from './Canvas'
@@ -281,8 +281,9 @@ export function DesignEditor() {
   }
   const usedColors = [...new Set(activePieces.map((p) => pieceStyle(template, design.data, p.id).color))]
   const client = clients.data?.find((c) => c.id === design.clientId)
-  const fromClient = client && Object.keys(client.measurements).length ? clientBody(client.measurements) : null
-  const body = fromClient?.body ?? standardBody('M')
+  const kind = bodyKind(design.data)
+  const fromClient = client && Object.keys(client.measurements).length ? clientBody(client.measurements, kind) : null
+  const body = fromClient?.body ?? standardBody('M', kind)
   const bodyLabel = fromClient ? `a medida de ${client!.name}` : 'talla M'
 
   return (
@@ -292,7 +293,10 @@ export function DesignEditor() {
           ← Diseños
         </Link>
         <input className="editor-name" value={design.name} onChange={(e) => setDesign({ ...design, name: e.target.value })} aria-label="Nombre del diseño" />
-        <span className="tag muted">{template.name}</span>
+        <span className="tag muted">
+          {template.name}
+          {genderOf(design.data) !== 'hombre' ? ` · ${GENDERS.find((g) => g.id === genderOf(design.data))?.label}` : ''}
+        </span>
         <div className="history-buttons">
           <button className="tool" onClick={history.undo} disabled={!history.canUndo} title="Deshacer (Ctrl+Z)" aria-label="Deshacer">
             ↶
@@ -637,6 +641,15 @@ export function DesignEditor() {
               <MeasuresPanel template={template} data={design.data} body={body} bodyLabel={bodyLabel} onChange={(measures) => setData({ measures })} />
             </Fold>
             <Fold title="Datos del diseño">
+              <Field label="Para quién es">
+                <select value={genderOf(design.data)} onChange={(e) => setOption('genero', e.target.value)}>
+                  {GENDERS.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
               <Field label="Cliente">
                 <select value={design.clientId ?? ''} onChange={(e) => setDesign({ ...design, clientId: e.target.value || null })}>
                   <option value="">Sin cliente (marca propia)</option>

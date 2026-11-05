@@ -75,6 +75,23 @@ export interface ColorBlock {
   colorName?: string
 }
 
+/** Para quién es el diseño: decide el patrón (entallado de mujer), las tallas y el maniquí. Unisex usa el de hombre. */
+export const GENDERS = [
+  { id: 'hombre', label: 'Hombre' },
+  { id: 'mujer', label: 'Mujer' },
+  { id: 'unisex', label: 'Unisex' },
+] as const
+export type Gender = (typeof GENDERS)[number]['id']
+
+/** Género de un diseño (se guarda en sus opciones, `genero`; los antiguos son de hombre). */
+export const genderOf = (data: { options: Record<string, string | boolean> }): Gender => {
+  const g = data.options.genero
+  return g === 'mujer' || g === 'unisex' ? g : 'hombre'
+}
+
+/** Cuerpo con el que se patrona: el de mujer solo en los diseños de mujer. */
+export const bodyKind = (data: { options: Record<string, string | boolean> }): 'hombre' | 'mujer' => (genderOf(data) === 'mujer' ? 'mujer' : 'hombre')
+
 /** Variante de color (colorway) del mismo diseño: color y material de cada pieza. */
 export interface Colorway {
   id: string

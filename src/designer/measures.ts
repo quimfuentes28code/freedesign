@@ -1,5 +1,5 @@
 import { garmentPoms, standardBody, type Body } from '../production/measurements'
-import type { DesignData } from '../shared/designs'
+import { bodyKind, type DesignData } from '../shared/designs'
 import { isPants, type GarmentTemplate } from './types'
 
 /**
@@ -42,7 +42,7 @@ export function drawingPoms(t: GarmentTemplate) {
 }
 
 /** Medida que sale del corte y el cuerpo, sin tener en cuenta ninguna medida propia. */
-export function rawMeasures(t: GarmentTemplate, data: DesignData, body: Body = standardBody('M')) {
+export function rawMeasures(t: GarmentTemplate, data: DesignData, body: Body = standardBody('M', bodyKind(data))) {
   return new Map(garmentPoms(t, data.options).map((p) => [p.id, p.value(body)]))
 }
 

@@ -20,7 +20,7 @@ import { clientBody, garmentPoms, measurementLabel, standardBody } from '../../p
 import { TECHNIQUES, type Artwork } from '../../shared/artworks'
 import type { Client } from '../../shared/clients'
 import { surfaceLabel } from '../../designer/surfaces'
-import { BUTTON_STYLES, DETAIL_KINDS, DETAIL_STYLES, LONG_DETAILS, PULLER_STYLES, SURFACE_KINDS, WASH_KINDS, ZIP_STYLES, type Design, type DetailArt, type PieceStyle, type Print } from '../../shared/designs'
+import { bodyKind, BUTTON_STYLES, DETAIL_KINDS, DETAIL_STYLES, LONG_DETAILS, PULLER_STYLES, SURFACE_KINDS, WASH_KINDS, ZIP_STYLES, type Design, type DetailArt, type PieceStyle, type Print } from '../../shared/designs'
 import { buttonPrims, detailPrims, PrimsView, zipperPrims, type Prim } from '../../designer/details'
 import { fileUrl, MATERIAL_CATEGORIES, type Material } from '../../shared/library'
 import { EMPTY_TECH_PACK, SIZES, type ConstructionRow, type Size, type SpecColumn, type TechPack, type TechPackData } from '../../shared/production'
@@ -255,11 +255,11 @@ function Document(props: {
   const prints = (design.data.prints ?? []).filter((p) => !p.hidden)
   const sheets = 4
   const custom = pack.mode === 'cliente' && client
-  const body = custom ? clientBody(client.measurements).body : standardBody(pack.baseSize)
+  const body = custom ? clientBody(client.measurements, bodyKind(design.data)).body : standardBody(pack.baseSize, bodyKind(design.data))
   const bodyLabel = custom ? `la medida de ${client.name}` : `la talla ${pack.baseSize}`
   const colorways = colorwaysOf(design.data)
   // Cotas del dibujo: las de la tabla (talla de muestra o cliente) con las medidas cambiadas en el diseño
-  const deltas = measureDeltas(template, design.data, designBody(client))
+  const deltas = measureDeltas(template, design.data, designBody(client, design.data))
   const dimMeasures = Object.fromEntries(
     garmentPoms(template, options).map((p) => [p.id, pack.overrides[custom ? 'cliente' : pack.baseSize]?.[p.id] ?? Math.round((p.value(body) + (deltas[p.id] ?? 0)) * 2) / 2]),
   )
@@ -281,7 +281,7 @@ function Document(props: {
                 view={v.id}
                 materials={materials}
                 frame="comun"
-                body={designBody(client)}
+                body={designBody(client, design.data)}
                 overlay={(ctx) => (
                   <>
                     {v.id === 'front' && <Dimensions ctx={ctx} template={template} options={options} body={body} measures={dimMeasures} />}
@@ -742,12 +742,13 @@ function MeasureTable(props: { template: GarmentTemplate; design: Design; client
   const { template, design, client, pack, update } = props
   const poms = garmentPoms(template, design.data.options)
   const custom = pack.mode === 'cliente' && client
-  const fromClient = useMemo(() => (client ? clientBody(client.measurements) : null), [client])
+  const kind = bodyKind(design.data)
+  const fromClient = useMemo(() => (client ? clientBody(client.measurements, kind) : null), [client, kind])
   const columns: SpecColumn[] = custom ? ['cliente'] : pack.sizes
-  const bodyOf = (c: SpecColumn) => (c === 'cliente' && fromClient ? fromClient.body : standardBody(c === 'cliente' ? 'M' : c))
+  const bodyOf = (c: SpecColumn) => (c === 'cliente' && fromClient ? fromClient.body : standardBody(c === 'cliente' ? 'M' : c, kind))
   const missing = custom && fromClient ? fromClient.missing.filter((k) => poms.some((p) => p.uses.includes(k))) : []
   // Medidas cambiadas en el Diseñador: la diferencia se suma a todas las columnas (se mantiene el escalado de tallas)
-  const deltas = measureDeltas(template, design.data, designBody(client))
+  const deltas = measureDeltas(template, design.data, designBody(client, design.data))
   const designed = Object.keys(deltas).length > 0
 
   const set = (col: SpecColumn, pom: string, raw: string, computed: number) => {
@@ -922,8 +923,9 @@ function Editable({ value, onChange, multiline, placeholder }: { value: string; 
 }
 
 /** Cuerpo con el que se diseñó (el del cliente si tiene medidas, si no la talla M), como en el Diseñador. */
-function designBody(client: Client | null) {
-  return client && Object.keys(client.measurements).length ? clientBody(client.measurements).body : standardBody('M')
+function designBody(client: Client | null, data: Design['data']) {
+  const kind = bodyKind(data)
+  return client && Object.keys(client.measurements).length ? clientBody(client.measurements, kind).body : standardBody('M', kind)
 }
 
 /** Texto de etiquetas por defecto, con la composición del material del cuerpo. */

@@ -7,7 +7,7 @@ import type { Shape, View } from './types'
 export interface PantsCfg {
   fit: 'slim' | 'regular' | 'ancho' | 'baggy'
   /** Largo: hasta el tobillo o el suelo, o corto (por encima de la rodilla) o bermuda (a la rodilla). */
-  length: 'tobillero' | 'largo' | 'corto' | 'bermuda'
+  length: 'tobillero' | 'largo' | 'corto' | 'bermuda' | 'mini'
   /** Bajo con puño de canalé, recto, o vuelto (dobladillo hacia fuera). */
   hem: 'puno' | 'recto' | 'vuelto'
   /** Cinturilla elástica (de canalé) o de pantalón de vestir, con trabillas y botón. */
@@ -23,6 +23,8 @@ export interface PantsCfg {
   /** Banda lateral a lo largo de la costura exterior (pantalón de chándal): ancho en unidades del lienzo, 0 = sin banda. */
   stripe?: number
   stitch: 'simple' | 'doble'
+  /** Patrón de mujer: cintura más estrecha que la cadera y curva de cadera más marcada. */
+  fem?: boolean
   /** Medidas propias del diseño (ver measures.ts). */
   scale?: DrawScale
 }
@@ -38,7 +40,7 @@ export const PANTS_PIECES = {
 } as const
 
 /** Altura del bajo según el largo (unidades del lienzo). */
-const HEM_Y = { largo: 462, tobillero: 440, bermuda: 304, corto: 254 }
+const HEM_Y = { largo: 462, tobillero: 440, bermuda: 304, corto: 254, mini: 222 }
 
 const FIT = {
   slim: { hip: 82, knee: 34, hem: 26 },
@@ -56,7 +58,7 @@ const KNEE_Y = 310
 function frame(c: PantsCfg) {
   const k = c.scale ?? NO_SCALE
   const base = FIT[c.fit]
-  const short = c.length === 'corto' || c.length === 'bermuda'
+  const short = c.length === 'corto' || c.length === 'bermuda' || c.length === 'mini'
   // En los cortos la pernera cae recta y ancha: el bajo es casi tan ancho como la pierna en la entrepierna
   const F = short
     ? { hip: base.hip * k.hip, knee: base.hip * 0.92 * k.knee, hem: base.hip * 0.88 * k.hem }
@@ -92,8 +94,9 @@ export function drawPants(view: View, c: PantsCfg): Shape[] {
   const leg: [Pt, Seg[]] = [
     [CX + 1, TOP],
     [
-      { to: [CX + f.F.hip, TOP] },
-      { to: [f.kneeC + f.F.knee / 2, f.kneeY], c: [CX + f.F.hip + 4, 170] },
+      // Mujer: la cintura es más estrecha que la cadera y la curva de la cadera, más marcada
+      { to: [CX + f.F.hip * (c.fem ? 0.88 : 1), TOP] },
+      { to: [f.kneeC + f.F.knee / 2, f.kneeY], c: c.fem ? [CX + f.F.hip + 5, 142] : [CX + f.F.hip + 4, 170] },
       { to: [f.hemC + f.hemW / 2, f.hemTop] },
       { to: [f.hemC - f.hemW / 2, f.hemTop] },
       { to: [f.kneeC - f.F.knee / 2, f.kneeY] },
@@ -148,7 +151,7 @@ export function drawPants(view: View, c: PantsCfg): Shape[] {
       ])
     }
     // Raya planchada en los pantalones de vestir
-    if (c.waist === 'trabillas' && c.length !== 'corto') pair([{ kind: 'line', piece: P.legs, d: line([CX + f.F.hip * 0.44, TOP + 50], [f.hemC, f.hemTop - 2]) }])
+    if (c.waist === 'trabillas' && c.length !== 'corto' && c.length !== 'mini') pair([{ kind: 'line', piece: P.legs, d: line([CX + f.F.hip * 0.44, TOP + 50], [f.hemC, f.hemTop - 2]) }])
     // Bolsillos laterales: abertura inclinada
     if (c.sidePockets) {
       pair([
@@ -192,7 +195,7 @@ export function drawPants(view: View, c: PantsCfg): Shape[] {
 
 function waistband(c: PantsCfg, offs: number[], front: boolean): Shape[] {
   const P = PANTS_PIECES
-  const hip = FIT[c.fit].hip * (c.scale?.hip ?? 1)
+  const hip = FIT[c.fit].hip * (c.scale?.hip ?? 1) * (c.fem ? 0.88 : 1)
   if (c.waist === 'trabillas') {
     // Cinturilla de pantalón de vestir: tira plana con trabillas y botón
     const out: Shape[] = [

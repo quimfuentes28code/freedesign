@@ -2,6 +2,7 @@ import { drawPants, PANTS_PIECES, type PantsCfg } from './pants'
 import { CX } from './geometry'
 import { drawTop, TOP_PIECES, type Neck, type TopCfg } from './top'
 import { drawBeanie, drawCap, HEAD_PIECES, HEAD_UNITS_PER_CM, type CapCfg } from './head'
+import { drawFemTop, FEMTOP_PIECES } from './femtop'
 import { opt, type ChoiceOption, type GarmentTemplate, type OptionDef, type Options, type PieceDef, type ToggleOption } from './types'
 
 /**
@@ -71,7 +72,7 @@ const pantsFit = (def: string, ids = ['slim', 'regular', 'ancho', 'baggy']) =>
 const sleeveOption = (def: string) => choice('manga', 'Manga', 'corte', [['corta', 'Corta'], ['larga', 'Larga']], def)
 
 /** Configuración común de las prendas de torso (lo que cada prenda no cambia). */
-const topBase = (o: Options, t: GarmentTemplate): Pick<TopCfg, 'fit' | 'length' | 'stitch' | 'cords' | 'sleevePocket' | 'zip' | 'pocket'> => ({
+const topBase = (o: Options, t: GarmentTemplate): Pick<TopCfg, 'fit' | 'length' | 'stitch' | 'cords' | 'sleevePocket' | 'zip' | 'pocket' | 'fem'> => ({
   fit: opt(t, o, 'corte'),
   length: opt(t, o, 'largo') ?? 'normal',
   stitch: opt(t, o, 'costuras'),
@@ -79,6 +80,7 @@ const topBase = (o: Options, t: GarmentTemplate): Pick<TopCfg, 'fit' | 'length' 
   sleevePocket: false,
   zip: 'ninguna',
   pocket: 'ninguno',
+  fem: o.genero === 'mujer',
 })
 
 /** Si la prenda lleva capucha con estas opciones (sudadera: casilla; el resto: el cuello «capucha»). */
@@ -496,6 +498,7 @@ function pantsCfg(t: GarmentTemplate, o: Options, waist: 'elastica' | 'trabillas
     backPockets: opt(t, o, 'traseros'),
     cord: waist === 'elastica' && (opt<boolean>(t, o, 'cordon') ?? false),
     stitch: opt(t, o, 'costuras'),
+    fem: o.genero === 'mujer',
     stripe: opt<boolean>(t, o, 'banda') ? 12 : 0,
     scale: s,
   }
@@ -554,7 +557,7 @@ const pantalonCorto: GarmentTemplate = {
   pieces: pantsPieces('#4b4f45'),
   options: [
     pantsFit('ancho'),
-    choice('largo', 'Largo', 'corte', [['corto', 'Corto'], ['bermuda', 'Bermuda']], 'corto'),
+    choice('largo', 'Largo', 'corte', [['mini', 'Mini'], ['corto', 'Corto'], ['bermuda', 'Bermuda']], 'corto'),
     choice('cintura', 'Cintura', 'detalles', [['elastica', 'Elástica'], ['trabillas', 'Con trabillas y botón']], 'elastica'),
     toggle('laterales', 'Bolsillos laterales', 'detalles', true),
     toggle('cargo', 'Bolsillos cargo', 'detalles', false),
@@ -738,6 +741,69 @@ const cortavientos: GarmentTemplate = {
   },
 }
 
+// --- Top de mujer ---
+
+const FT = FEMTOP_PIECES
+
+const top: GarmentTemplate = {
+  id: 'top',
+  family: 'top',
+  name: 'Top',
+  description: 'De tirantes, palabra de honor, halter, cruzado o corsé; escote recto, en pico, redondo o corazón; crop o largo.',
+  printZones: {
+    front: [
+      { id: 'pecho', label: 'Centro pecho', x: CX, y: 200, w: 50 },
+      { id: 'bajo', label: 'Bajo', x: CX + 30, y: 240, w: 26 },
+    ],
+    back: [{ id: 'espalda', label: 'Espalda', x: CX, y: 210, w: 50 }],
+    side: [],
+  },
+  pieces: [
+    { id: FT.body, label: 'Cuerpo', defaultColor: '#1d1c1a', materials: FABRIC },
+    { id: FT.straps, label: 'Tirantes', defaultColor: '#1d1c1a', materials: FABRIC },
+    { id: FT.tie, label: 'Lazo', defaultColor: '#1d1c1a', materials: FABRIC },
+    { id: FT.binding, label: 'Ballenas (canales)', defaultColor: '#1d1c1a', materials: FABRIC },
+    { id: FT.cords, label: 'Cordones', defaultColor: '#1d1c1a', materials: TRIM },
+    { id: FT.hardware, label: 'Cierre', defaultColor: '#b8b8b8', materials: TRIM },
+  ],
+  options: [
+    choice('tipo', 'Tipo', 'corte', [['tirantes', 'De tirantes'], ['bandeau', 'Palabra de honor'], ['halter', 'Halter (al cuello)'], ['cruzado', 'Cruzado'], ['corse', 'Corsé / bustier']], 'tirantes'),
+    choice('corte', 'Corte', 'corte', [['ajustado', 'Ajustado'], ['regular', 'Regular'], ['holgado', 'Holgado']], 'ajustado'),
+    choice('largo', 'Largo', 'corte', [['crop', 'Crop'], ['cintura', 'A la cintura'], ['cadera', 'A la cadera']], 'crop'),
+    choice('escote', 'Escote', 'detalles', [['recto', 'Recto'], ['pico', 'En pico'], ['redondo', 'Redondo'], ['corazon', 'Corazón']], 'recto'),
+    choice('tirantes', 'Tirantes', 'detalles', [['finos', 'Finos'], ['anchos', 'Anchos']], 'finos'),
+    toggle('fruncido', 'Fruncido', 'detalles', false),
+    choice('cierre', 'Cierre (corsé)', 'detalles', [['cordones', 'Cordones a la espalda'], ['cremallera', 'Cremallera'], ['corchetes', 'Corchetes delante']], 'cordones'),
+    toggle('ballenas', 'Ballenas (corsé)', 'acabados', true),
+    stitchOption,
+  ],
+  activePieces: (o) => {
+    const kind = opt(top, o, 'tipo')
+    return [
+      FT.body,
+      ...(kind !== 'bandeau' && kind !== 'corse' ? [FT.straps] : []),
+      ...(kind === 'halter' || kind === 'cruzado' ? [FT.tie] : []),
+      ...(kind === 'corse' && opt<boolean>(top, o, 'ballenas') ? [FT.binding] : []),
+      ...(kind === 'corse' && opt(top, o, 'cierre') === 'cordones' ? [FT.cords] : []),
+      ...(kind === 'corse' && opt(top, o, 'cierre') !== 'cordones' ? [FT.hardware] : []),
+      ...(kind === 'corse' && opt(top, o, 'cierre') === 'cordones' ? [FT.hardware] : []),
+    ]
+  },
+  draw: (view, o, s) =>
+    drawFemTop(view, {
+      kind: opt(top, o, 'tipo'),
+      fit: opt(top, o, 'corte'),
+      length: opt(top, o, 'largo'),
+      neckline: opt(top, o, 'escote'),
+      straps: opt(top, o, 'tirantes'),
+      gathers: opt<boolean>(top, o, 'fruncido'),
+      closure: opt(top, o, 'cierre'),
+      boning: opt<boolean>(top, o, 'ballenas'),
+      stitch: opt(top, o, 'costuras'),
+      scale: s,
+    }),
+}
+
 // --- Gorro y gorra ---
 
 const H = HEAD_PIECES
@@ -827,7 +893,7 @@ withNeckExtras(puffer, { tab: true })
 withNeckExtras(chaleco, { tab: true })
 withNeckExtras(cortavientos, { tab: true })
 
-export const TEMPLATES: GarmentTemplate[] = [sudadera, camiseta, polo, camisa, bomber, puffer, chaleco, cazadora, cortavientos, pantalon, pantalonAncho, pantalonCorto, gorro, gorra]
+export const TEMPLATES: GarmentTemplate[] = [sudadera, camiseta, polo, camisa, bomber, puffer, chaleco, cazadora, cortavientos, top, pantalon, pantalonAncho, pantalonCorto, gorro, gorra]
 
 /**
  * Lo que sale en «Nuevo diseño»: las prendas base y atajos que son una prenda base con otras opciones de partida
@@ -839,6 +905,8 @@ export interface CatalogEntry {
   description: string
   template: GarmentTemplate
   options?: Options
+  /** Solo para este cuerpo (los tops y los shorts son de mujer); sin poner, para todos. */
+  only?: 'hombre' | 'mujer'
 }
 
 const entry = (t: GarmentTemplate, extra?: Omit<CatalogEntry, 'template'>): CatalogEntry => ({ id: t.id, name: t.name, description: t.description, template: t, ...extra })
@@ -863,8 +931,16 @@ export const NEW_DESIGN_CATALOG: CatalogEntry[] = [
     description: 'Jogger de chándal con banda lateral, cordón y puño.',
     options: { banda: true, cargo: false, traseros: false },
   }),
+  entry(top, { id: 'top', name: 'Top', description: top.description, only: 'mujer' }),
   entry(pantalonAncho),
   entry(pantalonCorto),
+  entry(pantalonCorto, {
+    id: 'shorts',
+    name: 'Shorts',
+    description: 'Shorts de mujer: mini, de tiro alto con trabillas y bajo vuelto.',
+    options: { largo: 'mini', cintura: 'trabillas', bajo: 'vuelto', cargo: false, cordon: false, corte: 'regular' },
+    only: 'mujer',
+  }),
   entry(gorro),
   entry(gorra),
 ]

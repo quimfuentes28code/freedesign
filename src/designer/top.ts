@@ -61,6 +61,8 @@ export interface TopCfg {
   neckTab?: 'ninguna' | 'automaticos' | 'velcro'
   /** Escala de las bandas de canalé (la bomber las lleva más anchas). */
   ribScale?: number
+  /** Patrón de mujer: hombros más estrechos, cintura entallada y, en camisas y chaquetas, pinzas de pecho. */
+  fem?: boolean
   /** Medidas propias del diseño (ver measures.ts). */
   scale?: DrawScale
 }
@@ -108,13 +110,15 @@ function frame(c: TopCfg) {
   const fit = FIT[c.fit]
   const base = c.sleeve === 'sin' ? { ...fit, drop: 0, arm: fit.arm + 8 } : fit
   // Las medidas propias estiran el ancho (y con él los hombros), la sisa (ancho de manga) y el puño
-  const F = { ...base, half: base.half * k.width, drop: (58 + base.drop) * k.width - 58, arm: base.arm * k.sleeveWidth, cuffW: base.cuffW * k.cuff }
+  // Mujer: hombro más estrecho
+  const SH = c.fem ? 52 : 58
+  const F = { ...base, half: base.half * k.width, drop: (SH + base.drop) * k.width - SH, arm: base.arm * k.sleeveWidth, cuffW: base.cuffW * k.cuff }
   const rib = c.ribScale ?? 1
   // El escote se estira con sus medidas: ancho (de costura a costura) y caída en el delantero
-  const nw = (c.neck === 'bomber' ? 30 : 26) * k.neckWidth
+  const nw = ((c.neck === 'bomber' ? 30 : 26) - (c.fem ? 2 : 0)) * k.neckWidth
   const neckY = 100 + (NECK_Y[c.neck] - 100) * k.neckDrop
   const neckPt: Pt = [CX + nw, 100]
-  const S: Pt = [CX + 58 + F.drop, 110 + base.drop * 0.35]
+  const S: Pt = [CX + SH + F.drop, 110 + base.drop * 0.35]
   const U: Pt = [CX + F.half, 106 + F.arm]
   const hemY = 106 + LENGTH[c.length] * k.length
   const ribH = c.hem === 'canale' ? 16 * rib : c.hem === 'pretina' ? 18 : 0
@@ -127,7 +131,18 @@ function frame(c: TopCfg) {
   // Puño de canalé (también en manga corta, como en los polos) o puño camisero
   const cuffH = c.cuff === 'canale' ? (long ? 16 : 10) * rib : long && c.cuff === 'camisero' ? 18 : 0
   const endW = long ? F.cuffW + (c.cuff === 'recto' ? 6 : 0) : len(sub(S, U)) * 0.82 * k.cuff
-  return { F, rib, nw, neckY, neckPt, S, U, hemY, ribH, hemTop, long, sleeveLen, dir, inward, cuffH, endW }
+  // Mujer: el costado entra en la cintura y vuelve a abrirse en la cadera (menos cuanto más holgado el corte)
+  const waistK = c.fem && !c.quilt ? ({ ajustado: 0.84, regular: 0.89, boxy: 0.95, oversize: 0.98 })[c.fit] : 1
+  const waistY = Math.min(U[1] + 64, hemTop - 8)
+  const hasWaist = waistK < 1 && waistY > U[1] + 20
+  const hemHalf = !hasWaist ? F.half * (waistK < 1 ? waistK : 1) : F.half * (hemTop - waistY > 30 ? 0.99 : waistK + (0.99 - waistK) * ((hemTop - waistY) / 30))
+  /** Medio ancho del cuerpo a una altura (para lo que va de costado a costado). */
+  const sideAt = (y: number) => {
+    if (!hasWaist) return F.half + (hemHalf - F.half) * Math.max(0, Math.min(1, (y - U[1]) / Math.max(1, hemTop - U[1])))
+    if (y <= waistY) return F.half + (F.half * waistK - F.half) * Math.max(0, (y - U[1]) / (waistY - U[1]))
+    return F.half * waistK + (hemHalf - F.half * waistK) * Math.min(1, (y - waistY) / Math.max(1, hemTop - waistY))
+  }
+  return { F, rib, nw, neckY, neckPt, S, U, hemY, ribH, hemTop, long, sleeveLen, dir, inward, cuffH, endW, waistK, waistY, hasWaist, hemHalf, sideAt }
 }
 
 type Frame = ReturnType<typeof frame>
@@ -155,9 +170,11 @@ function drawTopRaw(view: View, c: TopCfg): Shape[] {
       neckSeg,
       { to: f.S },
       { to: f.U, c: [f.S[0] - 3, (f.S[1] + f.U[1]) / 2] },
+      // Mujer: entra en la cintura y se abre en la cadera
+      ...(f.hasWaist ? [{ to: [CX + f.F.half * f.waistK, f.waistY] as Pt, c: [CX + f.F.half * (0.5 + f.waistK / 2), (f.U[1] + f.waistY) / 2] as Pt }] : []),
       ...(curved
-        ? [{ to: [CX + f.F.half, f.hemTop - 18] as Pt }, { to: [CX, f.hemTop + 6] as Pt, c: [CX + f.F.half * 0.8, f.hemTop + 6] as Pt }]
-        : [{ to: [CX + f.F.half - (f.ribH ? 1 : 0), f.hemTop] as Pt }, { to: [CX, f.hemTop] as Pt }]),
+        ? [{ to: [CX + f.hemHalf, f.hemTop - 18] as Pt, ...(f.hasWaist ? { c: [CX + f.F.half * f.waistK, f.hemTop - 30] as Pt } : {}) }, { to: [CX, f.hemTop + 6] as Pt, c: [CX + f.hemHalf * 0.8, f.hemTop + 6] as Pt }]
+        : [{ to: [CX + f.hemHalf - (f.ribH ? 1 : 0), f.hemTop] as Pt, ...(f.hasWaist ? { c: [CX + f.F.half * f.waistK, (f.waistY + f.hemTop) / 2] as Pt } : {}) }, { to: [CX, f.hemTop] as Pt }]),
     ]),
   })
   // Acolchado (puffer): canales horizontales en el cuerpo
@@ -181,8 +198,21 @@ function drawTopRaw(view: View, c: TopCfg): Shape[] {
     out.push({ kind: 'stitch', piece: P.body, d: offsetLine(mirror(f.U), mirror(f.S), d) })
   }
 
+  // Pinzas de pecho (mujer, en camisas y chaquetas entalladas): del costado hacia el pecho
+  if (front && c.fem && c.placket === 'completa' && f.hasWaist) {
+    const y = f.U[1] + 22
+    for (const k of [1, -1]) {
+      const a: Pt = [CX + k * f.sideAt(y) - k, y]
+      const b: Pt = [CX + k * f.F.half * 0.6, y + 10]
+      out.push({ kind: 'line', piece: P.body, d: line(a, b) })
+      // Y la pinza de cintura, de la cintura hacia abajo y hacia arriba
+      const x = CX + k * f.F.half * 0.5
+      out.push({ kind: 'line', piece: P.body, d: line([x, f.waistY - 34], [x + k * 2, f.waistY], [x, f.waistY + 24]) })
+    }
+  }
+
   // --- Bajo ---
-  const half = f.F.half
+  const half = f.hemHalf
   if (f.ribH) {
     out.push({
       kind: 'fill',
@@ -616,7 +646,7 @@ function collar(neck: Neck, nw: number, neckY: number, front: boolean, offs: num
 /** Canales del acolchado en el cuerpo: líneas horizontales recortadas al contorno (sisa incluida). */
 function quilting(f: Frame, step: number): Shape[] {
   const xAt = (y: number) => {
-    if (y >= f.U[1]) return f.F.half
+    if (y >= f.U[1]) return f.sideAt(y)
     if (y <= f.S[1]) return f.S[0] - CX
     return f.S[0] - CX + ((f.U[0] - f.S[0]) * (y - f.S[1])) / (f.U[1] - f.S[1])
   }

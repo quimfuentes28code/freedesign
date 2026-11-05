@@ -135,6 +135,24 @@ export function defaultConstruction(t: GarmentTemplate, o: Options): Constructio
     add('Puños y bajo', get('punos') === 'canale' ? 'Canalé doblado y montado' : 'Ribete elástico de 1,5 cm', get('punos') === 'canale' ? OVERLOCK : FLAT)
   }
 
+  if (t.id === 'top') {
+    const kind = get<string>('tipo')
+    if (kind === 'corse') {
+      add('Paneles', 'Unir los paneles del corsé (delanteros, costados y espalda)', FLAT, 'Entretela o coutil en todos los paneles')
+      if (get<boolean>('ballenas')) add('Ballenas', 'Coser los canales y meter las ballenas en cada costura', FLAT, 'Ballenas espirales o de acero plano')
+      add('Cierre', get('cierre') === 'cordones' ? 'Ojetes metálicos a los dos lados de la espalda y cordón cruzado' : get('cierre') === 'cremallera' ? 'Cremallera invisible en la espalda' : 'Corchetes (busk) en el centro delantero', get('cierre') === 'cordones' ? 'Remachadora de ojetes' : FLAT)
+      add('Forro', 'Forro completo cosido por el borde de arriba', FLAT)
+    } else {
+      add('Costados', 'Cerrar los costados', OVERLOCK)
+      if (kind === 'bandeau') add('Borde superior', get<boolean>('fruncido') ? 'Elástico de silicona fruncido en el borde de arriba' : 'Elástico de silicona en el borde de arriba', COVER, 'Para que no resbale')
+      else add('Escote y sisas', 'Ribete de bies en el escote y las sisas', COVER)
+      if (kind === 'tirantes') add('Tirantes', `Tirantes ${get('tirantes') === 'anchos' ? 'anchos' : 'finos (espagueti)'} cosidos al escote delantero y a la espalda`, FLAT, 'Opcional: reguladores')
+      if (kind === 'halter') add('Tirantes', 'Tirantes que suben al cuello y se atan detrás', FLAT)
+      if (kind === 'cruzado') add('Cruce', 'Delanteros cruzados y lazo en el costado', FLAT)
+    }
+    add('Bajo', 'Dobladillo de 1,5 cm', COVER)
+  }
+
   if (t.id === 'gorro') {
     add('Tejido', 'Tejer en circular (máquina rectilínea o circular de gorros)', 'Tricotosa', get('punto') === 'canale' ? 'Canalé 1x1 o 2x2' : 'Punto liso')
     add('Coronilla', 'Menguar y cerrar la coronilla', 'Remalladora o remallado a mano')

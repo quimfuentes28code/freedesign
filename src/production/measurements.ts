@@ -20,27 +20,42 @@ const GRADE: Body = {
   talleDelantero: 1.5, talleEspalda: 1.5, anchoEspalda: 2, largoBrazo: 1.5, biceps: 2, antebrazo: 1.5, muneca: 0.5,
   tiro: 1, entrepierna: 1.5, largoPierna: 2.5, muslo: 3, rodilla: 1.5, gemelo: 1.5, tobillo: 1,
 }
+/** Cuerpo de la talla M de mujer (busto, bajo pecho, cintura más marcada y más cadera) y su escala de tallas. */
+const BASE_F: Body = {
+  altura: 165, peso: 60, cuello: 34, hombros: 39, pecho: 92, bajoPecho: 76, cintura: 72, cadera: 99,
+  talleDelantero: 43, talleEspalda: 40, anchoEspalda: 35, largoBrazo: 58, biceps: 28, antebrazo: 23, muneca: 15,
+  tiro: 26, entrepierna: 76, largoPierna: 100, muslo: 57, rodilla: 37, gemelo: 35, tobillo: 22,
+}
+const GRADE_F: Body = {
+  altura: 3, peso: 5, cuello: 1, hombros: 1.2, pecho: 5, bajoPecho: 5, cintura: 5, cadera: 5,
+  talleDelantero: 1, talleEspalda: 1, anchoEspalda: 1.2, largoBrazo: 1, biceps: 1.5, antebrazo: 1, muneca: 0.5,
+  tiro: 1, entrepierna: 1, largoPierna: 2, muslo: 3, rodilla: 1.5, gemelo: 1.5, tobillo: 1,
+}
 const KEYS = Object.keys(BASE_M) as MeasurementKey[]
 
+/** Cuerpo de hombre o de mujer (los diseños unisex se patronan con el de hombre). */
+export type BodyKind = 'hombre' | 'mujer'
+
 /** Medidas del cuerpo de una talla estándar. */
-export function standardBody(size: Size): Body {
+export function standardBody(size: Size, kind: BodyKind = 'hombre'): Body {
   const step = SIZES.indexOf(size) - SIZES.indexOf('M')
-  return Object.fromEntries(KEYS.map((k) => [k, BASE_M[k] + GRADE[k] * step])) as Body
+  const [base, grade] = kind === 'mujer' ? [BASE_F, GRADE_F] : [BASE_M, GRADE]
+  return Object.fromEntries(KEYS.map((k) => [k, base[k] + grade[k] * step])) as Body
 }
 
 /** Talla estándar más parecida a unas medidas (por pecho, cintura o cadera). */
-export function nearestSize(m: Measurements): Size {
+export function nearestSize(m: Measurements, kind: BodyKind = 'hombre'): Size {
   const key = (['pecho', 'cintura', 'cadera'] as const).find((k) => m[k])
   if (!key) return 'M'
   let best: Size = 'M'
-  for (const s of SIZES) if (Math.abs(standardBody(s)[key] - m[key]!) < Math.abs(standardBody(best)[key] - m[key]!)) best = s
+  for (const s of SIZES) if (Math.abs(standardBody(s, kind)[key] - m[key]!) < Math.abs(standardBody(best, kind)[key] - m[key]!)) best = s
   return best
 }
 
 /** Cuerpo del cliente: sus medidas y, las que falten, las de su talla estándar más parecida. */
-export function clientBody(m: Measurements) {
-  const size = nearestSize(m)
-  const std = standardBody(size)
+export function clientBody(m: Measurements, kind: BodyKind = 'hombre') {
+  const size = nearestSize(m, kind)
+  const std = standardBody(size, kind)
   const missing = KEYS.filter((k) => !m[k])
   return { body: { ...std, ...m } as Body, size, missing }
 }
@@ -66,7 +81,7 @@ const half = (n: number) => Math.round(n * 2) / 2
 /** Puntos de medida de una prenda con sus opciones. */
 export function garmentPoms(t: GarmentTemplate, o: Options): Pom[] {
   const get = <T extends string | boolean>(id: string) => opt<T>(t, o, id)
-  return t.family === 'pants' ? pantsPoms(get) : t.family === 'head' ? headPoms(t.id, get) : topPoms(t.id, get)
+  return t.family === 'pants' ? pantsPoms(get) : t.family === 'head' ? headPoms(t.id, get) : t.id === 'top' ? femTopPoms(get) : topPoms(t.id, get)
 }
 
 type Get = <T extends string | boolean>(id: string) => T
@@ -173,6 +188,21 @@ function headPoms(id: string, get: Get): Pom[] {
   return poms
 }
 
+/** Top de mujer: busto, bajo pecho, cintura y largos (sin mangas). */
+function femTopPoms(get: Get): Pom[] {
+  const ease = { ajustado: 0, regular: 4, holgado: 12 }[get<string>('corte')] ?? 0
+  const kind = get<string>('tipo')
+  const len = { crop: 20, cintura: 30, cadera: 46 }[get<string>('largo')] ?? 20
+  const poms: Pom[] = [
+    { id: 'pecho', label: 'Contorno de busto', how: 'Por la parte más alta del pecho, ×2', tol: 1, uses: ['pecho'], value: (b) => b.pecho + ease },
+    { id: 'bajo-pecho', label: 'Contorno bajo pecho', how: 'Justo debajo del pecho, ×2', tol: 1, uses: ['bajoPecho'], value: (b) => b.bajoPecho + ease * 0.5 },
+    { id: 'cintura', label: 'Contorno de cintura', how: 'En la cintura, ×2', tol: 1, uses: ['cintura'], value: (b) => b.cintura + ease },
+    { id: 'largo', label: 'Largo', how: kind === 'bandeau' || kind === 'corse' ? 'Del borde de arriba al bajo, por el centro' : 'Desde la axila hasta el bajo, por el costado', tol: 0.5, uses: ['talleDelantero'], value: (b) => len + (b.talleDelantero - 43) * 0.4 },
+  ]
+  if (kind === 'tirantes' || kind === 'cruzado' || kind === 'halter') poms.push({ id: 'tirante', label: 'Largo de tirante', how: 'Del escote delantero a la espalda (o al cuello)', tol: 0.5, uses: ['talleEspalda'], value: (b) => (kind === 'halter' ? 38 : 34) + (b.talleEspalda - 40) * 0.3 })
+  return poms.map((p) => ({ ...p, value: (b: Body) => half(p.value(b)) }))
+}
+
 function pantsPoms(get: Get): Pom[] {
   const fit = get<string>('corte')
   const hipEase = { slim: 6, regular: 10, ancho: 16, baggy: 24 }[fit] ?? 10
@@ -184,7 +214,7 @@ function pantsPoms(get: Get): Pom[] {
   const cuff = get('bajo') === 'puno'
   const knee = (b: Body) => b.rodilla + kneeEase
   // Cortos: la entrepierna se mide en cm propios (no sale del largo de pierna)
-  const shortInseam = length === 'corto' ? 16 : length === 'bermuda' ? 27 : null
+  const shortInseam = length === 'mini' ? 7 : length === 'corto' ? 16 : length === 'bermuda' ? 27 : null
   const fixedWaist = get('cintura') === 'trabillas'
 
   const waist: Pom[] = fixedWaist

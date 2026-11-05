@@ -5,7 +5,7 @@ import { PageHeader, Status } from '../../components/ui'
 import { FlatView } from '../../designer/FlatView'
 import { defaultDesign, getTemplate, NEW_DESIGN_CATALOG, type CatalogEntry } from '../../designer/templates'
 import type { GarmentTemplate } from '../../designer/types'
-import type { Design, DesignData } from '../../shared/designs'
+import { GENDERS, genderOf, type Design, type DesignData, type Gender } from '../../shared/designs'
 import './designer.css'
 import './studio-editor.css'
 
@@ -49,7 +49,8 @@ export function DesignsList() {
                     {d.name} {d.data.brandTemplate && <span className="tag">Plantilla</span>}
                   </strong>
                   <span className="muted small">
-                    {t?.name ?? d.template} · {d.clientName ?? 'Marca propia'}
+                    {t?.name ?? d.template}
+                    {genderOf(d.data) !== 'hombre' ? ` · ${GENDERS.find((g) => g.id === genderOf(d.data))?.label}` : ''} · {d.clientName ?? 'Marca propia'}
                     {d.projectName ? ` · ${d.projectName}` : ''}
                   </span>
                   <span className="muted small">Editado el {new Date(d.updatedAt).toLocaleDateString('es-ES')}</span>
@@ -83,7 +84,13 @@ export function NewDesign() {
       setCreating(null)
     }
   }
-  const fromEntry = (e: CatalogEntry) => create(e.id, { name: `${e.name} sin título`, template: e.template.id, data: defaultDesign(e.template, e.options) })
+  // Para quién es: decide el catálogo (los tops y shorts son de mujer), el patrón y las tallas
+  const [gender, setGender] = useState<Gender>(() => (params.get('genero') === 'mujer' || params.get('genero') === 'unisex' ? (params.get('genero') as Gender) : 'hombre'))
+  const body = gender === 'mujer' ? 'mujer' : 'hombre'
+  const preset = (e: CatalogEntry) => ({ ...e.options, genero: gender })
+  const catalog = NEW_DESIGN_CATALOG.filter((e) => !e.only || e.only === body)
+  const fromEntry = (e: CatalogEntry) =>
+    create(e.id, { name: `${e.name}${gender === 'mujer' ? ' de mujer' : ''} sin título`, template: e.template.id, data: defaultDesign(e.template, preset(e)) })
   // Desde una plantilla de la marca: una copia con todo (colores, variantes, medidas, estampados…), ya sin ser plantilla
   const fromBrand = (d: Design) => {
     const { brandTemplate: _b, ...data } = structuredClone(d.data)
@@ -101,6 +108,20 @@ export function NewDesign() {
           </Link>
         }
       />
+      <div className="segmented gender-pick" role="group" aria-label="Para quién es">
+        {GENDERS.map((g) => (
+          <button key={g.id} className={gender === g.id ? 'active' : ''} onClick={() => setGender(g.id)}>
+            {g.label}
+          </button>
+        ))}
+      </div>
+      <p className="muted small">
+        {gender === 'mujer'
+          ? 'Patrón de mujer: tallas de mujer, hombros más estrechos y cintura entallada. Incluye tops y shorts.'
+          : gender === 'unisex'
+            ? 'Unisex: patrón y tallas de hombre, para que sirva a cualquiera.'
+            : 'Patrón y tallas de hombre.'}
+      </p>
       {error && <p className="status error">{error}</p>}
       {brand.length > 0 && (
         <>
@@ -125,10 +146,10 @@ export function NewDesign() {
         <section key={fam.id}>
           <h2 className="catalog-title">{fam.label}</h2>
           <div className="design-grid">
-            {NEW_DESIGN_CATALOG.filter((e) => e.template.family === fam.id).map((e) => (
+            {catalog.filter((e) => e.template.family === fam.id).map((e) => (
               <button key={e.id} className="card design-card template-card" onClick={() => fromEntry(e)} disabled={creating !== null}>
                 <div className="design-thumb">
-                  <FlatView template={e.template} data={defaultDesign(e.template, e.options)} view="front" />
+                  <FlatView template={e.template} data={defaultDesign(e.template, preset(e))} view="front" />
                 </div>
                 <div className="design-body">
                   <strong>{e.name}</strong>

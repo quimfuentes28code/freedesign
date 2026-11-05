@@ -743,3 +743,8 @@ button.design-card {
   top: 50%;
   transform: translate(-50%, -50%);
 }
+
+/* Para quién es el diseño, en «Nuevo diseño» */
+.gender-pick {
+  margin: 4px 0 6px;
+}

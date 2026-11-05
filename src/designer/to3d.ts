@@ -20,7 +20,7 @@ import { isPants, opt, type GarmentTemplate } from './types'
 function garmentOf(t: GarmentTemplate, data: DesignData): GarmentType {
   if (isPants(t)) return 'pantalon'
   if (t.id === 'sudadera') return 'sudadera'
-  if (t.id === 'chaleco') return 'chaleco'
+  if (t.id === 'chaleco' || t.id === 'top') return 'chaleco'
   return opt(t, data.options, 'manga') === 'corta' ? 'camiseta' : 'manga-larga'
 }
 
@@ -28,7 +28,7 @@ function garmentOf(t: GarmentTemplate, data: DesignData): GarmentType {
 export const hasOwn3D = (t: GarmentTemplate) => t.id === 'sudadera' || t.id === 'camiseta' || t.id === 'pantalon'
 
 /** Parte de la pierna que cubre el pantalón (de la entrepierna al tobillo). */
-const LEG_LENGTH: Record<string, number> = { corto: 0.32, bermuda: 0.55, tobillero: 0.93 }
+const LEG_LENGTH: Record<string, number> = { mini: 0.2, corto: 0.32, bermuda: 0.55, tobillero: 0.93 }
 
 const FIT: Record<string, Fit> = {
   ajustado: 'ajustado',

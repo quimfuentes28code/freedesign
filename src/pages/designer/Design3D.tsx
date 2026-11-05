@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { api, useApi } from '../../api/client'
 import { printLayer } from '../../designer/printLayers'
 import { getTemplate } from '../../designer/templates'
-import { clientBody, type Body } from '../../production/measurements'
+import { clientBody, type Body, type BodyKind } from '../../production/measurements'
 import { designTo3D, hasOwn3D, mannequinMeasurements } from '../../designer/to3d'
 import { isPants } from '../../designer/types'
 import type { Design } from '../../types'
 import type { GarmentTemplate } from '../../designer/types'
 import type { Client } from '../../shared/clients'
-import type { DesignData } from '../../shared/designs'
+import { bodyKind, type DesignData } from '../../shared/designs'
 import type { Material } from '../../shared/library'
 import { Scene } from '../../three/Scene'
 import './studio.css'
@@ -36,7 +36,7 @@ export function useDesign3D(template: GarmentTemplate | null | undefined, data: 
 }
 
 /** Cuerpo del maniquí: el del cliente si tiene medidas. */
-export const bodyOf = (client?: Client) => (client && Object.keys(client.measurements).length ? clientBody(client.measurements).body : undefined)
+export const bodyOf = (client?: Client, kind: BodyKind = 'hombre') => (client && Object.keys(client.measurements).length ? clientBody(client.measurements, kind).body : undefined)
 
 /** Prenda de arriba y de abajo juntas: la de abajo (pantalón) va debajo y se ciñe a la cintura. */
 export function outfitOf(main: Design, other: Design | null, mainIsPants: boolean): { design: Design; outfit: Design[] } {
@@ -67,7 +67,8 @@ const stored = (key: string) => {
 export function Design3D({ template, data, materials, client, designId }: Props) {
   // Sin maniquí, la capucha se ve mejor bajada
   const [hoodUp, setHoodUp] = useState(false)
-  const body = useMemo(() => bodyOf(client), [client])
+  const kind = bodyKind(data)
+  const body = useMemo(() => bodyOf(client, kind), [client, kind])
   const main = useDesign3D(template, data, materials, body)!
   const pants = isPants(template)
 
