@@ -27,11 +27,18 @@ export function AppLayout() {
     <div className={['app', compact ? 'compact' : '', home ? 'home' : ''].filter(Boolean).join(' ')}>
       <aside className="sidebar">
         <Link to="/" className="brand brand-link" title="Inicio: el estudio">
-          {compact ? 'FD' : 'FreeDesign'}
+          {compact ? (
+            'FD'
+          ) : (
+            <>
+              <span className="brand-full">FreeDesign</span>
+              <span className="brand-short">FD</span>
+            </>
+          )}
         </Link>
         <nav className="nav" aria-label="Apartados">
           {SECTIONS.map((s) => (
-            <NavLink key={s.to} to={s.to} title={compact ? s.label : undefined} className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+            <NavLink key={s.to} to={s.to} title={s.label} className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
               <Icon name={s.icon} />
               <span>{s.label}</span>
             </NavLink>

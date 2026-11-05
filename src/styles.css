@@ -47,6 +47,7 @@ a {
   margin: 12px 0 12px 12px;
   height: calc(100dvh - 24px);
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px 12px;
   display: flex;
   flex-direction: column;
@@ -896,51 +897,43 @@ input:disabled {
   color: var(--muted);
 }
 
-/* --- Móvil: el menú pasa arriba y se desliza en horizontal --- */
+/* --- Pantallas estrechas: el menú sigue en vertical a la izquierda, solo con los iconos --- */
 
 @media (max-width: 760px) {
-  .app {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
+  .app,
+  .app.compact {
+    grid-template-columns: 68px 1fr;
   }
 
   .sidebar {
-    flex-direction: row;
     align-items: center;
-    gap: 12px;
-    padding: 8px 10px;
-    margin: 8px 8px 0;
-    height: auto;
+    gap: 16px;
+    padding: 14px 6px;
+    margin: 8px 0 8px 8px;
+    height: calc(100dvh - 16px);
     border-radius: 14px;
-    overflow-x: auto;
-    overflow-y: hidden;
   }
 
   .brand {
     padding: 0;
-    font-size: 16px;
-  }
-
-  .nav {
-    flex-direction: row;
+    font-size: 14px;
   }
 
   .nav-link {
-    white-space: nowrap;
-    padding: 7px 10px;
+    justify-content: center;
+    padding: 10px;
   }
 
-  /* En el móvil, de la cuenta solo queda el círculo con la inicial (lleva a Mi perfil) */
-  .account {
-    margin-top: 0;
-    margin-left: auto;
-    border-top: none;
-    padding-top: 0;
-  }
-
+  /* De la cuenta solo queda el círculo con la inicial (lleva a Mi perfil) */
+  .nav-link span,
   .account-text,
   .account-logout {
     display: none;
+  }
+
+  .account {
+    padding: 0;
+    border: none;
   }
 
   .page {
@@ -1057,11 +1050,7 @@ input:disabled {
   padding: 0;
   border: none;
 }
-@media (max-width: 760px) {
-  .app.compact {
-    grid-template-columns: 1fr;
-  }
-}
+
 
 /* Perfil: colores de la marca */
 .brand-colors {
@@ -1187,9 +1176,9 @@ input:disabled {
     grid-template-rows: 1fr;
   }
   .app.home .sidebar {
-    width: auto;
-    justify-self: stretch;
+    width: 60px;
     margin: 8px;
+    max-height: calc(100dvh - 16px);
   }
 }
 
@@ -1199,4 +1188,17 @@ input:disabled {
 
 .brand-link {
   text-decoration: none;
+}
+
+.brand-short {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .brand-full {
+    display: none;
+  }
+  .brand-short {
+    display: inline;
+  }
 }

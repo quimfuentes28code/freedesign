@@ -4,7 +4,7 @@ import { Suspense, useEffect } from 'react'
 import type { Design, Measurements } from '../types'
 import { Mannequin } from './Avatar'
 import { useDressing } from './cloth/dressClient'
-import { PhotoStudio, WARM } from './PhotoStudio'
+import { PhotoStudio, StudioEffects, WARM } from './PhotoStudio'
 
 interface Props {
   measurements: Measurements
@@ -59,17 +59,18 @@ export function Scene({ measurements, design, outfit, autoRotate, animate, showB
     <>
       {active && <span className="loading">Cargando maniquí…</span>}
       {!active && dressing && <span className="busy">Ajustando prenda…</span>}
-      <Canvas shadows dpr={[1, 2]} camera={{ position: studio ? [0.7, 1.4, 4.7] : showBody ? [0, 1.2, 3.6] : [0, H * focus + 0.1, 3.2], fov: studio ? 40 : 36 }}>
+      <Canvas shadows={studio ? 'soft' : true} dpr={[1, 2]} camera={{ position: studio ? [-0.35, 1.38, 4.1] : showBody ? [0, 1.2, 3.6] : [0, H * focus + 0.1, 3.2], fov: studio ? 38 : 36 }}>
         {studio ? (
           <>
             <color attach="background" args={['#0b0907']} />
             <fog attach="fog" args={['#0b0907', 7, 15]} />
-            <hemisphereLight args={['#fff1e0', '#1a130d', 0.35]} />
+            <hemisphereLight args={['#fff1e0', '#1a130d', 0.12]} />
             <PhotoStudio />
+            <StudioEffects />
             <Environment resolution={128} frames={1}>
-              <Lightformer intensity={0.9} color={WARM} position={[-3, 2, 2]} rotation-y={Math.PI / 3} scale={[2.5, 2.5, 1]} />
-              <Lightformer intensity={0.5} color={WARM} position={[3, 1.8, 1.5]} rotation-y={-Math.PI / 3} scale={[2, 2, 1]} />
-              <Lightformer intensity={0.4} color="#ffffff" position={[0, 1.5, -3]} scale={[6, 4, 1]} />
+              <Lightformer intensity={0.6} color={WARM} position={[-3, 2, 2]} rotation-y={Math.PI / 3} scale={[2.5, 2.5, 1]} />
+              <Lightformer intensity={0.3} color={WARM} position={[3, 1.8, 1.5]} rotation-y={-Math.PI / 3} scale={[2, 2, 1]} />
+              <Lightformer intensity={0.15} color="#ffffff" position={[0, 1.5, -3]} scale={[6, 4, 1]} />
             </Environment>
           </>
         ) : (
@@ -106,7 +107,7 @@ export function Scene({ measurements, design, outfit, autoRotate, animate, showB
 
         <ContactShadows position={[0, 0.002, 0]} opacity={studio ? 0.65 : 0.5} scale={4} blur={2.2} far={2} resolution={512} />
         <OrbitControls
-          target={[0, studio ? H * 0.5 : H * focus, 0]}
+          target={[0, studio ? H * 0.55 : H * focus, 0]}
           enablePan={false}
           // Se puede acercar mucho para ver costuras y pespuntes
           minDistance={0.45}
