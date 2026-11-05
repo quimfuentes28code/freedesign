@@ -19,6 +19,7 @@ import {
   type Seg,
 } from './geometry'
 import { NO_SCALE, type DrawScale } from './measures'
+import { mapLines, quiltLines, type QuiltShape } from './quilt'
 import type { Shape, View } from './types'
 
 /**
@@ -51,6 +52,8 @@ export interface TopCfg {
   frontYoke?: boolean
   /** Acolchado (puffer): separación entre canales, en unidades del lienzo (0 = sin acolchar). */
   quilt?: number
+  /** Forma de los canales del acolchado (rectos por defecto). */
+  quiltShape?: QuiltShape
   /** Capucha cruzada: los dos lados se solapan por delante, bajo la barbilla. */
   hoodCross?: boolean
   /** Cuello alto bajo la capucha (las dos cosas a la vez). */
@@ -178,7 +181,7 @@ function drawTopRaw(view: View, c: TopCfg): Shape[] {
     ]),
   })
   // Acolchado (puffer): canales horizontales en el cuerpo
-  if (c.quilt) out.push(...quilting(f, c.quilt))
+  if (c.quilt) out.push(...quilting(f, c.quilt, c.quiltShape ?? 'rectos', out[out.length - 1].d))
   // Canesú delantero de cazadora: de la sisa baja en pico hacia la tapeta
   if (front && c.frontYoke) {
     const a = lerp(f.S, f.U, 0.32)
@@ -410,15 +413,20 @@ function sleeves(c: TopCfg, f: Frame, front: boolean, offs: number[]): Shape[] {
     side(offs.map((d): Shape => ({ kind: 'stitch', piece: P.sleeves, d: line(sub(Cout, mul(f.dir, d + 2)), sub(Cin, mul(f.dir, d + 2))) })))
   }
 
-  // Acolchado: canales a lo ancho de la manga
+  // Acolchado: canales en la manga (a lo ancho, o con la forma elegida), recortados a la manga
   if (c.quilt) {
-    const n = Math.floor((f.sleeveLen - f.cuffH) / c.quilt)
-    side(
-      Array.from({ length: n }, (_, i): Shape => {
-        const t = ((i + 1) * c.quilt!) / f.sleeveLen
-        return { kind: 'stitch', piece: P.sleeves, d: line(lerp(f.S, Cout, t), lerp(f.U, Cin, t)) }
-      }),
-    )
+    const shape = c.quiltShape ?? 'rectos'
+    const L = f.sleeveLen
+    const bw = len(sub(f.U, f.S)) / 2
+    const sleeveD = path(sleeve[0], sleeve[1])
+    const lines = mapLines(quiltLines(shape, c.quilt, 0, L - f.cuffH, bw * 1.3), (a, b) => {
+      const t = a / L
+      return lerp(lerp(f.S, Cout, t), lerp(f.U, Cin, t), 0.5 + b / (2 * bw))
+    })
+    for (const l of lines) {
+      const d = line(...l)
+      out.push({ kind: 'stitch', piece: P.sleeves, d, clip: sleeveD }, { kind: 'stitch', piece: P.sleeves, d: mirrorPath(d), clip: mirrorPath(sleeveD) })
+    }
   }
 
   // Bolsillo de manga (tipo MA-1), en la manga izquierda de quien la lleva (a la derecha del dibujo delantero)
@@ -643,19 +651,10 @@ function collar(neck: Neck, nw: number, neckY: number, front: boolean, offs: num
   return out
 }
 
-/** Canales del acolchado en el cuerpo: líneas horizontales recortadas al contorno (sisa incluida). */
-function quilting(f: Frame, step: number): Shape[] {
-  const xAt = (y: number) => {
-    if (y >= f.U[1]) return f.sideAt(y)
-    if (y <= f.S[1]) return f.S[0] - CX
-    return f.S[0] - CX + ((f.U[0] - f.S[0]) * (y - f.S[1])) / (f.U[1] - f.S[1])
-  }
-  const out: Shape[] = []
-  for (let y = 128; y < f.hemTop - step * 0.5; y += step) {
-    const x = xAt(y) - 2
-    out.push({ kind: 'stitch', piece: TOP_PIECES.body, d: line([CX - x, y], [CX + x, y]) })
-  }
-  return out
+/** Canales del acolchado en el cuerpo: líneas con la forma elegida, recortadas al contorno del cuerpo. */
+function quilting(f: Frame, step: number, shape: QuiltShape, bodyD: string): Shape[] {
+  const bw = f.F.half + 30
+  return mapLines(quiltLines(shape, step, 104, f.hemTop, bw), (a, b) => [CX + b, a] as Pt).map((l): Shape => ({ kind: 'stitch', piece: TOP_PIECES.body, d: line(...l), clip: bodyD }))
 }
 
 /** Tapeta delantera con sus botones: corta (polo, henley) o hasta el bajo (camisa). */

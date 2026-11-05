@@ -199,6 +199,20 @@ export function FlatView(props: Props) {
 
   const renderShape = (s: Shape, i: number) => {
     if (s.role) return renderRole(s, i)
+    if (s.clip) {
+      // El id sale del contorno: las formas con el mismo recorte comparten el suyo
+      let h = 0
+      for (let k = 0; k < s.clip.length; k++) h = (h * 31 + s.clip.charCodeAt(k)) | 0
+      const id = `${uid}-c${(h >>> 0).toString(36)}`
+      return (
+        <g key={i}>
+          <clipPath id={id}>
+            <path d={s.clip} />
+          </clipPath>
+          <g clipPath={`url(#${id})`}>{renderShape({ ...s, clip: undefined }, i)}</g>
+        </g>
+      )
+    }
     const color = colorOf(s.piece)
     const tex = s.piece ? textured.get(s.piece) : undefined
     const weave = weaveOf(s.piece)

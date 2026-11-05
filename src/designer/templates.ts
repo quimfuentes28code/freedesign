@@ -1,3 +1,4 @@
+import { QUILT_SHAPES, type QuiltShape } from './quilt'
 import { drawPants, PANTS_PIECES, type PantsCfg } from './pants'
 import { CX } from './geometry'
 import { drawTop, TOP_PIECES, type Neck, type TopCfg } from './top'
@@ -62,6 +63,11 @@ const choice = (id: string, label: string, group: OptionDef['group'], choices: [
   default: def,
 })
 const toggle = (id: string, label: string, group: OptionDef['group'], def: boolean): ToggleOption => ({ id, label, group, type: 'toggle', default: def })
+
+/** Acolchado (puffer, chaleco): separación de los canales y su forma. */
+const CHANNEL_STEP: Record<string, number> = { estrechos: 22, medios: 28, anchos: 34 }
+const channelWidth = (def: string) => choice('canales', 'Ancho de los canales', 'detalles', [['estrechos', 'Estrechos'], ['medios', 'Medios'], ['anchos', 'Anchos']], def)
+const channelShape = choice('formaCanales', 'Forma de los canales', 'detalles', QUILT_SHAPES.map((q) => [q.id, q.label] as [string, string]), 'rectos')
 
 const stitchOption = choice('costuras', 'Pespuntes', 'acabados', [['simple', 'Simple'], ['doble', 'Doble']], 'simple')
 const lengthOption = choice('largo', 'Largo', 'corte', [['crop', 'Crop'], ['normal', 'Normal'], ['largo', 'Largo']], 'normal')
@@ -427,7 +433,8 @@ const puffer: GarmentTemplate = {
     topFit('boxy', ['regular', 'boxy', 'oversize']),
     lengthOption,
     choice('cuello', 'Cuello', 'detalles', [['alto', 'Alto'], ['capucha', 'Capucha']], 'alto'),
-    choice('canales', 'Canales', 'detalles', [['estrechos', 'Estrechos'], ['anchos', 'Anchos']], 'anchos'),
+    channelWidth('anchos'),
+    channelShape,
     choice('bolsillos', 'Bolsillos', 'detalles', [['ojal', 'De ojal'], ['ninguno', 'Sin bolsillos']], 'ojal'),
     choice('punos', 'Puños y bajo', 'acabados', [['recto', 'Ribete elástico'], ['canale', 'Canalé']], 'recto'),
     stitchOption,
@@ -454,7 +461,8 @@ const puffer: GarmentTemplate = {
       cuff: rib,
       zip: 'completa',
       pocket: opt(puffer, o, 'bolsillos') === 'ojal' ? 'ojal' : 'ninguno',
-      quilt: opt(puffer, o, 'canales') === 'estrechos' ? 22 : 34,
+      quilt: CHANNEL_STEP[opt<string>(puffer, o, 'canales')] ?? 34,
+      quiltShape: opt<QuiltShape>(puffer, o, 'formaCanales'),
       ribScale: 0.8,
       scale: s,
     })
@@ -593,6 +601,8 @@ const chaleco: GarmentTemplate = {
     topFit('boxy', ['regular', 'boxy', 'oversize']),
     lengthOption,
     choice('tipo', 'Tipo', 'corte', [['acolchado', 'Acolchado'], ['tela', 'De tela']], 'acolchado'),
+    channelWidth('medios'),
+    channelShape,
     choice('cuello', 'Cuello', 'detalles', [['alto', 'Alto'], ['redondo', 'Redondo'], ['pico', 'Pico'], ['capucha', 'Capucha']], 'alto'),
     choice('cierre', 'Cierre', 'detalles', [['cremallera', 'Cremallera'], ['botones', 'Botones']], 'cremallera'),
     choice('bolsillos', 'Bolsillos', 'detalles', [['ojal', 'De ojal'], ['solapa', 'Con solapa'], ['ninguno', 'Sin bolsillos']], 'ojal'),
@@ -622,7 +632,8 @@ const chaleco: GarmentTemplate = {
       zip: buttons ? 'ninguna' : 'completa',
       placket: buttons ? 'completa' : 'ninguna',
       pocket: opt(chaleco, o, 'bolsillos'),
-      quilt: opt(chaleco, o, 'tipo') === 'acolchado' ? 30 : 0,
+      quilt: opt(chaleco, o, 'tipo') === 'acolchado' ? (CHANNEL_STEP[opt<string>(chaleco, o, 'canales')] ?? 30) : 0,
+      quiltShape: opt<QuiltShape>(chaleco, o, 'formaCanales'),
       scale: s,
     })
   },

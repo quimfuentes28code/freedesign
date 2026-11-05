@@ -30,6 +30,8 @@ export interface Shape {
   role?: 'button' | 'zip'
   /** Cuerpo de un bolsillo de parche de la prenda base: su forma se puede cambiar (ver pocketShape.ts). */
   pocket?: boolean
+  /** Recorte: la forma solo se ve dentro de este contorno (p. ej. los canales del acolchado, dentro del cuerpo). */
+  clip?: string
 }
 
 export interface PieceDef {
