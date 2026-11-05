@@ -1,0 +1,116 @@
+/* Inicio: plató de fotos a pantalla completa con una tarjeta de cristal oscuro abajo a la derecha */
+
+.studio.home-stage {
+  grid-template-columns: 1fr;
+  position: relative;
+  height: 100dvh;
+  background: #0b0907;
+}
+
+.home-stage .loading,
+.home-stage .busy {
+  color: #f3ece2;
+  background: rgb(20 16 12 / 0.6);
+  border-color: rgb(255 214 170 / 0.14);
+}
+
+.home-card {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  display: grid;
+  gap: 4px;
+  width: min(340px, calc(100vw - 48px));
+  padding: 18px 20px;
+  border-radius: 18px;
+  color: #f3ece2;
+  background: rgb(20 16 12 / 0.55);
+  border: 1px solid rgb(255 214 170 / 0.14);
+  box-shadow: 0 30px 80px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(255 240 220 / 0.06);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+}
+
+.home-kicker {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #e3c193;
+}
+
+.home-title {
+  font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: #fff6ea;
+}
+
+.home-sub {
+  font-size: 13px;
+  color: rgb(243 236 226 / 0.6);
+}
+
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.home-button {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 214 170 / 0.25);
+  background: rgb(255 236 214 / 0.06);
+  color: #f6e7d2;
+  font: inherit;
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.home-button:hover {
+  background: rgb(255 236 214 / 0.14);
+}
+
+.home-button.primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, #efd3a7, #c79a63);
+  color: #1b140d;
+  font-weight: 600;
+}
+
+.home-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: 12px;
+  color: rgb(243 236 226 / 0.45);
+  pointer-events: none;
+}
+
+@media (max-width: 760px) {
+  .studio.home-stage {
+    height: 100dvh;
+  }
+  .home-card {
+    right: 12px;
+    left: 12px;
+    bottom: 12px;
+    width: auto;
+  }
+  .home-hint {
+    display: none;
+  }
+}
+
+.studio.home-stage {
+  grid-template-rows: 1fr;
+}
+
+.home-stage .viewport {
+  height: 100%;
+}

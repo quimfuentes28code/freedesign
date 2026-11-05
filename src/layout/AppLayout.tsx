@@ -5,7 +5,7 @@ import { Icon, type IconName } from './icons'
 
 /** Apartados de la app, en el orden del menú. */
 export const SECTIONS: { to: string; label: string; icon: IconName }[] = [
-  { to: '/', label: 'Dashboard', icon: 'dashboard' },
+  { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
   { to: '/clientes', label: 'Clientes', icon: 'clients' },
   { to: '/disenador', label: 'Diseñador', icon: 'designer' },
   { to: '/proyectos', label: 'Proyectos', icon: 'projects' },
@@ -21,13 +21,17 @@ export function AppLayout() {
   // En el editor de un diseño el menú se recoge a iconos
   const { pathname } = useLocation()
   const compact = /^\/disenador\/(?!nuevo$|3d$|probador$)[^/]+$/.test(pathname)
+  // Inicio: el estudio de fotos 3D a pantalla completa, con el menú flotando encima
+  const home = pathname === '/'
   return (
-    <div className={compact ? 'app compact' : 'app'}>
+    <div className={['app', compact ? 'compact' : '', home ? 'home' : ''].filter(Boolean).join(' ')}>
       <aside className="sidebar">
-        <div className="brand">{compact ? 'FD' : 'FreeDesign'}</div>
+        <Link to="/" className="brand brand-link" title="Inicio: el estudio">
+          {compact ? 'FD' : 'FreeDesign'}
+        </Link>
         <nav className="nav" aria-label="Apartados">
           {SECTIONS.map((s) => (
-            <NavLink key={s.to} to={s.to} title={compact ? s.label : undefined} end={s.to === '/'} className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+            <NavLink key={s.to} to={s.to} title={compact ? s.label : undefined} className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
               <Icon name={s.icon} />
               <span>{s.label}</span>
             </NavLink>

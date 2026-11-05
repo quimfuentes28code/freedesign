@@ -6,6 +6,7 @@ import { LoginPage, RegisterPage } from './pages/auth/AuthPages'
 import { ClientForm } from './pages/clients/ClientForm'
 import { ClientsList } from './pages/clients/ClientsList'
 import { Dashboard } from './pages/Dashboard'
+import { StudioHome } from './pages/StudioHome'
 import { DesignEditor } from './pages/designer/DesignEditor'
 import { DesignsList, NewDesign } from './pages/designer/Designs'
 import { Preview3D } from './pages/designer/Preview3D'
@@ -36,7 +37,8 @@ export default function App() {
           </Route>
           <Route element={<RequireAuth />}>
             <Route element={<AppLayout />}>
-              <Route index element={<Dashboard />} />
+              <Route index element={<StudioHome />} />
+              <Route path="dashboard" element={<Dashboard />} />
               <Route path="perfil" element={<ProfilePage />} />
               <Route path="clientes" element={<ClientsList />} />
               <Route path="clientes/nuevo" element={<ClientForm />} />
