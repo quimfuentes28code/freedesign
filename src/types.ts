@@ -6,9 +6,17 @@ export interface Measurements {
   chest: number
   waist: number
   hips: number
+  /** Cuerpo de mujer: el maniquí lleva pecho, cintura más estrecha y más cadera. */
+  female?: boolean
+  /** Bajo pecho: con el busto (`chest`) da el tamaño del pecho del maniquí de mujer. */
+  underbust?: number
+  /** Contorno de cuello, ancho de espalda y talle de espalda. */
+  neck?: number
+  backWidth?: number
+  backLength?: number
 }
 
-export type GarmentType = 'sudadera' | 'camiseta' | 'manga-larga' | 'chaleco' | 'vestido' | 'pantalon'
+export type GarmentType = 'sudadera' | 'camiseta' | 'manga-larga' | 'chaleco' | 'top' | 'vestido' | 'pantalon'
 export type Fit = 'ajustado' | 'normal' | 'holgado'
 
 /**

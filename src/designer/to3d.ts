@@ -20,7 +20,8 @@ import { isPants, opt, type GarmentTemplate } from './types'
 function garmentOf(t: GarmentTemplate, data: DesignData): GarmentType {
   if (isPants(t)) return 'pantalon'
   if (t.id === 'sudadera') return 'sudadera'
-  if (t.id === 'chaleco' || t.id === 'top') return 'chaleco'
+  if (t.id === 'chaleco') return 'chaleco'
+  if (t.id === 'top') return 'top'
   return opt(t, data.options, 'manga') === 'corta' ? 'camiseta' : 'manga-larga'
 }
 
@@ -86,7 +87,8 @@ export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<s
     hood,
     pocket: t.id === 'sudadera' && opt(t, data.options, 'bolsillo') === 'canguro',
     cords: hood && opt<boolean>(t, data.options, 'cordones'),
-    bodyLength: (BODY_LENGTH[String(opt(t, data.options, 'largo'))] ?? 70) * s.length,
+    // Top: largo desde la axila (crop, a la cintura o a la cadera); el resto, del hombro al bajo
+    bodyLength: (t.id === 'top' ? ({ crop: 16, cintura: 26, cadera: 40 }[String(opt(t, data.options, 'largo'))] ?? 16) : (BODY_LENGTH[String(opt(t, data.options, 'largo'))] ?? 70)) * s.length,
     sleeveLength: 64 * s.sleeve,
     chestScale: isPants(t) ? s.hip : s.width,
     legLength: isPants(t) ? (LEG_LENGTH[String(opt(t, data.options, 'largo'))] ?? 1) * s.length : undefined,
@@ -95,14 +97,24 @@ export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<s
 }
 
 export const DEFAULT_MEASUREMENTS: Measurements = { height: 172, chest: 92, waist: 76, hips: 98 }
+/** Maniquí de mujer de partida (talla M): busto, bajo pecho, cintura y cadera de mujer. */
+export const FEMALE_MEASUREMENTS: Measurements = { height: 165, chest: 92, waist: 72, hips: 99, female: true, underbust: 76, neck: 34, backWidth: 35, backLength: 40 }
 
-/** Medidas del maniquí: las del cliente del diseño si las tiene, si no unas medias. */
-export function mannequinMeasurements(m?: ClientMeasurements): Measurements {
-  const clamp = (v: number | undefined, min: number, max: number, def: number) => (v ? Math.min(max, Math.max(min, v)) : def)
+/** Medidas del maniquí: las del cliente del diseño si las tiene, si no unas medias (de hombre o de mujer). */
+export function mannequinMeasurements(m?: ClientMeasurements, kind: 'hombre' | 'mujer' = 'hombre'): Measurements {
+  const def = kind === 'mujer' ? FEMALE_MEASUREMENTS : DEFAULT_MEASUREMENTS
+  const opt = (v: number | undefined, min: number, max: number) => (v ? Math.min(max, Math.max(min, v)) : undefined)
+  const clamp = (v: number | undefined, min: number, max: number, d: number) => (v ? Math.min(max, Math.max(min, v)) : d)
   return {
-    height: clamp(m?.altura, 140, 210, DEFAULT_MEASUREMENTS.height),
-    chest: clamp(m?.pecho, 70, 140, DEFAULT_MEASUREMENTS.chest),
-    waist: clamp(m?.cintura, 50, 130, DEFAULT_MEASUREMENTS.waist),
-    hips: clamp(m?.cadera, 70, 140, DEFAULT_MEASUREMENTS.hips),
+    height: clamp(m?.altura, 140, 210, def.height),
+    chest: clamp(m?.pecho, 70, 150, def.chest),
+    waist: clamp(m?.cintura, 50, 130, def.waist),
+    hips: clamp(m?.cadera, 70, 150, def.hips),
+    female: kind === 'mujer',
+    // El maniquí también sigue el bajo pecho (tamaño del pecho), el cuello, la espalda y el talle
+    underbust: opt(m?.bajoPecho, 55, 130) ?? def.underbust,
+    neck: opt(m?.cuello, 28, 50) ?? def.neck,
+    backWidth: opt(m?.anchoEspalda, 28, 55) ?? def.backWidth,
+    backLength: opt(m?.talleEspalda, 32, 52) ?? def.backLength,
   }
 }

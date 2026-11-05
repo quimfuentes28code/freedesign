@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Design, Measurements } from '../types'
-import { fitBody, measureModel, morphPositions, type ModelInfo } from './body'
+import { feminize, fitBody, measureModel, morphPositions, smoothNormals, type ModelInfo } from './body'
 import { Garment } from './Garment'
 import type { Cloud } from './wrap'
 
@@ -55,25 +55,37 @@ interface Props {
 /** Maniquí animado, ajustado a las medidas, con la prenda puesta. */
 export function Mannequin({ measurements, design, outfit = [], animate, showBody = true }: Props) {
   const gltf = useLoader(GLTFLoader, MODEL_URL)
-  const model = useMemo(() => prepare(gltf.scene, gltf.animations), [gltf])
+  const base = useMemo(() => prepare(gltf.scene, gltf.animations), [gltf])
+  const female = !!measurements.female
+  // Cuerpo de mujer: la malla de partida se deforma (pecho, cintura, cadera, hombros) y se vuelve a medir
+  const cup = female ? Math.max(4, measurements.chest - (measurements.underbust ?? measurements.chest - 16)) : 0
+  const model = useMemo<Model>(() => {
+    if (!female) return base
+    const shaped = feminize(base.bindPositions, base.info, 16, base.body.geometry.index?.array)
+    return { ...base, bindPositions: shaped, info: measureModel(shaped, base.body.skeleton) }
+  }, [base, female])
+  // El volumen del pecho de la clienta (busto − bajo pecho) se aplica sobre esa malla medida
+  const shapedPositions = useMemo(() => (female && Math.abs(cup - 16) > 0.5 ? feminize(base.bindPositions, base.info, cup, base.body.geometry.index?.array) : model.bindPositions), [female, cup, base, model])
   const fit = useMemo(() => fitBody(model.info, measurements), [model, measurements])
 
   // Forma del cuerpo según las medidas; la ropa se construye sobre ella
   const cloud = useMemo<Cloud>(() => {
-    const pos = new Float32Array(model.bindPositions.length)
-    morphPositions(model.bindPositions, pos, model.info, fit)
+    const pos = new Float32Array(shapedPositions.length)
+    morphPositions(shapedPositions, pos, model.info, fit)
     const attrs = model.body.geometry.attributes
     return {
       pos,
       skinIndex: attrs.skinIndex.array as Uint16Array,
       skinWeight: attrs.skinWeight.array as Float32Array,
     }
-  }, [model, fit])
+  }, [model, fit, shapedPositions])
 
   useLayoutEffect(() => {
     const attr = model.body.geometry.attributes.position as THREE.BufferAttribute
     ;(attr.array as Float32Array).set(cloud.pos)
     attr.needsUpdate = true
+    // La luz tiene que seguir la forma nueva (pecho, cadera…)
+    smoothNormals(model.body.geometry)
   }, [model, cloud])
 
   // Sin maniquí, la ropa se sigue construyendo sobre su cuerpo, pero el cuerpo no se pinta. Se oculta su material

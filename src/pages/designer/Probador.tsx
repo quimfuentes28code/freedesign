@@ -6,7 +6,7 @@ import { FlatView } from '../../designer/FlatView'
 import { getTemplate } from '../../designer/templates'
 import { mannequinMeasurements } from '../../designer/to3d'
 import { isPants } from '../../designer/types'
-import type { Design as SavedDesign } from '../../shared/designs'
+import { bodyKind, type Design as SavedDesign } from '../../shared/designs'
 import type { Material } from '../../shared/library'
 import { Scene } from '../../three/Scene'
 import { bodyOf, outfitOf, useDesign3D } from './Design3D'
@@ -22,6 +22,8 @@ export function Probador() {
   const library = useApi(() => api.listMaterials(), [])
   const materials = useMemo(() => new Map((library.data ?? []).map((m) => [m.id, m])), [library.data])
   const [clientId, setClientId] = useState('')
+  // Cuerpo del maniquí: el de mujer si se eligen prendas de mujer (se puede cambiar a mano)
+  const [bodyPick, setBodyPick] = useState<'auto' | 'hombre' | 'mujer'>('auto')
   const [topId, setTopId] = useState<string | null>(null)
   const [bottomId, setBottomId] = useState<string | null>(null)
   const [hoodUp, setHoodUp] = useState(false)
@@ -35,8 +37,10 @@ export function Probador() {
   const top = tops.find((d) => d.id === topId) ?? null
   const bottom = bottoms.find((d) => d.id === bottomId) ?? null
   const client = clients.data?.find((c) => c.id === clientId)
-  const body = useMemo(() => bodyOf(client), [client])
-  const measurements = useMemo(() => mannequinMeasurements(client?.measurements), [client])
+  const auto = [top, bottom].some((d) => d && bodyKind(d.data) === 'mujer') ? 'mujer' : 'hombre'
+  const kind = bodyPick === 'auto' ? auto : bodyPick
+  const body = useMemo(() => bodyOf(client, kind), [client, kind])
+  const measurements = useMemo(() => mannequinMeasurements(client?.measurements, kind), [client, kind])
 
   const top3d = useDesign3D(top ? getTemplate(top.template) : null, top?.data, materials, body)
   const bottom3d = useDesign3D(bottom ? getTemplate(bottom.template) : null, bottom?.data, materials, body)
@@ -67,6 +71,17 @@ export function Probador() {
           </Link>
         </div>
         <Status loading={designs.loading && !designs.data} error={designs.error} />
+
+        <section>
+          <h2>Cuerpo</h2>
+          <div className="segmented" role="group" aria-label="Cuerpo del maniquí">
+            {([['auto', 'Según la ropa'], ['hombre', 'Hombre'], ['mujer', 'Mujer']] as const).map(([id, label]) => (
+              <button key={id} className={bodyPick === id ? 'active' : ''} onClick={() => setBodyPick(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
 
         <section>
           <h2>Medidas</h2>

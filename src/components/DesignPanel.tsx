@@ -16,7 +16,7 @@ const FITS: { id: Fit; label: string }[] = [
   { id: 'holgado', label: 'Oversize' },
 ]
 
-const MEASUREMENTS: { key: keyof Measurements; label: string; min: number; max: number }[] = [
+const MEASUREMENTS: { key: 'height' | 'chest' | 'waist' | 'hips'; label: string; min: number; max: number }[] = [
   { key: 'height', label: 'Altura', min: 140, max: 210 },
   { key: 'chest', label: 'Pecho', min: 70, max: 140 },
   { key: 'waist', label: 'Cintura', min: 50, max: 130 },
@@ -141,6 +141,10 @@ export function DesignPanel(props: Props) {
 
       <section>
         <h2>Medidas del cuerpo</h2>
+        <label className="toggle">
+          <input type="checkbox" checked={!!measurements.female} onChange={(e) => props.onMeasurementsChange({ ...measurements, female: e.target.checked })} />
+          Cuerpo de mujer
+        </label>
         {MEASUREMENTS.map((m) => (
           <Slider
             key={m.key}

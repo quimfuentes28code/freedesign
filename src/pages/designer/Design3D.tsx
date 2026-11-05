@@ -97,7 +97,7 @@ export function Design3D({ template, data, materials, client, designId }: Props)
 
   const { design, outfit } = useMemo(() => outfitOf(main, other, pants), [main, other, pants])
   const shown = useMemo(() => ({ ...design, hoodUp }), [design, hoodUp])
-  const measurements = useMemo(() => mannequinMeasurements(client?.measurements), [client])
+  const measurements = useMemo(() => mannequinMeasurements(client?.measurements, kind), [client, kind])
   const [autoRotate, setAutoRotate] = useState(false)
   const sidePrints = (data.prints ?? []).filter((p) => p.view === 'side').length
 
@@ -144,7 +144,7 @@ export function Design3D({ template, data, materials, client, designId }: Props)
           </label>
         </div>
         <p className="design-3d-note">
-          {client && Object.keys(client.measurements).length ? `Medidas de ${client.name}` : 'Medidas estándar'}
+          {client && Object.keys(client.measurements).length ? `Medidas de ${client.name}` : kind === 'mujer' ? 'Medidas estándar de mujer' : 'Medidas estándar'}
           {!hasOwn3D(template) && ` · ${template.name}: forma 3D aproximada (algunos detalles solo se ven en 2D)`}
           {sidePrints > 0 && ' · Los estampados del lateral aún no se ven en 3D'}
           {' · Arrastra para girar'}

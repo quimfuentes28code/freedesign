@@ -364,7 +364,7 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
     const grid = new CloudGrid(pose.points)
     return buildGarment(model, cloud, pose, grid, fit, design, fabric)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, cloud, pose, fit, pattern, design.garment, design.fit, design.legLength, design.under, fabric])
+  }, [model, cloud, pose, fit, pattern, design.garment, design.fit, design.legLength, design.under, design.bodyLength, fabric])
   useEffect(() => () => wrapGeoms.forEach(({ g }) => g.dispose()), [wrapGeoms])
 
   // Estampados: una textura por lado, que se proyecta sobre el cuerpo de la prenda (ver PRINT_GLSL)
@@ -640,6 +640,14 @@ function buildGarment(
         flare: (t) => loose * 0.35 * (1 - t) ** 2,
         folds: { count: 10, amp: loose * 0.08, t0: 0.25, t1: 0 },
       })
+      pieces.push({ g, allow: torsoAndLegs, smoothing: 4, slot: 'cuerpo' })
+      break
+    }
+    case 'top': {
+      // Top de mujer: de debajo de las axilas (por encima del pecho) a su largo; sin mangas ni hombros
+      const top = I.chestY + (I.armY - I.chestY) * 0.55 + dy
+      const hem = Math.max(crotchY + 4, top - toModel(design.bodyLength / 100, fit))
+      const g = torso(hem, top, { flare: (t) => loose * 0.2 * (1 - t) ** 2 })
       pieces.push({ g, allow: torsoAndLegs, smoothing: 4, slot: 'cuerpo' })
       break
     }
