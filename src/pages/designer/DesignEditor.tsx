@@ -19,6 +19,7 @@ import { ColorwaysBar, ColorwaysCompare } from './Colorways'
 import { Design3D } from './Design3D'
 import { MeasuresPanel } from './MeasuresPanel'
 import { PieceInspector } from './PieceInspector'
+import { ExportMenu } from './ExportMenu'
 import { PrintsPanel } from './PrintsPanel'
 import { useHistory } from './useHistory'
 import './designer.css'
@@ -290,6 +291,18 @@ export function DesignEditor() {
           ))}
         </div>
         <div className="editor-actions">
+          <ExportMenu
+            template={template}
+            data={design.data}
+            materials={materials}
+            body={body}
+            bodyLabel={bodyLabel}
+            name={design.name}
+            view={view === 'all' ? null : view}
+            mode={settings.mode}
+            dims={settings.dims}
+            notes={settings.notes}
+          />
           <span className={dirty ? 'save-state dirty' : 'save-state'}>{saving ? 'Guardando…' : dirty ? 'Cambios sin guardar' : 'Guardado'}</span>
           <button className="button primary" onClick={save} disabled={!dirty || saving} title="Guardar (Ctrl+S)">
             Guardar

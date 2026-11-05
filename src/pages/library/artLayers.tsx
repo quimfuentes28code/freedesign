@@ -1,4 +1,4 @@
-import { fontDef, googleCss } from '../../designer/fonts'
+import { embeddedFontCss, toDataUrl } from '../../designer/fonts'
 import { measureText } from '../../designer/prints'
 import type { ArtLayer } from '../../shared/artworks'
 import { fileUrl } from '../../shared/library'
@@ -95,26 +95,12 @@ function starPath(rx: number, ry: number) {
   return `M ${pts.join(' L ')} Z`
 }
 
-/**
- * Fuentes de Google que usan los textos, listas para ir dentro del SVG: solo las letras que aparecen
- * (muy ligeras) y en base64, porque un SVG usado como imagen no puede descargar nada de fuera.
- */
+/** Fuentes de Google que usan los textos, dentro del SVG (ver embeddedFontCss). */
 async function embeddedFonts(layers: ArtLayer[]) {
   const texts = new Map<string, string>()
   for (const l of layers) if (l.type === 'text') texts.set(l.font, (texts.get(l.font) ?? '') + l.text)
-  const css: string[] = []
-  for (const [font, text] of texts) {
-    const def = fontDef(font)
-    if (!def?.family) continue
-    try {
-      let sheet = await (await fetch(googleCss([def], [...new Set(text)].join('') || 'A')!)).text()
-      for (const url of new Set(sheet.match(/https:\/\/[^)'"]+/g) ?? [])) sheet = sheet.replaceAll(url, await toDataUrl(url))
-      css.push(sheet)
-    } catch {
-      // Sin conexión: se guarda igual, con la fuente de reserva
-    }
-  }
-  return css.length ? `<defs><style>${css.join('\n')}</style></defs>` : ''
+  const css = await embeddedFontCss(texts)
+  return css ? `<defs><style>${css}</style></defs>` : ''
 }
 
 /**
@@ -136,14 +122,4 @@ export async function exportSvg(content: SVGGElement, layers: ArtLayer[] = []) {
   const fonts = await embeddedFonts(layers)
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${w.toFixed(1)}" height="${h.toFixed(1)}" viewBox="${x.toFixed(1)} ${y.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}">${fonts}${new XMLSerializer().serializeToString(clone)}</svg>`
   return { blob: new Blob([svg], { type: 'image/svg+xml' }), width: w, height: h }
-}
-
-async function toDataUrl(url: string) {
-  const blob = await (await fetch(url)).blob()
-  return new Promise<string>((resolve, reject) => {
-    const r = new FileReader()
-    r.onload = () => resolve(r.result as string)
-    r.onerror = reject
-    r.readAsDataURL(blob)
-  })
 }

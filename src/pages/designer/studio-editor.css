@@ -806,3 +806,38 @@
 .block-row span {
   flex: 1;
 }
+
+/* Exportar el dibujo */
+.export-menu {
+  position: relative;
+}
+.export-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  width: 260px;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.9rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e7e5e4);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+.export-panel h3 {
+  margin: 0.3rem 0 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted, #78716c);
+}
+.export-panel .segmented {
+  display: flex;
+}
+.export-panel .segmented button {
+  flex: 1;
+}
+.export-panel p {
+  margin: 0;
+}

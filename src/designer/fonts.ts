@@ -203,3 +203,34 @@ export function useFontsVersion() {
   }, [])
   return v
 }
+
+/** Un archivo (imagen, fuente) como data URL, para meterlo dentro de un SVG independiente. */
+export async function toDataUrl(url: string) {
+  const blob = await (await fetch(url)).blob()
+  return new Promise<string>((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(r.result as string)
+    r.onerror = reject
+    r.readAsDataURL(blob)
+  })
+}
+
+/**
+ * Hojas de estilo con las fuentes de Google usadas (fuente → texto escrito con ella), con solo esas letras
+ * y en base64: un SVG usado como imagen no puede descargar nada de fuera. Las fuentes del sistema no hacen falta.
+ */
+export async function embeddedFontCss(texts: Map<string, string>) {
+  const css: string[] = []
+  for (const [font, text] of texts) {
+    const def = fontDef(font)
+    if (!def?.family) continue
+    try {
+      let sheet = await (await fetch(googleCss([def], [...new Set(text)].join('') || 'A')!)).text()
+      for (const url of new Set(sheet.match(/https:\/\/[^)'"]+/g) ?? [])) sheet = sheet.replaceAll(url, await toDataUrl(url))
+      css.push(sheet)
+    } catch {
+      // Sin conexión: se usa la fuente de reserva
+    }
+  }
+  return css.join('\n')
+}

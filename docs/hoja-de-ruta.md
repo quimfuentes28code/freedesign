@@ -35,6 +35,6 @@ Se marca cada fase al terminarla.
 - [x] Estampado por toda la pieza: rayas, cuadros, lunares, camuflaje, tie-dye, logo repetido y degradado (también en 3D)
 - [x] Lavados: vintage, desgastado, ácido y decolorado, con intensidad
 
-## 6. Exportar
+## 6. Exportar ✓
 
-- [ ] Exportar el dibujo en PNG, SVG o PDF
+- [x] Exportar el dibujo en PNG, SVG o PDF (vista actual o las tres, color o línea, con cotas y notas)
