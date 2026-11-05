@@ -609,6 +609,15 @@ export function DesignEditor() {
 
         {panel === 'prenda' && (
           <div className="inspector-prenda">
+            {/* Añadir a la prenda (también cuando la columna de capas no cabe en la pantalla) */}
+            <div className="quick-add">
+              <button className="button" onClick={() => openPanel('estampados')}>
+                + Estampado, gráfico o texto
+              </button>
+              <button className="button" onClick={() => openPanel('detalles')}>
+                + Detalle o fornitura
+              </button>
+            </div>
             <p className="muted small">Haz clic en una pieza del dibujo para cambiar su color, superficie y material.</p>
             {OPTION_GROUPS.map((g, gi) => {
                 const options = template.options.filter((o) => o.group === g.id)

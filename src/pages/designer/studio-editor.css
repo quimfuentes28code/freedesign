@@ -758,9 +758,16 @@
   aspect-ratio: 320 / 480;
 }
 
+/* Pantallas medianas: la columna de capas se estrecha; solo se esconde en las pequeñas (el inspector tiene los botones de añadir) */
 @media (max-width: 1280px) {
   .editor.studio-editor {
-    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-columns: 190px minmax(0, 1fr) 290px;
+  }
+}
+
+@media (max-width: 1060px) {
+  .editor.studio-editor {
+    grid-template-columns: minmax(0, 1fr) 290px;
     grid-template-areas:
       'head head'
       'main panel';
@@ -1099,4 +1106,15 @@
   background: rgb(220 150 60 / 0.14);
   color: #f3c27e;
   font-weight: 500;
+}
+
+/* Botones para añadir estampados y detalles desde el inspector de la prenda */
+.quick-add {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.quick-add .button {
+  justify-content: flex-start;
 }
