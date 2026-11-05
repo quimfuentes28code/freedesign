@@ -29,7 +29,8 @@ export function Probador() {
   const [animate, setAnimate] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
 
   const all = (designs.data ?? []).filter((d) => getTemplate(d.template))
-  const tops = all.filter((d) => !isPants(getTemplate(d.template)!))
+  // Gorros y gorras aún no tienen forma 3D: no salen en el Probador
+  const tops = all.filter((d) => getTemplate(d.template)!.family === 'top')
   const bottoms = all.filter((d) => isPants(getTemplate(d.template)!))
   const top = tops.find((d) => d.id === topId) ?? null
   const bottom = bottoms.find((d) => d.id === bottomId) ?? null

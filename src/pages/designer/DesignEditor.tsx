@@ -6,7 +6,7 @@ import { colorLabel } from '../../designer/colors'
 import { switchColorway } from '../../designer/colorways'
 import { CX } from '../../designer/geometry'
 import { resolveMaterial } from '../../designer/materials'
-import { UNITS_PER_CM } from '../../designer/prints'
+import { unitsOf } from '../../designer/prints'
 import { fileUrl } from '../../shared/library'
 import { getTemplate } from '../../designer/templates'
 import { OPTION_GROUPS, opt, type GarmentTemplate } from '../../designer/types'
@@ -201,6 +201,7 @@ export function DesignEditor() {
   const setPrints = (next: Print[]) => setData({ prints: next })
   // Al mover un estampado se ajusta al centro de la prenda (si queda a menos de 1,5 cm) y, con la cuadrícula, a cada cm
   const changePrint = (p: Print) => {
+    const UNITS_PER_CM = unitsOf(template)
     const snapped = { ...p }
     if (settings.grid) {
       snapped.x = CX + Math.round((p.x - CX) / UNITS_PER_CM) * UNITS_PER_CM
@@ -698,6 +699,7 @@ export function DesignEditor() {
 
         {panel === 'detalles' && (
           <DetailsPanel
+            upc={unitsOf(template)}
             details={details}
             onChange={setDetails}
             view={view === 'all' ? 'front' : view}

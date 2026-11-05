@@ -8,7 +8,7 @@ export interface Measurements {
   hips: number
 }
 
-export type GarmentType = 'sudadera' | 'camiseta' | 'manga-larga' | 'vestido' | 'pantalon'
+export type GarmentType = 'sudadera' | 'camiseta' | 'manga-larga' | 'chaleco' | 'vestido' | 'pantalon'
 export type Fit = 'ajustado' | 'normal' | 'holgado'
 
 /**

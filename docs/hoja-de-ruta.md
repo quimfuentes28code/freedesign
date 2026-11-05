@@ -39,15 +39,15 @@ Se marca cada fase al terminarla.
 
 - [x] Exportar el dibujo en PNG, SVG o PDF (vista actual o las tres, color o línea, con cotas y notas)
 
-## 7. Más prendas
+## 7. Más prendas ✓
 
-- [ ] Atajos en «Nuevo diseño»: camiseta de manga larga, polo de manga larga y camisa de manga corta (ya existen como opción de manga; que salgan como prendas propias)
-- [ ] Pantalón corto más ancho por defecto
-- [ ] Pantalón de chándal (banda lateral, bajo con puño o cremallera)
-- [ ] Chaleco (acolchado o de tela, sin mangas)
-- [ ] Cazadora (tipo trucker: canesú, bolsillos de pecho con tapeta, botones)
-- [ ] Cortavientos (nylon, cremallera entera o media, capucha recogible, paneles de color)
-- [ ] Gorro (beanie, con o sin vuelta) y gorra (visera, 5 o 6 paneles, cierre trasero): prendas de cabeza, en 2D y ficha; en 3D más adelante
+- [x] Atajos en «Nuevo diseño»: camiseta de manga larga, polo de manga larga y camisa de manga corta
+- [x] Pantalón corto más ancho y de pierna recta por defecto
+- [x] Pantalón de chándal (jogger con banda lateral; la banda es una opción de todos los joggers y cortos)
+- [x] Chaleco (acolchado o de tela, sin mangas; también en 3D)
+- [x] Cazadora (tipo trucker: cuello camisero, canesú delantero, bolsillos de pecho con tapeta, botones y pretina)
+- [x] Cortavientos (nylon, cremallera entera o media, capucha o cuello alto, ribetes elásticos). Los paneles de color se hacen con «Dividir color»
+- [x] Gorro (beanie, normal o corto, con o sin vuelta y pompón) y gorra (5 o 6 paneles, visera curva o plana, trucker, snapback, hebilla o velcro), en 2D y ficha; en 3D más adelante
 
 ## 8. Cuellos y capuchas combinables
 

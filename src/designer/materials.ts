@@ -197,6 +197,11 @@ const DEFAULTS: Record<string, Record<string, string>> = {
   camisa: { '*': 'cat:popelin', botones: 'cat:boton-resina' },
   puffer: { '*': 'cat:ripstop', punos: 'cat:licra', bajo: 'cat:licra', fornituras: 'cat:cremallera-vislon' },
   'pantalon-ancho': { '*': 'cat:chino', cordon: 'cat:cordon-algodon', botones: 'cat:boton-corozo' },
+  chaleco: { '*': 'cat:ripstop', bajo: 'cat:licra', fornituras: 'cat:cremallera-vislon', botones: 'cat:automatico' },
+  cazadora: { '*': 'cat:denim-rigido', botones: 'cat:boton-metal' },
+  cortavientos: { '*': 'cat:ripstop', punos: 'cat:licra', bajo: 'cat:licra', cordones: 'cat:cordon-algodon', fornituras: 'cat:cremallera-vislon' },
+  gorro: { '*': 'cat:canale-2x2', pompon: 'cat:punto-lana' },
+  gorra: { '*': 'cat:chino', trasera: 'cat:malla', visera: 'cat:chino', boton: 'cat:chino', cierre: 'cat:metal-niquel', ojetes: 'cat:chino' },
   'pantalon-corto': { '*': 'cat:french-terry', punos: 'cat:canale-2x2', cinturilla: 'cat:canale-2x2', cordon: 'cat:cordon-algodon', botones: 'cat:boton-metal' },
 }
 

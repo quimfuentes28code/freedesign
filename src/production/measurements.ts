@@ -66,7 +66,7 @@ const half = (n: number) => Math.round(n * 2) / 2
 /** Puntos de medida de una prenda con sus opciones. */
 export function garmentPoms(t: GarmentTemplate, o: Options): Pom[] {
   const get = <T extends string | boolean>(id: string) => opt<T>(t, o, id)
-  return t.family === 'pants' ? pantsPoms(get) : topPoms(t.id, get)
+  return t.family === 'pants' ? pantsPoms(get) : t.family === 'head' ? headPoms(t.id, get) : topPoms(t.id, get)
 }
 
 type Get = <T extends string | boolean>(id: string) => T
@@ -82,7 +82,9 @@ function topPoms(id: string, get: Get): Pom[] {
   const rib = id === 'bomber' || get('punos') === 'canale'
   const shirtCuff = id === 'camisa' && !shortSleeve
   const hood = (id === 'sudadera' && get<boolean>('capucha')) || get('cuello') === 'capucha'
-  const zip = id === 'puffer' || (id === 'bomber' && get('cierre') !== 'botones') ? 'completa' : (get<string>('cremallera') ?? 'ninguna')
+  const zip = id === 'puffer' || ((id === 'bomber' || id === 'chaleco') && get('cierre') !== 'botones') ? 'completa' : (get<string>('cremallera') ?? 'ninguna')
+  // El chaleco no lleva mangas
+  const sleeveless = id === 'chaleco'
   const neck = get<string>('cuello')
   const neckDrop = neck === 'pico' ? 18 : neck === 'cubano' ? 20 : neck === 'solapa' ? 32 : id === 'bomber' ? 8 : 9
 
@@ -122,6 +124,13 @@ function topPoms(id: string, get: Get): Pom[] {
     { id: 'escote', label: 'Ancho de escote', how: 'De costura a costura del cuello, en línea recta', tol: 0.5, uses: ['cuello'], value: (b) => b.cuello * 0.46 + (fit === 'oversize' ? 1 : 0) },
     { id: 'caida-escote', label: 'Caída de escote delantero', how: 'Desde la línea de hombros hasta la costura del cuello', tol: 0.5, uses: [], value: () => neckDrop },
   ]
+  if (sleeveless) {
+    for (const drop of ['manga', 'biceps', 'puno', 'boca-manga']) {
+      const i = poms.findIndex((p) => p.id === drop)
+      if (i >= 0) poms.splice(i, 1)
+    }
+    poms.push({ id: 'sisa', label: 'Alto de sisa', how: 'Del hombro a la parte baja de la sisa, en recto', tol: 0.5, uses: ['pecho'], value: (b) => b.pecho * 0.26 + 2 })
+  }
   if (neck === 'alto' || (id === 'sudadera' && !hood && get('cuelloSin') === 'alto')) {
     poms.push({ id: 'cuello-alto', label: 'Alto de cuello', how: 'Desde la costura del escote hasta el borde del cuello', tol: 0.5, uses: ['cuello'], value: (b) => 8 + (b.cuello - 39) * 0.2 })
   }
@@ -134,6 +143,26 @@ function topPoms(id: string, get: Get): Pom[] {
   if (zip === 'completa') poms.push({ id: 'cremallera', label: 'Largo de cremallera', how: 'Dientes, de tope a tope', tol: 0.5, uses: ['talleEspalda'], value: (b) => length(b) - (hood ? 2 : 5) })
   if (zip === 'media') poms.push({ id: 'cremallera', label: 'Largo de cremallera', how: 'Dientes, de tope a tope', tol: 0.5, uses: ['talleEspalda'], value: (b) => 20 + (b.talleEspalda - 42) * 0.5 })
   return poms.map((p) => ({ ...p, value: (b: Body) => half(p.value(b)) }))
+}
+
+/** Gorro y gorra: talla única de cabeza (57 cm), con sus altos. */
+function headPoms(id: string, get: Get): Pom[] {
+  const head = 57
+  const poms: Pom[] =
+    id === 'gorra'
+      ? [
+          { id: 'contorno', label: 'Contorno de copa', how: 'Por el borde interior de la copa, con el cierre en el punto medio', tol: 1, uses: [], value: () => head },
+          { id: 'alto-copa', label: 'Alto de copa', how: 'Del borde de la copa al botón superior, por delante', tol: 0.5, uses: [], value: () => 14 },
+          { id: 'visera', label: 'Largo de visera', how: 'Del borde de la copa a la punta de la visera, por el centro', tol: 0.5, uses: [], value: () => (get('visera') === 'plana' ? 7.5 : 7) },
+          { id: 'ancho-visera', label: 'Ancho de visera', how: 'De punta a punta, en recto', tol: 0.5, uses: [], value: () => 18.5 },
+        ]
+      : [
+          { id: 'contorno', label: 'Contorno', how: 'Por el borde, sin estirar', tol: 1, uses: [], value: () => head - 9 },
+          { id: 'ancho', label: 'Ancho en plano', how: 'De lado a lado, con el gorro plano', tol: 0.5, uses: [], value: () => (head - 9) / 2 },
+          { id: 'alto', label: 'Alto total', how: 'Del borde a la coronilla (con la vuelta desdoblada)', tol: 0.5, uses: [], value: () => (get('alto') === 'corto' ? 17 : 22) + (get<boolean>('vuelta') ? 7 : 0) },
+          ...(get<boolean>('vuelta') ? [{ id: 'vuelta', label: 'Alto de la vuelta', how: 'Con la vuelta doblada', tol: 0.5, uses: [] as MeasurementKey[], value: () => 7 }] : []),
+        ]
+  return poms
 }
 
 function pantsPoms(get: Get): Pom[] {

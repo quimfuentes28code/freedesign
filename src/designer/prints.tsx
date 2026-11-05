@@ -5,6 +5,8 @@ import { loadFont } from './fonts'
 
 /** Unidades del lienzo del dibujo técnico por cm real (aprox. en una talla M). */
 export const UNITS_PER_CM = 2
+/** Unidades del lienzo por cm de una prenda base (las de cabeza se dibujan más grandes). */
+export const unitsOf = (t?: { unitsPerCm?: number } | null) => t?.unitsPerCm ?? UNITS_PER_CM
 
 let ctx: CanvasRenderingContext2D | null = null
 /** Ancho de un texto con su tipografía, en las mismas unidades que `size`. */

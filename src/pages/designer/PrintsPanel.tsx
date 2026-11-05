@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { api } from '../../api/client'
 import { Field } from '../../components/ui'
 import { CX } from '../../designer/geometry'
-import { printSize, UNITS_PER_CM } from '../../designer/prints'
+import { printSize, unitsOf } from '../../designer/prints'
 import { VIEWS, type GarmentTemplate, type View } from '../../designer/types'
 import { FontPicker } from '../../components/FontPicker'
 import { TECHNIQUES, type Artwork, type Technique } from '../../shared/artworks'
@@ -143,6 +143,7 @@ export function PrintsPanel({ template, prints, onChange, view, onViewChange, se
     onSelect(copy.id)
   }
 
+  const UNITS_PER_CM = unitsOf(template)
   const widthCm = current ? printSize(current).w / UNITS_PER_CM : 0
   const setWidthCm = (cm: number) => {
     if (!current) return

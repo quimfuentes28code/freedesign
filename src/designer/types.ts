@@ -69,8 +69,10 @@ export type Options = Record<string, string | boolean>
 /** Prenda base del catálogo. */
 export interface GarmentTemplate {
   id: string
-  /** Prenda de torso (sudadera, camisa, chaqueta…) o pantalón: decide medidas, cotas, ficha y vista 3D. */
-  family: 'top' | 'pants'
+  /** Prenda de torso (sudadera, camisa, chaqueta…), pantalón o de cabeza (gorro, gorra): decide medidas, cotas, ficha y vista 3D. */
+  family: 'top' | 'pants' | 'head'
+  /** Unidades del lienzo por cm (las prendas de cabeza se dibujan más grandes; por defecto, las de la ropa). */
+  unitsPerCm?: number
   name: string
   description: string
   pieces: PieceDef[]
@@ -92,6 +94,7 @@ export interface PrintZone {
 }
 
 export const isPants = (t: Pick<GarmentTemplate, 'family'>) => t.family === 'pants'
+export const isHead = (t: Pick<GarmentTemplate, 'family'>) => t.family === 'head'
 
 /** Valor de una opción, con su valor por defecto si no está puesta. */
 export function opt<T extends string | boolean>(t: GarmentTemplate, o: Options, id: string): T {

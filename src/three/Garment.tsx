@@ -634,6 +634,15 @@ function buildGarment(
       pieces.push({ g: sleeve(-1, coverage), allow: only(Part.ArmR, Part.Torso), smoothing: 3, slot: 'mangas' })
       break
     }
+    case 'chaleco': {
+      // Chaleco: solo el cuerpo, sin mangas
+      const g = torso(hipsY - 2, neckTop, {
+        flare: (t) => loose * 0.35 * (1 - t) ** 2,
+        folds: { count: 10, amp: loose * 0.08, t0: 0.25, t1: 0 },
+      })
+      pieces.push({ g, allow: torsoAndLegs, smoothing: 4, slot: 'cuerpo' })
+      break
+    }
     case 'vestido': {
       // Vestido sin mangas: de la rodilla al cuello; por debajo de la cadera se abre en falda
       const hem = kneeY - 4

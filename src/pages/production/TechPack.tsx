@@ -12,7 +12,7 @@ import { fontLabel } from '../../designer/fonts'
 import { measureDeltas } from '../../designer/measures'
 import { CX } from '../../designer/geometry'
 import { resolveMaterial } from '../../designer/materials'
-import { printSize, UNITS_PER_CM } from '../../designer/prints'
+import { printSize, unitsOf } from '../../designer/prints'
 import { getTemplate } from '../../designer/templates'
 import { VIEWS, type GarmentTemplate } from '../../designer/types'
 import { defaultAssembly, defaultConstruction } from '../../production/construction'
@@ -573,7 +573,7 @@ function DetailsTable({ template, design, artworks }: { template: GarmentTemplat
   const details = (design.data.details ?? []).filter((d) => !d.hidden)
   if (!buttons && !zip && !details.length) return null
   const label = <T extends { id: string; label: string }>(list: readonly T[], id?: string) => list.find((x) => x.id === id)?.label ?? id ?? ''
-  const cm = (u: number) => (Math.round((u / UNITS_PER_CM) * 2) / 2).toLocaleString('es-ES')
+  const cm = (u: number) => (Math.round((u / unitsOf(template)) * 2) / 2).toLocaleString('es-ES')
   const artName = (a?: DetailArt | null) => (a ? (artworks.get(a.artworkId ?? '')?.name ?? 'gráfico') : '')
   const colorOf = (piece: string) => design.data.pieces[piece] ?? { color: template.pieces.find((p) => p.id === piece)?.defaultColor ?? '#cccccc', materialId: null }
   const zipPiece = front.find((s) => s.role === 'zip')?.piece
@@ -693,7 +693,7 @@ function MiniPrims({ prims }: { prims: Prim[] }) {
 }
 
 function PrintsTable({ template, prints, artworks }: { template: GarmentTemplate; prints: Print[]; artworks: Map<string, Artwork> }) {
-  const cm = (u: number) => (Math.round((u / UNITS_PER_CM) * 2) / 2).toLocaleString('es-ES')
+  const cm = (u: number) => (Math.round((u / unitsOf(template)) * 2) / 2).toLocaleString('es-ES')
   return (
     <table className="spec-table">
       <thead>
@@ -711,7 +711,7 @@ function PrintsTable({ template, prints, artworks }: { template: GarmentTemplate
           const { w, h } = printSize(p)
           const zones = template.printZones[p.view] ?? []
           const zone = [...zones].sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0]
-          const dx = (p.x - CX) / UNITS_PER_CM
+          const dx = (p.x - CX) / unitsOf(template)
           return (
             <tr key={p.id}>
               <td className="print-cell">

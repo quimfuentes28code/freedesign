@@ -20,6 +20,8 @@ export interface PantsCfg {
   cargo: boolean
   backPockets: boolean
   cord: boolean
+  /** Banda lateral a lo largo de la costura exterior (pantalón de chándal): ancho en unidades del lienzo, 0 = sin banda. */
+  stripe?: number
   stitch: 'simple' | 'doble'
   /** Medidas propias del diseño (ver measures.ts). */
   scale?: DrawScale
@@ -32,6 +34,7 @@ export const PANTS_PIECES = {
   cuffs: 'punos',
   cord: 'cordon',
   buttons: 'botones',
+  stripe: 'banda',
 } as const
 
 /** Altura del bajo según el largo (unidades del lienzo). */
@@ -54,9 +57,9 @@ function frame(c: PantsCfg) {
   const k = c.scale ?? NO_SCALE
   const base = FIT[c.fit]
   const short = c.length === 'corto' || c.length === 'bermuda'
-  // En los cortos la pernera apenas se estrecha: la «rodilla» es la mitad del muslo y el bajo es casi tan ancho
+  // En los cortos la pernera cae recta y ancha: el bajo es casi tan ancho como la pierna en la entrepierna
   const F = short
-    ? { hip: base.hip * k.hip, knee: base.knee * 1.25 * k.knee, hem: base.knee * 1.18 * k.hem }
+    ? { hip: base.hip * k.hip, knee: base.hip * 0.92 * k.knee, hem: base.hip * 0.88 * k.hem }
     : c.wide
       ? { hip: base.hip * k.hip, knee: base.hip * 0.74 * k.knee, hem: base.hip * 0.8 * k.hem }
       : { hip: base.hip * k.hip, knee: base.knee * k.knee, hem: base.hem * k.hem }
@@ -99,6 +102,15 @@ export function drawPants(view: View, c: PantsCfg): Shape[] {
     ],
   ]
   for (const [start, segs] of [leg, mirrorSegs(...leg)]) out.push({ kind: 'fill', piece: P.legs, d: path(start, segs) })
+
+  // Banda lateral (chándal): sigue la costura exterior, de la cinturilla al bajo
+  if (c.stripe) {
+    const ys = Array.from({ length: 13 }, (_, i) => TOP + ((f.hemTop - TOP) * i) / 12)
+    const outer = ys.map((y): Pt => [f.outerAt(y) - 0.5, y])
+    const inner = [...ys].reverse().map((y): Pt => [f.outerAt(y) - c.stripe!, y])
+    const d = `M${[...outer, ...inner].map((p) => p.join(' ')).join('L')}Z`
+    pair([{ kind: 'fill', piece: P.stripe, d }])
+  }
 
   // Puño o bajo recto
   pair(
@@ -241,6 +253,14 @@ function drawSide(c: PantsCfg, f: ReturnType<typeof frame>): Shape[] {
   const seamKnee: Pt = [CX + f.F.knee * 0.03, f.kneeY]
   const seamHem: Pt = [(frontHem + backHem) / 2, f.hemTop]
   out.push({ kind: 'line', piece: P.legs, d: `${line(seamTop, seamKnee)} ${line(seamKnee, seamHem)}` })
+  if (c.stripe) {
+    const w = c.stripe
+    out.push({
+      kind: 'fill',
+      piece: P.stripe,
+      d: path([seamTop[0] - w / 2, TOP], [{ to: [seamTop[0] + w / 2, TOP] }, { to: [seamKnee[0] + w / 2, f.kneeY] }, { to: [seamHem[0] + w / 2, f.hemTop] }, { to: [seamHem[0] - w / 2, f.hemTop] }, { to: [seamKnee[0] - w / 2, f.kneeY] }]),
+    })
+  }
   if (c.sidePockets) out.push({ kind: 'line', piece: P.legs, d: curve([CX + depth - 14, TOP], [CX + depth - 6, 110], [CX + 2, 132]) })
   if (c.cargo) {
     const top: Pt = lerp(seamTop, seamKnee, (226 - TOP) / (f.kneeY - TOP))

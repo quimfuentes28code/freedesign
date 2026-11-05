@@ -1,6 +1,7 @@
 import { drawPants, PANTS_PIECES, type PantsCfg } from './pants'
 import { CX } from './geometry'
 import { drawTop, TOP_PIECES, type Neck, type TopCfg } from './top'
+import { drawBeanie, drawCap, HEAD_PIECES, HEAD_UNITS_PER_CM, type CapCfg } from './head'
 import { opt, type ChoiceOption, type GarmentTemplate, type OptionDef, type Options, type PieceDef, type ToggleOption } from './types'
 
 /**
@@ -420,6 +421,7 @@ const pantsPieces = (legs: string): PieceDef[] => [
   { id: PP.cuffs, label: 'Puños', defaultColor: legs, materials: FABRIC },
   { id: PP.cord, label: 'Cordón', defaultColor: '#f4f1ea', materials: TRIM },
   { id: PP.buttons, label: 'Botón', defaultColor: '#8a8780', materials: TRIM },
+  { id: PP.stripe, label: 'Banda lateral', defaultColor: '#f2efe8', materials: FABRIC },
 ]
 
 /** Piezas que salen en un pantalón con estas opciones. */
@@ -431,6 +433,7 @@ function pantsActive(t: GarmentTemplate, o: Options, waist: 'elastica' | 'trabil
     ...(opt(t, o, 'bajo') === 'puno' ? [PP.cuffs] : []),
     ...(waist === 'elastica' && opt<boolean>(t, o, 'cordon') ? [PP.cord] : []),
     ...(waist === 'trabillas' ? [PP.buttons] : []),
+    ...(opt<boolean>(t, o, 'banda') ? [PP.stripe] : []),
   ]
 }
 
@@ -446,6 +449,7 @@ function pantsCfg(t: GarmentTemplate, o: Options, waist: 'elastica' | 'trabillas
     backPockets: opt(t, o, 'traseros'),
     cord: waist === 'elastica' && (opt<boolean>(t, o, 'cordon') ?? false),
     stitch: opt(t, o, 'costuras'),
+    stripe: opt<boolean>(t, o, 'banda') ? 12 : 0,
     scale: s,
   }
 }
@@ -465,6 +469,7 @@ const pantalon: GarmentTemplate = {
     toggle('cargo', 'Bolsillos cargo', 'detalles', true),
     toggle('traseros', 'Bolsillos traseros', 'detalles', true),
     toggle('cordon', 'Cordón', 'detalles', true),
+    toggle('banda', 'Banda lateral', 'detalles', false),
     stitchOption,
   ],
   activePieces: (o) => pantsActive(pantalon, o, 'elastica'),
@@ -501,13 +506,14 @@ const pantalonCorto: GarmentTemplate = {
   printZones: SHORTS_ZONES,
   pieces: pantsPieces('#4b4f45'),
   options: [
-    pantsFit('regular'),
+    pantsFit('ancho'),
     choice('largo', 'Largo', 'corte', [['corto', 'Corto'], ['bermuda', 'Bermuda']], 'corto'),
     choice('cintura', 'Cintura', 'detalles', [['elastica', 'Elástica'], ['trabillas', 'Con trabillas y botón']], 'elastica'),
     toggle('laterales', 'Bolsillos laterales', 'detalles', true),
     toggle('cargo', 'Bolsillos cargo', 'detalles', false),
     toggle('traseros', 'Bolsillos traseros', 'detalles', true),
     toggle('cordon', 'Cordón', 'detalles', true),
+    toggle('banda', 'Banda lateral', 'detalles', false),
     choice('bajo', 'Bajo', 'acabados', [['recto', 'Recto'], ['vuelto', 'Vuelto'], ['puno', 'Con puño']], 'recto'),
     stitchOption,
   ],
@@ -515,16 +521,308 @@ const pantalonCorto: GarmentTemplate = {
   draw: (view, o, s) => drawPants(view, pantsCfg(pantalonCorto, o, opt(pantalonCorto, o, 'cintura'), s)),
 }
 
-export const TEMPLATES: GarmentTemplate[] = [sudadera, camiseta, polo, camisa, bomber, puffer, pantalon, pantalonAncho, pantalonCorto]
+// --- Chaleco ---
+
+const chaleco: GarmentTemplate = {
+  id: 'chaleco',
+  family: 'top',
+  name: 'Chaleco',
+  description: 'Sin mangas, acolchado o de tela, con cuello alto, redondo o capucha, cremallera o botones.',
+  printZones: TOP_ZONES,
+  pieces: [
+    { id: T.body, label: 'Cuerpo', defaultColor: '#2f3a2e', materials: FABRIC },
+    { id: T.collar, label: 'Cuello', defaultColor: '#2f3a2e', materials: FABRIC },
+    { id: T.hood, label: 'Capucha', defaultColor: '#2f3a2e', materials: FABRIC },
+    { id: T.pocket, label: 'Bolsillos', defaultColor: '#2f3a2e', materials: FABRIC },
+    { id: T.hem, label: 'Bajo', defaultColor: '#2f3a2e', materials: FABRIC },
+    { id: T.placket, label: 'Tapeta', defaultColor: '#2f3a2e', materials: FABRIC },
+    { id: T.buttons, label: 'Botones', defaultColor: '#b8b8b8', materials: TRIM },
+    { id: T.hardware, label: 'Cremallera', defaultColor: '#2b2b2b', materials: TRIM },
+  ],
+  options: [
+    topFit('boxy', ['regular', 'boxy', 'oversize']),
+    lengthOption,
+    choice('tipo', 'Tipo', 'corte', [['acolchado', 'Acolchado'], ['tela', 'De tela']], 'acolchado'),
+    choice('cuello', 'Cuello', 'detalles', [['alto', 'Alto'], ['redondo', 'Redondo'], ['pico', 'Pico'], ['capucha', 'Capucha']], 'alto'),
+    choice('cierre', 'Cierre', 'detalles', [['cremallera', 'Cremallera'], ['botones', 'Botones']], 'cremallera'),
+    choice('bolsillos', 'Bolsillos', 'detalles', [['ojal', 'De ojal'], ['solapa', 'Con solapa'], ['ninguno', 'Sin bolsillos']], 'ojal'),
+    choice('bajo', 'Bajo', 'acabados', [['recto', 'Ribete'], ['canale', 'Canalé']], 'recto'),
+    stitchOption,
+  ],
+  activePieces: (o) => {
+    const neck = opt(chaleco, o, 'cuello')
+    const buttons = opt(chaleco, o, 'cierre') === 'botones'
+    return [
+      T.body,
+      neck === 'capucha' ? T.hood : T.collar,
+      ...(opt(chaleco, o, 'bolsillos') !== 'ninguno' ? [T.pocket] : []),
+      ...(opt(chaleco, o, 'bajo') === 'canale' ? [T.hem] : []),
+      ...(buttons ? [T.placket, T.buttons] : [T.hardware]),
+    ]
+  },
+  draw: (view, o, s) => {
+    const buttons = opt(chaleco, o, 'cierre') === 'botones'
+    return drawTop(view, {
+      ...topBase(o, chaleco),
+      sleeve: 'sin',
+      neck: opt<Neck>(chaleco, o, 'cuello'),
+      hem: opt(chaleco, o, 'bajo') === 'canale' ? 'canale' : 'recto',
+      cuff: 'recto',
+      zip: buttons ? 'ninguna' : 'completa',
+      placket: buttons ? 'completa' : 'ninguna',
+      pocket: opt(chaleco, o, 'bolsillos'),
+      quilt: opt(chaleco, o, 'tipo') === 'acolchado' ? 30 : 0,
+      scale: s,
+    })
+  },
+}
+
+// --- Cazadora ---
+
+const cazadora: GarmentTemplate = {
+  id: 'cazadora',
+  family: 'top',
+  name: 'Cazadora',
+  description: 'Tipo trucker o vaquera: cuello camisero, canesú delantero, bolsillos de pecho con tapeta, botones y pretina.',
+  printZones: TOP_ZONES,
+  pieces: [
+    { id: T.body, label: 'Cuerpo', defaultColor: '#3b5b86', materials: FABRIC },
+    { id: T.sleeves, label: 'Mangas', defaultColor: '#3b5b86', materials: FABRIC },
+    { id: T.collar, label: 'Cuello', defaultColor: '#3b5b86', materials: FABRIC },
+    { id: T.pocket, label: 'Bolsillos', defaultColor: '#3b5b86', materials: FABRIC },
+    { id: T.placket, label: 'Tapeta', defaultColor: '#3b5b86', materials: FABRIC },
+    { id: T.cuffs, label: 'Puños', defaultColor: '#3b5b86', materials: FABRIC },
+    { id: T.hem, label: 'Pretina', defaultColor: '#3b5b86', materials: FABRIC },
+    { id: T.buttons, label: 'Botones', defaultColor: '#b08d57', materials: TRIM },
+  ],
+  options: [
+    topFit('boxy', ['regular', 'boxy', 'oversize']),
+    choice('largo', 'Largo', 'corte', [['crop', 'Crop'], ['normal', 'Normal']], 'normal'),
+    choice('cuello', 'Cuello', 'detalles', [['camisero', 'Camisero'], ['mao', 'Mao'], ['solapa', 'Solapa']], 'camisero'),
+    toggle('canesu', 'Canesú delantero', 'detalles', true),
+    choice('bolsillos', 'Bolsillos', 'detalles', [['pecho-tapeta', 'De pecho con tapeta'], ['solapa', 'Bajos con solapa'], ['ninguno', 'Sin bolsillos']], 'pecho-tapeta'),
+    choice('bajo', 'Bajo', 'acabados', [['pretina', 'Pretina'], ['recto', 'Dobladillo']], 'pretina'),
+    toggle('canesuEspalda', 'Canesú en la espalda', 'acabados', true),
+    // Las cazadoras vaqueras llevan pespunte doble
+    { ...stitchOption, default: 'doble' },
+  ],
+  activePieces: (o) => [
+    T.body,
+    T.sleeves,
+    T.collar,
+    T.placket,
+    T.buttons,
+    T.cuffs,
+    ...(opt(cazadora, o, 'bolsillos') !== 'ninguno' ? [T.pocket] : []),
+    ...(opt(cazadora, o, 'bajo') === 'pretina' ? [T.hem] : []),
+  ],
+  draw: (view, o, s) =>
+    drawTop(view, {
+      ...topBase(o, cazadora),
+      sleeve: 'larga',
+      neck: opt<Neck>(cazadora, o, 'cuello'),
+      hem: opt(cazadora, o, 'bajo') === 'pretina' ? 'pretina' : 'recto',
+      cuff: 'camisero',
+      placket: 'completa',
+      pocket: opt(cazadora, o, 'bolsillos'),
+      frontYoke: opt<boolean>(cazadora, o, 'canesu'),
+      yoke: opt<boolean>(cazadora, o, 'canesuEspalda'),
+      scale: s,
+    }),
+}
+
+// --- Cortavientos ---
+
+const cortavientos: GarmentTemplate = {
+  id: 'cortavientos',
+  family: 'top',
+  name: 'Cortavientos',
+  description: 'Nylon ligero con capucha o cuello alto, cremallera entera o media (anorak), bolsillo canguro o de ojal y ribetes elásticos.',
+  printZones: TOP_ZONES,
+  pieces: [
+    { id: T.body, label: 'Cuerpo', defaultColor: '#5b6d8c', materials: FABRIC },
+    { id: T.sleeves, label: 'Mangas', defaultColor: '#5b6d8c', materials: FABRIC },
+    { id: T.hood, label: 'Capucha', defaultColor: '#5b6d8c', materials: FABRIC },
+    { id: T.collar, label: 'Cuello', defaultColor: '#5b6d8c', materials: FABRIC },
+    { id: T.pocket, label: 'Bolsillo', defaultColor: '#5b6d8c', materials: FABRIC },
+    { id: T.cuffs, label: 'Puños', defaultColor: '#2b2b2b', materials: FABRIC },
+    { id: T.hem, label: 'Bajo', defaultColor: '#2b2b2b', materials: FABRIC },
+    { id: T.cords, label: 'Cordones', defaultColor: '#f4f1ea', materials: TRIM },
+    { id: T.hardware, label: 'Cremallera', defaultColor: '#2b2b2b', materials: TRIM },
+  ],
+  options: [
+    topFit('oversize', ['regular', 'boxy', 'oversize']),
+    lengthOption,
+    choice('cuello', 'Cuello', 'detalles', [['capucha', 'Capucha'], ['alto', 'Alto']], 'capucha'),
+    choice('cremallera', 'Cremallera', 'detalles', [['completa', 'Entera'], ['media', 'Media (anorak)']], 'completa'),
+    choice('bolsillo', 'Bolsillo', 'detalles', [['ojal', 'De ojal'], ['canguro', 'Canguro'], ['ninguno', 'Sin bolsillo']], 'ojal'),
+    toggle('cordones', 'Cordones', 'detalles', true),
+    choice('punos', 'Puños y bajo', 'acabados', [['recto', 'Ribete elástico'], ['canale', 'Canalé']], 'recto'),
+    stitchOption,
+  ],
+  activePieces: (o) => {
+    const hood = opt(cortavientos, o, 'cuello') === 'capucha'
+    return [
+      T.body,
+      T.sleeves,
+      hood ? T.hood : T.collar,
+      ...(opt(cortavientos, o, 'bolsillo') !== 'ninguno' ? [T.pocket] : []),
+      ...(opt(cortavientos, o, 'punos') === 'canale' ? [T.cuffs, T.hem] : []),
+      ...(hood && opt<boolean>(cortavientos, o, 'cordones') ? [T.cords] : []),
+      T.hardware,
+    ]
+  },
+  draw: (view, o, s) => {
+    const rib = opt(cortavientos, o, 'punos') === 'canale' ? 'canale' : 'recto'
+    return drawTop(view, {
+      ...topBase(o, cortavientos),
+      sleeve: 'larga',
+      neck: opt(cortavientos, o, 'cuello') === 'capucha' ? 'capucha' : 'alto',
+      hem: rib,
+      cuff: rib,
+      zip: opt(cortavientos, o, 'cremallera'),
+      pocket: opt(cortavientos, o, 'bolsillo'),
+      cords: opt<boolean>(cortavientos, o, 'cordones'),
+      ribScale: 0.6,
+      scale: s,
+    })
+  },
+}
+
+// --- Gorro y gorra ---
+
+const H = HEAD_PIECES
+
+const gorro: GarmentTemplate = {
+  id: 'gorro',
+  family: 'head',
+  unitsPerCm: HEAD_UNITS_PER_CM,
+  name: 'Gorro',
+  description: 'Gorro de punto (beanie): normal o corto de pescador, con o sin vuelta y pompón.',
+  printZones: {
+    front: [
+      { id: 'vuelta', label: 'En la vuelta', x: CX, y: 270, w: 70 },
+      { id: 'frente', label: 'Frente', x: CX, y: 200, w: 80 },
+    ],
+    back: [{ id: 'trasera', label: 'Trasera', x: CX, y: 220, w: 70 }],
+    side: [{ id: 'lateral', label: 'Lateral', x: CX, y: 220, w: 50 }],
+  },
+  pieces: [
+    { id: H.crown, label: 'Copa', defaultColor: '#2d3a4a', materials: FABRIC },
+    { id: H.cuff, label: 'Vuelta', defaultColor: '#2d3a4a', materials: FABRIC },
+    { id: H.pompom, label: 'Pompón', defaultColor: '#f2efe8', materials: TRIM },
+  ],
+  options: [
+    choice('alto', 'Alto', 'corte', [['normal', 'Normal'], ['corto', 'Corto (pescador)']], 'normal'),
+    toggle('vuelta', 'Vuelta', 'detalles', true),
+    toggle('pompon', 'Pompón', 'detalles', false),
+    choice('punto', 'Punto', 'acabados', [['canale', 'Canalé'], ['liso', 'Liso']], 'canale'),
+  ],
+  activePieces: (o) => [H.crown, ...(opt<boolean>(gorro, o, 'vuelta') ? [H.cuff] : []), ...(opt<boolean>(gorro, o, 'pompon') ? [H.pompom] : [])],
+  draw: (view, o) =>
+    drawBeanie(view, {
+      height: opt(gorro, o, 'alto'),
+      cuff: opt<boolean>(gorro, o, 'vuelta'),
+      pompom: opt<boolean>(gorro, o, 'pompon'),
+      knit: opt(gorro, o, 'punto'),
+    }),
+}
+
+const gorra: GarmentTemplate = {
+  id: 'gorra',
+  family: 'head',
+  unitsPerCm: HEAD_UNITS_PER_CM,
+  name: 'Gorra',
+  description: 'Gorra de 5 o 6 paneles, visera curva o plana, trasera de malla (trucker) y cierre snapback, hebilla o velcro.',
+  printZones: {
+    front: [{ id: 'frontal', label: 'Frontal', x: CX, y: 196, w: 80 }],
+    back: [{ id: 'trasera', label: 'Trasera', x: CX, y: 190, w: 50 }],
+    side: [{ id: 'lateral', label: 'Lateral', x: CX + 24, y: 200, w: 40 }],
+  },
+  pieces: [
+    { id: H.crown, label: 'Copa', defaultColor: '#1f2a44', materials: FABRIC },
+    { id: H.back, label: 'Trasera de malla', defaultColor: '#f2efe8', materials: FABRIC },
+    { id: H.brim, label: 'Visera', defaultColor: '#1f2a44', materials: FABRIC },
+    { id: H.button, label: 'Botón y hebilla', defaultColor: '#1f2a44', materials: TRIM },
+    { id: H.closure, label: 'Cierre', defaultColor: '#2b2b2b', materials: TRIM },
+    { id: H.eyelets, label: 'Ojetes', defaultColor: '#1f2a44', materials: TRIM },
+  ],
+  options: [
+    choice('paneles', 'Paneles', 'corte', [['6', '6 paneles'], ['5', '5 paneles']], '6'),
+    choice('visera', 'Visera', 'corte', [['curva', 'Curva'], ['plana', 'Plana']], 'curva'),
+    toggle('malla', 'Trasera de malla (trucker)', 'detalles', false),
+    choice('cierre', 'Cierre', 'detalles', [['snapback', 'Snapback'], ['hebilla', 'Hebilla'], ['velcro', 'Velcro'], ['cerrada', 'Cerrada (fitted)']], 'snapback'),
+    stitchOption,
+  ],
+  activePieces: (o) => [
+    H.crown,
+    ...(opt<boolean>(gorra, o, 'malla') ? [H.back] : []),
+    H.brim,
+    H.button,
+    ...(opt(gorra, o, 'cierre') !== 'cerrada' ? [H.closure] : []),
+    H.eyelets,
+  ],
+  draw: (view, o) =>
+    drawCap(view, {
+      panels: Number(opt(gorra, o, 'paneles')) as CapCfg['panels'],
+      brim: opt(gorra, o, 'visera'),
+      closure: opt(gorra, o, 'cierre'),
+      mesh: opt<boolean>(gorra, o, 'malla'),
+      stitch: opt(gorra, o, 'costuras'),
+    }),
+}
+
+export const TEMPLATES: GarmentTemplate[] = [sudadera, camiseta, polo, camisa, bomber, puffer, chaleco, cazadora, cortavientos, pantalon, pantalonAncho, pantalonCorto, gorro, gorra]
+
+/**
+ * Lo que sale en «Nuevo diseño»: las prendas base y atajos que son una prenda base con otras opciones de partida
+ * (p. ej. la camiseta de manga larga es la camiseta con la manga larga elegida).
+ */
+export interface CatalogEntry {
+  id: string
+  name: string
+  description: string
+  template: GarmentTemplate
+  options?: Options
+}
+
+const entry = (t: GarmentTemplate, extra?: Omit<CatalogEntry, 'template'>): CatalogEntry => ({ id: t.id, name: t.name, description: t.description, template: t, ...extra })
+
+export const NEW_DESIGN_CATALOG: CatalogEntry[] = [
+  entry(sudadera),
+  entry(camiseta),
+  entry(camiseta, { id: 'camiseta-ml', name: 'Camiseta de manga larga', description: 'La camiseta con manga larga.', options: { manga: 'larga' } }),
+  entry(polo),
+  entry(polo, { id: 'polo-ml', name: 'Polo de manga larga', description: 'El polo con manga larga y puño de canalé.', options: { manga: 'larga' } }),
+  entry(camisa),
+  entry(camisa, { id: 'camisa-mc', name: 'Camisa de manga corta', description: 'La camisa con manga corta.', options: { manga: 'corta' } }),
+  entry(bomber),
+  entry(puffer),
+  entry(chaleco),
+  entry(cazadora),
+  entry(cortavientos),
+  entry(pantalon),
+  entry(pantalon, {
+    id: 'chandal',
+    name: 'Pantalón de chándal',
+    description: 'Jogger de chándal con banda lateral, cordón y puño.',
+    options: { banda: true, cargo: false, traseros: false },
+  }),
+  entry(pantalonAncho),
+  entry(pantalonCorto),
+  entry(gorro),
+  entry(gorra),
+]
 
 export function getTemplate(id: string) {
   return TEMPLATES.find((t) => t.id === id)
 }
 
 /** Opciones y piezas por defecto de una prenda base (punto de partida de un diseño nuevo). */
-export function defaultDesign(t: GarmentTemplate) {
+export function defaultDesign(t: GarmentTemplate, preset?: Options) {
   const options: Options = {}
   for (const o of t.options) options[o.id] = o.default
+  Object.assign(options, preset)
   const pieces = Object.fromEntries(t.pieces.map((p) => [p.id, { color: p.defaultColor, materialId: null }]))
   return { options, pieces, notes: '' }
 }

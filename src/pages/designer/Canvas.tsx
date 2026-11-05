@@ -3,7 +3,7 @@ import { api, imageSize } from '../../api/client'
 import { Callouts, CmGrid, Dimensions, newCallout, ScaleBar } from '../../designer/annotations'
 import { DrawingsLayer, TracingLayer, type Brush, type DrawTool } from '../../designer/drawings'
 import { CX } from '../../designer/geometry'
-import { UNITS_PER_CM } from '../../designer/prints'
+import { unitsOf } from '../../designer/prints'
 import { FlatView, type FlatContext } from '../../designer/FlatView'
 import { ShapeHandles } from '../../designer/handles'
 import { defaultMeasures } from '../../designer/measures'
@@ -217,7 +217,7 @@ export function Canvas(props: Props) {
         .map((t) => (
           <TracingLayer key={t.id} tracing={t} adjusting={adjusting && v === current} onChange={(next) => onTracings(tracings.map((x) => (x.id === t.id ? next : x)))} />
         ))}
-      {settings.grid && <CmGrid ctx={ctx} />}
+      {settings.grid && <CmGrid ctx={ctx} upc={unitsOf(template)} />}
       {centered && centered.view === v && (
         <line x1={CX} x2={CX} y1={ctx.box.y} y2={ctx.box.y + ctx.box.h} stroke="#db2777" strokeWidth={0.6} strokeDasharray="3 2" pointerEvents="none" />
       )}
@@ -229,7 +229,7 @@ export function Canvas(props: Props) {
         onSelect={onSelectDrawing}
         tool={blockPiece ? 'line' : v === current || view === 'all' ? tool : null}
         brush={blockPiece ? { color: '#db2777', width: 0.8, dash: true } : settings.brush}
-        snap={settings.grid ? UNITS_PER_CM : null}
+        snap={settings.grid ? unitsOf(template) : null}
         onAdd={(d) => {
           if (!blockPiece) return onDrawings([...drawings, d])
           // La línea divide la pieza: toma el otro color la parte donde no está el centro de la pieza (la más pequeña)
@@ -257,7 +257,7 @@ export function Canvas(props: Props) {
           }}
         />
       )}
-      <ScaleBar ctx={ctx} />
+      <ScaleBar ctx={ctx} upc={unitsOf(template)} />
       {shaping && onMeasures && <ShapeHandles template={template} data={data} view={v} body={body} onMeasures={onMeasures} />}
     </>
   )

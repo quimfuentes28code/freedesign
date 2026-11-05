@@ -45,6 +45,22 @@ function dimLines(t: GarmentTemplate, pieces: Record<string, Box>): DimLine[] {
       { pom: 'bajo', dir: 'h', at: end + 12, from: legs.x, to: legs.x + legs.w * 0.42 },
     ]
   }
+  // Gorro y gorra: ancho y alto de la copa; en la gorra, también la visera
+  if (t.family === 'head') {
+    const crown = pieces.copa
+    if (!crown) return []
+    const brim = pieces.visera
+    const lowest = bottom(crown, pieces.vuelta, brim)
+    return t.id === 'gorra'
+      ? [
+          { pom: 'alto-copa', dir: 'v', at: crown.x - 14, from: crown.y, to: crown.y + crown.h },
+          ...(brim ? [{ pom: 'ancho-visera', dir: 'h' as const, at: lowest + 12, from: brim.x, to: brim.x + brim.w }] : []),
+        ]
+      : [
+          { pom: 'alto', dir: 'v', at: crown.x - 14, from: crown.y, to: lowest },
+          { pom: 'ancho', dir: 'h', at: lowest + 12, from: crown.x, to: crown.x + crown.w },
+        ]
+  }
   const body = pieces.cuerpo
   if (!body) return []
   const sleeves = pieces.mangas
@@ -93,8 +109,9 @@ export function Dimensions(props: { ctx: FlatContext; template: GarmentTemplate;
 }
 
 /** Barra de escala de 10 cm en la esquina de abajo a la izquierda. */
-export function ScaleBar({ ctx }: { ctx: FlatContext }) {
-  const len = 10 * UNITS_PER_CM
+/** `upc`: unidades del lienzo por cm de la prenda (ver `unitsOf`). */
+export function ScaleBar({ ctx, upc = UNITS_PER_CM }: { ctx: FlatContext; upc?: number }) {
+  const len = 10 * upc
   const x = ctx.box.x + 6
   const y = ctx.box.y + ctx.box.h - 8
   return (
@@ -112,8 +129,8 @@ export function ScaleBar({ ctx }: { ctx: FlatContext }) {
 }
 
 /** Cuadrícula de 5 cm (más marcada cada 10 cm). */
-export function CmGrid({ ctx }: { ctx: FlatContext }) {
-  const step = 5 * UNITS_PER_CM
+export function CmGrid({ ctx, upc = UNITS_PER_CM }: { ctx: FlatContext; upc?: number }) {
+  const step = 5 * upc
   const { x, y, w, h } = ctx.box
   const xs: number[] = []
   const ys: number[] = []

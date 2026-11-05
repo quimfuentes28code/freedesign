@@ -20,6 +20,7 @@ import { isPants, opt, type GarmentTemplate } from './types'
 function garmentOf(t: GarmentTemplate, data: DesignData): GarmentType {
   if (isPants(t)) return 'pantalon'
   if (t.id === 'sudadera') return 'sudadera'
+  if (t.id === 'chaleco') return 'chaleco'
   return opt(t, data.options, 'manga') === 'corta' ? 'camiseta' : 'manga-larga'
 }
 

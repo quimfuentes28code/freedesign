@@ -8,7 +8,7 @@ import { VIEW_H, VIEW_W } from './geometry'
 import type { Body } from '../production/measurements'
 import { resolveMaterial, type CatalogMaterial } from './materials'
 import { drawScale } from './measures'
-import { PrintShape, printSize, Transformable, UNITS_PER_CM } from './prints'
+import { PrintShape, printSize, Transformable, unitsOf } from './prints'
 import { GlossGradient, hasWeave, WeavePattern } from './swatches'
 import type { GarmentTemplate, Shape, View } from './types'
 
@@ -130,7 +130,8 @@ export function FlatView(props: Props) {
     }
     if (lockFrame) return
     if (frame === 'comun') {
-      setBox({ x: 40, y: 0, w: VIEW_W - 80, h: VIEW_H })
+      // Mismo encuadre en todas las vistas; las prendas de cabeza ocupan menos alto
+      setBox(template.family === 'head' ? { x: 20, y: 20, w: VIEW_W - 40, h: 300 } : { x: 40, y: 0, w: VIEW_W - 80, h: VIEW_H })
       return
     }
     // Encuadre del dibujo sin los bloques de color (su semiplano es enorme, aunque se recorte a la pieza)
@@ -138,7 +139,7 @@ export function FlatView(props: Props) {
     if (!b || !b.w) return
     setBox({ x: b.x - pad, y: b.y - pad, w: b.w + pad * 2, h: b.h + pad * 2 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, frame, pad, !!overlay, lockFrame])
+  }, [key, frame, pad, !!overlay, lockFrame, template.family])
 
   // Material de cada pieza: foto si es de la Biblioteca y la tiene; si no, textura y brillo del catálogo.
   // En modo línea no hay ni color ni textura: todo blanco con su contorno.
@@ -312,7 +313,7 @@ export function FlatView(props: Props) {
               </linearGradient>
             )
           }
-          const size = t.cm * UNITS_PER_CM
+          const size = t.cm * unitsOf(template)
           return (
             <pattern key={piece} id={`${uid}-s-${piece}`} patternUnits="userSpaceOnUse" width={size} height={size} patternTransform={angle ? `rotate(${angle})` : undefined}>
               <image href={tileUrl(t)} width={size} height={size} preserveAspectRatio="none" />

@@ -100,8 +100,61 @@ export function defaultConstruction(t: GarmentTemplate, o: Options): Constructio
     add('Forro', 'Forro de nylon unido por la vista y el bajo', FLAT)
   }
 
+  if (t.id === 'chaleco') {
+    const quilted = get('tipo') === 'acolchado'
+    if (quilted) add('Acolchado', 'Pespuntear los canales: exterior, guata y forro juntos', FLAT, 'Guata de 100–140 g/m²')
+    if (get('bolsillos') !== 'ninguno') add('Bolsillos', get('bolsillos') === 'ojal' ? 'Bolsillos de ojal con vivo' : 'Bolsillos con solapa', FLAT, 'Entretela en la boca')
+    add('Hombros y costados', 'Unir hombros y cerrar costados', FLAT, 'Acabar los márgenes con remalladora de 3 hilos')
+    add('Sisas', 'Ribetear las sisas con bies del mismo tejido', FLAT)
+    add(get('cuello') === 'capucha' ? 'Capucha' : 'Cuello', get('cuello') === 'capucha' ? 'Capucha con vista de forro' : 'Cuello con vista de forro', FLAT)
+    add('Cierre', get('cierre') === 'botones' ? 'Tapeta con ojales y botones' : 'Cremallera separable', FLAT)
+    add('Bajo', get('bajo') === 'canale' ? 'Canalé doblado y montado' : 'Ribete elástico', get('bajo') === 'canale' ? OVERLOCK : FLAT)
+  }
+
+  if (t.id === 'cazadora') {
+    if (get<boolean>('canesu')) add('Canesú delantero', 'Montar el canesú en pico al delantero', FLAT, 'Pespunte doble de carga')
+    if (get('bolsillos') === 'pecho-tapeta') add('Bolsillos de pecho', 'Bolsillos de parche con tapeta en pico, ojal y botón', FLAT, 'Presillas en las esquinas')
+    if (get('bolsillos') === 'solapa') add('Bolsillos', 'Bolsillos bajos con solapa', FLAT)
+    if (get<boolean>('canesuEspalda')) add('Canesú de espalda', 'Montar el canesú a la espalda', FLAT)
+    add('Hombros y mangas', 'Unir hombros y montar mangas', FLAT, 'Costuras cargadas con pespunte doble')
+    add('Costados', 'Cerrar costados y bajo de manga', `${FLAT} + remalladora 3 hilos`)
+    add('Cuello', 'Cuello entretelado montado al escote', FLAT)
+    add('Puños', 'Puño con abertura, ojal y botón', FLAT)
+    add('Tapeta', 'Tapeta delantera con ojales y botones (metálicos de presión o de pata)', FLAT)
+    if (get('bajo') === 'pretina') add('Pretina', 'Pretina de 5 cm con botones de ajuste en los costados', FLAT)
+    else add('Bajo', 'Dobladillo de 2,5 cm', FLAT)
+  }
+
+  if (t.id === 'cortavientos') {
+    if (get('bolsillo') === 'canguro') add('Bolsillo canguro', 'Bolsillo canguro aplicado con boca a los lados', FLAT)
+    if (get('bolsillo') === 'ojal') add('Bolsillos', 'Bolsillos de ojal con cremallera', FLAT, 'Entretela en la boca')
+    add('Hombros y mangas', 'Unir hombros y montar mangas', FLAT, 'Costuras cargadas; sellar si es impermeable')
+    add('Costados', 'Cerrar costados y bajo de manga', FLAT)
+    add(get('cuello') === 'capucha' ? 'Capucha' : 'Cuello alto', get('cuello') === 'capucha' ? 'Capucha con cordón y topes' : 'Cuello alto con vista', FLAT)
+    add('Cremallera', get('cremallera') === 'media' ? 'Media cremallera con vista (anorak)' : 'Cremallera separable con solapa contra el viento', `${FLAT} con prensatelas de cremallera`)
+    add('Puños y bajo', get('punos') === 'canale' ? 'Canalé doblado y montado' : 'Ribete elástico de 1,5 cm', get('punos') === 'canale' ? OVERLOCK : FLAT)
+  }
+
+  if (t.id === 'gorro') {
+    add('Tejido', 'Tejer en circular (máquina rectilínea o circular de gorros)', 'Tricotosa', get('punto') === 'canale' ? 'Canalé 1x1 o 2x2' : 'Punto liso')
+    add('Coronilla', 'Menguar y cerrar la coronilla', 'Remalladora o remallado a mano')
+    if (get<boolean>('vuelta')) add('Vuelta', 'Doblar la vuelta y fijarla en la costura trasera', FLAT)
+    if (get<boolean>('pompon')) add('Pompón', 'Hacer el pompón y coserlo en la coronilla', 'A mano')
+  }
+
+  if (t.id === 'gorra') {
+    add('Paneles', `Unir los ${get('paneles')} paneles de la copa`, FLAT, 'Cinta interior en las costuras')
+    add('Frontal', 'Entretelar los paneles delanteros (copa estructurada)', 'Prensa', 'Bucram o entretela gruesa')
+    add('Ojetes', 'Ojetes bordados o metálicos en los paneles', 'Ojaladora')
+    add('Visera', 'Cubrir la visera de plástico con el tejido y pespuntearla', FLAT, get('visera') === 'curva' ? 'Curvar antes de montar' : 'Visera plana')
+    add('Montaje', 'Montar la visera a la copa y la cinta de sudor interior', FLAT)
+    add('Botón', 'Botón forrado en la coronilla', 'A mano')
+    if (get('cierre') !== 'cerrada') add('Cierre', `Cierre ${get('cierre')} en la abertura trasera`, FLAT)
+  }
+
   if (isPants(t)) {
     const fixed = get('cintura') === 'trabillas'
+    if (get<boolean>('banda')) add('Banda lateral', 'Coser la banda en la costura exterior, de la cinturilla al bajo', FLAT, 'Pespunte a los dos lados')
     if (get<boolean>('pinzas')) add('Pinzas', 'Dos pinzas en cada delantero, planchadas hacia el costado', FLAT)
     if (get<boolean>('laterales')) add('Bolsillos laterales', 'Bolsillo de costado con vista y bolsa', FLAT, 'Remallar las bolsas')
     if (get<boolean>('traseros')) add('Bolsillos traseros', fixed ? 'Bolsillos de ojal con vivo y botón' : 'Bolsillos de parche en la espalda', FLAT, 'Presillas en las esquinas')
@@ -120,10 +173,12 @@ export function defaultConstruction(t: GarmentTemplate, o: Options): Constructio
     else add('Bajos', 'Dobladillo de 3 cm', fixed ? 'Punto invisible' : COVER)
   }
 
-  rows.push({ ...topstitch, notes: isPants(t) ? 'En costados, bolsillos y cinturilla' : 'En hombros, sisas y escote' })
+  if (t.family !== 'head') rows.push({ ...topstitch, notes: isPants(t) ? 'En costados, bolsillos y cinturilla' : 'En hombros, sisas y escote' })
   add(
     'Etiquetas',
-    isPants(t)
+    t.family === 'head'
+      ? 'Marca en la cinta interior o en la costura trasera; composición en una etiqueta interior'
+      : isPants(t)
       ? 'Marca en el centro de la cinturilla trasera; talla y composición en el costado izquierdo'
       : 'Marca y talla en la nuca; composición y cuidados en el costado izquierdo, a 8 cm del bajo',
     FLAT,
@@ -198,6 +253,25 @@ export function defaultAssembly(t: GarmentTemplate, o: Options, withPrints: bool
       'Montar la cremallera y las vistas',
       'Montar cuello, puños y bajo de canalé',
       'Unir el forro y volver la prenda',
+      ...end,
+    ]
+  }
+  if (t.id === 'gorro') {
+    return [...start.slice(0, 1), 'Tejer el gorro', 'Menguar y cerrar la coronilla', ...(get<boolean>('vuelta') ? ['Doblar y fijar la vuelta'] : []), ...(get<boolean>('pompon') ? ['Coser el pompón'] : []), ...end]
+  }
+  if (t.id === 'gorra') {
+    return [...start, 'Entretelar el frontal', 'Unir los paneles de la copa', 'Hacer los ojetes', 'Forrar la visera y pespuntearla', 'Montar la visera y la cinta de sudor', 'Coser el botón de la coronilla', ...(get('cierre') !== 'cerrada' ? ['Montar el cierre trasero'] : []), ...end]
+  }
+  if (t.id === 'chaleco' || t.id === 'cazadora' || t.id === 'cortavientos') {
+    return [
+      ...start,
+      ...(t.id === 'chaleco' && get('tipo') === 'acolchado' ? ['Pespuntear los canales del acolchado'] : []),
+      'Hacer los bolsillos',
+      'Unir hombros',
+      ...(t.id === 'chaleco' ? ['Cerrar costados', 'Ribetear las sisas'] : ['Montar las mangas', 'Cerrar costados y mangas']),
+      get('cuello') === 'capucha' ? 'Montar la capucha' : 'Montar el cuello',
+      t.id === 'cazadora' ? 'Hacer la tapeta, los ojales y coser los botones' : 'Montar la cremallera',
+      t.id === 'cazadora' ? (get('bajo') === 'pretina' ? 'Montar la pretina' : 'Hacer el dobladillo') : 'Montar puños y bajo',
       ...end,
     ]
   }

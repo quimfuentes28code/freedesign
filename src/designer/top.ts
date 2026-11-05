@@ -28,14 +28,17 @@ import type { Shape, View } from './types'
 export interface TopCfg {
   fit: 'ajustado' | 'regular' | 'boxy' | 'oversize'
   length: 'crop' | 'normal' | 'largo'
-  sleeve: 'corta' | 'larga'
+  /** `sin`: chaleco (sisa ribeteada, sin mangas). */
+  sleeve: 'corta' | 'larga' | 'sin'
   neck: Neck
   /** `curvo`: bajo de camisa, más largo por delante y por detrás que en los costados. */
-  hem: 'canale' | 'recto' | 'curvo'
+  /** `pretina`: banda de tela cosida en el bajo, como la de una cazadora vaquera. */
+  hem: 'canale' | 'recto' | 'curvo' | 'pretina'
   /** `camisero`: puño de camisa con su botón. */
   cuff: 'canale' | 'recto' | 'camisero'
   zip: 'ninguna' | 'media' | 'completa'
-  pocket: 'canguro' | 'ninguno' | 'ojal' | 'solapa' | 'pecho'
+  /** `pecho-tapeta`: dos bolsillos de pecho con tapeta en pico y botón (cazadora). */
+  pocket: 'canguro' | 'ninguno' | 'ojal' | 'solapa' | 'pecho' | 'pecho-tapeta'
   cords: boolean
   sleevePocket: boolean
   stitch: 'simple' | 'doble'
@@ -44,6 +47,8 @@ export interface TopCfg {
   buttons?: number
   /** Canesú en la espalda (camisas). */
   yoke?: boolean
+  /** Canesú delantero en pico, de la sisa a la tapeta (cazadora). */
+  frontYoke?: boolean
   /** Acolchado (puffer): separación entre canales, en unidades del lienzo (0 = sin acolchar). */
   quilt?: number
   /** Escala de las bandas de canalé (la bomber las lleva más anchas). */
@@ -90,7 +95,8 @@ const LENGTH = { crop: 160, normal: 214, largo: 256 }
 /** Medidas derivadas de las opciones, comunes a las tres vistas. */
 function frame(c: TopCfg) {
   const k = c.scale ?? NO_SCALE
-  const base = FIT[c.fit]
+  const fit = FIT[c.fit]
+  const base = c.sleeve === 'sin' ? { ...fit, drop: 0, arm: fit.arm + 8 } : fit
   // Las medidas propias estiran el ancho (y con él los hombros), la sisa (ancho de manga) y el puño
   const F = { ...base, half: base.half * k.width, drop: (58 + base.drop) * k.width - 58, arm: base.arm * k.sleeveWidth, cuffW: base.cuffW * k.cuff }
   const rib = c.ribScale ?? 1
@@ -101,7 +107,7 @@ function frame(c: TopCfg) {
   const S: Pt = [CX + 58 + F.drop, 110 + base.drop * 0.35]
   const U: Pt = [CX + F.half, 106 + F.arm]
   const hemY = 106 + LENGTH[c.length] * k.length
-  const ribH = c.hem === 'canale' ? 16 * rib : 0
+  const ribH = c.hem === 'canale' ? 16 * rib : c.hem === 'pretina' ? 18 : 0
   const hemTop = hemY - ribH
   const long = c.sleeve === 'larga'
   const sleeveLen = (long ? 226 - base.drop * 0.7 : 64 + (c.fit === 'oversize' ? 20 : c.fit === 'boxy' ? 10 : 0)) * k.sleeve
@@ -142,6 +148,17 @@ export function drawTop(view: View, c: TopCfg): Shape[] {
   })
   // Acolchado (puffer): canales horizontales en el cuerpo
   if (c.quilt) out.push(...quilting(f, c.quilt))
+  // Canesú delantero de cazadora: de la sisa baja en pico hacia la tapeta
+  if (front && c.frontYoke) {
+    const a = lerp(f.S, f.U, 0.32)
+    const b: Pt = [CX + 34, a[1] + 26]
+    const e: Pt = [CX + 9, a[1] + 14]
+    for (const k of [1, -1]) {
+      const m = (p: Pt): Pt => (k > 0 ? p : mirror(p))
+      out.push({ kind: 'line', piece: P.body, d: line(m(a), m(b), m(e)) })
+      for (const d of stitchOffsets) out.push({ kind: 'stitch', piece: P.body, d: line(m([a[0], a[1] + d]), m([b[0], b[1] + d]), m([e[0], e[1] + d])) })
+    }
+  }
   // Canesú de camisa en la espalda
   if (!front && c.yoke) out.push({ kind: 'line', piece: P.body, d: `${line(mirror(lerp(f.S, f.U, 0.3)), lerp(f.S, f.U, 0.3))}` })
   // Pespunte de la sisa (hacia el cuerpo)
@@ -158,11 +175,16 @@ export function drawTop(view: View, c: TopCfg): Shape[] {
       piece: P.hem,
       d: symmetric([CX, f.hemTop], [{ to: [CX + half - 1, f.hemTop] }, { to: [CX + half - 5, f.hemY] }, { to: [CX, f.hemY] }]),
     })
-    out.push({
-      kind: 'rib',
-      piece: P.hem,
-      d: ribLines([CX - half + 1, f.hemTop], [CX + half - 1, f.hemTop], [CX - half + 5, f.hemY], [CX + half - 5, f.hemY]),
-    })
+    if (c.hem === 'pretina') {
+      for (const d of stitchOffsets) out.push({ kind: 'stitch', piece: P.hem, d: line([CX - half + 2, f.hemTop + d], [CX + half - 2, f.hemTop + d]) })
+      out.push({ kind: 'stitch', piece: P.hem, d: line([CX - half + 3, f.hemY - 4], [CX + half - 3, f.hemY - 4]) })
+    } else {
+      out.push({
+        kind: 'rib',
+        piece: P.hem,
+        d: ribLines([CX - half + 1, f.hemTop], [CX + half - 1, f.hemTop], [CX - half + 5, f.hemY], [CX + half - 5, f.hemY]),
+      })
+    }
     for (const d of stitchOffsets) out.push({ kind: 'stitch', piece: P.body, d: line([CX - half + 2, f.hemTop - d + 1], [CX + half - 2, f.hemTop - d + 1]) })
   } else if (curved) {
     for (const d of stitchOffsets) {
@@ -176,8 +198,8 @@ export function drawTop(view: View, c: TopCfg): Shape[] {
   // --- Bolsillos (solo delante) ---
   if (front) out.push(...pockets(c, f, stitchOffsets))
 
-  // --- Mangas ---
-  out.push(...sleeves(c, f, front, stitchOffsets))
+  // --- Mangas (el chaleco no lleva: la sisa va ribeteada) ---
+  if (c.sleeve !== 'sin') out.push(...sleeves(c, f, front, stitchOffsets))
 
   // --- Cuello / capucha ---
   out.push(...neck(c, f, front, stitchOffsets))
@@ -243,6 +265,17 @@ function pockets(c: TopCfg, f: Frame, offs: number[]): Shape[] {
       out.push({ kind: 'fill', piece: P.pocket, d: rect(x0 - 1, f.hemTop - 72, 42, 18, 3) })
       out.push({ kind: 'stitch', piece: P.pocket, d: rect(x0 + 3, f.hemTop - 50, 34, 35, 2) })
       out.push({ kind: 'hardware', piece: P.hardware, role: 'button', d: rect(x0 + 17, f.hemTop - 64, 6, 6, 3) })
+    }
+  } else if (c.pocket === 'pecho-tapeta') {
+    for (const k of [1, -1]) {
+      const x0 = k > 0 ? CX + 20 : CX - 60
+      const y0 = Math.max(f.neckY + 30, 150)
+      out.push({ kind: 'fill', piece: P.pocket, d: rect(x0, y0 + 6, 40, 40, 3) })
+      for (const d of offs) out.push({ kind: 'stitch', piece: P.pocket, d: rect(x0 + d - 1, y0 + 6 + d - 1, 40 - 2 * (d - 1), 40 - 2 * (d - 1), 2) })
+      // Tapeta en pico
+      out.push({ kind: 'fill', piece: P.pocket, d: path([x0 - 1, y0], [{ to: [x0 + 41, y0] }, { to: [x0 + 41, y0 + 12] }, { to: [x0 + 20, y0 + 20] }, { to: [x0 - 1, y0 + 12] }]) })
+      out.push({ kind: 'stitch', piece: P.pocket, d: line([x0 + 2, y0 + 10], [x0 + 20, y0 + 16.5], [x0 + 38, y0 + 10]) })
+      out.push({ kind: 'hardware', piece: P.buttons, role: 'button', d: rect(x0 + 17, y0 + 11, 6, 6, 3) })
     }
   } else if (c.pocket === 'pecho') {
     out.push({ kind: 'fill', piece: P.pocket, d: rect(CX + 24, 140, 30, 34, 3) })
@@ -626,6 +659,8 @@ function drawSide(c: TopCfg, f: Frame): Shape[] {
     out.push({ kind: 'line', piece: P.cords, d: line([CX + 16, 116], [CX + 20, 190]) })
     out.push({ kind: 'hardware', piece: P.cords, d: rect(CX + 17.5, 190, 5, 12, 2) })
   }
+
+  if (c.sleeve === 'sin') return out
 
   // Manga, por delante del cuerpo
   const y0 = 112 + f.F.drop * 0.5

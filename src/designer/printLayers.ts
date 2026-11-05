@@ -24,7 +24,7 @@ export interface BodyFrame {
 }
 
 /** Piezas que forman el «cuerpo» de cada tipo de prenda (las mismas que en 3D llevan los estampados). */
-const BODY_PIECES = (t: GarmentTemplate) => (isPants(t) ? ['perneras', 'cinturilla'] : ['cuerpo'])
+const BODY_PIECES = (t: GarmentTemplate) => (isPants(t) ? ['perneras', 'cinturilla'] : t.family === 'head' ? ['copa'] : ['cuerpo'])
 
 /** Encuadre del cuerpo a partir de los puntos de sus trazados. */
 export function bodyFrame(t: GarmentTemplate, data: DesignData, view: View, body?: Body): BodyFrame | null {

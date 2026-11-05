@@ -1,7 +1,7 @@
 import { Field } from '../../components/ui'
 import { detailAspect, detailPrims, PrimsView } from '../../designer/details'
 import { CX } from '../../designer/geometry'
-import { UNITS_PER_CM } from '../../designer/prints'
+import { UNITS_PER_CM as CLOTHES_UNITS } from '../../designer/prints'
 import { VIEWS, type View } from '../../designer/types'
 import type { Artwork } from '../../shared/artworks'
 import { BUTTON_STYLES, DETAIL_KINDS, PATCH_SHAPES, PULLER_STYLES, ZIP_STYLES, type Detail, type DetailArt, type DetailKind } from '../../shared/designs'
@@ -36,16 +36,22 @@ interface Props {
   selected: string | null
   onSelect: (id: string | null) => void
   artworks: Artwork[]
+  /** Unidades del lienzo por cm de la prenda (los detalles nuevos salen a su tamaño real). */
+  upc?: number
 }
 
 const artOf = (a: Artwork): DetailArt => ({ artworkId: a.id, file: a.file, aspect: a.height / a.width })
 
 /** Detalles colocados a mano: botones, cremalleras, ojales, remaches, herretes, etiquetas y parches. */
-export function DetailsPanel({ details, onChange, view, selected, onSelect, artworks }: Props) {
+export function DetailsPanel({ details, onChange, view, selected, onSelect, artworks, upc = CLOTHES_UNITS }: Props) {
+  const UNITS_PER_CM = upc
   const current = details.find((d) => d.id === selected) ?? null
   const update = (patch: Partial<Detail>) => current && onChange(details.map((d) => (d.id === current.id ? { ...d, ...patch } : d)))
   const add = (kind: DetailKind) => {
-    const d: Detail = { id: crypto.randomUUID(), view, x: CX + (kind === 'cremallera' ? 0 : 30), y: kind === 'cremallera' ? 200 : 170, ...structuredClone(DEFAULTS[kind]) }
+    const base = structuredClone(DEFAULTS[kind])
+    // En las prendas que se dibujan más grandes (gorros, gorras), el detalle sale a su tamaño real
+    const k = upc / CLOTHES_UNITS
+    const d: Detail = { id: crypto.randomUUID(), view, x: CX + (kind === 'cremallera' ? 0 : 30), y: kind === 'cremallera' ? 200 : 170, ...base, w: base.w * k, ...(base.length ? { length: base.length * k } : {}) }
     onChange([...details, d])
     onSelect(d.id)
   }

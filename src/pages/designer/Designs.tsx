@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 import { api, useApi } from '../../api/client'
 import { PageHeader, Status } from '../../components/ui'
 import { FlatView } from '../../designer/FlatView'
-import { defaultDesign, getTemplate, TEMPLATES } from '../../designer/templates'
+import { defaultDesign, getTemplate, NEW_DESIGN_CATALOG, type CatalogEntry } from '../../designer/templates'
 import type { GarmentTemplate } from '../../designer/types'
 import type { Design, DesignData } from '../../shared/designs'
 import './designer.css'
@@ -83,7 +83,7 @@ export function NewDesign() {
       setCreating(null)
     }
   }
-  const fromTemplate = (t: GarmentTemplate) => create(t.id, { name: `${t.name} sin título`, template: t.id, data: defaultDesign(t) })
+  const fromEntry = (e: CatalogEntry) => create(e.id, { name: `${e.name} sin título`, template: e.template.id, data: defaultDesign(e.template, e.options) })
   // Desde una plantilla de la marca: una copia con todo (colores, variantes, medidas, estampados…), ya sin ser plantilla
   const fromBrand = (d: Design) => {
     const { brandTemplate: _b, ...data } = structuredClone(d.data)
@@ -119,23 +119,34 @@ export function NewDesign() {
               </button>
             ))}
           </div>
-          <h2 className="catalog-title">Prendas base</h2>
         </>
       )}
-      <div className="design-grid">
-        {TEMPLATES.map((t) => (
-          <button key={t.id} className="card design-card template-card" onClick={() => fromTemplate(t)} disabled={creating !== null}>
-            <div className="design-thumb">
-              <FlatView template={t} data={defaultDesign(t)} view="front" />
-            </div>
-            <div className="design-body">
-              <strong>{t.name}</strong>
-              <span className="muted small">{t.description}</span>
-              {creating === t.id && <span className="small">Creando…</span>}
-            </div>
-          </button>
-        ))}
-      </div>
+      {FAMILIES.map((fam) => (
+        <section key={fam.id}>
+          <h2 className="catalog-title">{fam.label}</h2>
+          <div className="design-grid">
+            {NEW_DESIGN_CATALOG.filter((e) => e.template.family === fam.id).map((e) => (
+              <button key={e.id} className="card design-card template-card" onClick={() => fromEntry(e)} disabled={creating !== null}>
+                <div className="design-thumb">
+                  <FlatView template={e.template} data={defaultDesign(e.template, e.options)} view="front" />
+                </div>
+                <div className="design-body">
+                  <strong>{e.name}</strong>
+                  <span className="muted small">{e.description}</span>
+                  {creating === e.id && <span className="small">Creando…</span>}
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   )
 }
+
+/** Grupos de prendas en «Nuevo diseño». */
+const FAMILIES: { id: GarmentTemplate['family']; label: string }[] = [
+  { id: 'top', label: 'Arriba' },
+  { id: 'pants', label: 'Abajo' },
+  { id: 'head', label: 'Cabeza' },
+]
