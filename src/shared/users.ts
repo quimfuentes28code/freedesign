@@ -19,8 +19,19 @@ export interface User {
   companyName: string
   taxId: string
   phone: string
+  /** Paleta de colores de la marca (sale en el creador de gráficos y en el Diseñador). */
+  brandColors: BrandColor[]
   createdAt: string
 }
+
+/** Color de la marca: código hexadecimal, nombre y código de referencia (p. ej. Pantone). */
+export interface BrandColor {
+  hex: string
+  name: string
+  code: string
+}
+
+export const MAX_BRAND_COLORS = 24
 
 /** Datos del perfil que se pueden editar. */
 export type ProfileInput = Pick<User, 'accountType' | 'name' | 'companyName' | 'taxId' | 'phone'>

@@ -8,6 +8,7 @@ import type { Material } from '../../shared/library'
 import { MaterialPicker } from './MaterialPicker'
 import { Fold } from './Fold'
 import { POCKET_SHAPE_PARAMS } from '../../designer/details'
+import { useAuth } from '../../auth/AuthContext'
 
 interface Props {
   template: string
@@ -39,9 +40,10 @@ interface Props {
 export function PieceInspector(props: Props) {
   const { template, piece, style, used, materials, onChange, onApplyToAll, hardware = {}, onHardware, isZip, hasPockets, artworks = [], blocks = [], onBlocks, blockTool, onBlockTool } = props
   const label = colorLabel(style)
-  // Al elegir un color a mano se olvidan el nombre y el código (salvo que sea uno de la carta)
+  const brand = useAuth().user?.brandColors ?? []
+  // Al elegir un color a mano se olvidan el nombre y el código (salvo que sea uno de la marca o de la carta)
   const setHex = (hex: string) => {
-    const c = chartColor(hex)
+    const c = brand.find((b) => b.hex === hex) ?? chartColor(hex)
     onChange({ color: hex, colorName: c?.name ?? '', colorCode: c?.code ?? '' })
   }
   const fabric = piece.materials.includes('tejido')
@@ -87,6 +89,24 @@ export function PieceInspector(props: Props) {
           <input value={style.colorCode ?? ''} placeholder={label.code || 'p. ej. 19-4007 TCX'} onChange={(e) => onChange({ colorCode: e.target.value })} />
         </label>
       </div>
+
+      {brand.length > 0 && (
+        <div className="inspector-block">
+          <h3>Colores de la marca</h3>
+          <div className="palette">
+            {brand.map((c, i) => (
+              <button
+                key={i}
+                className={c.hex === style.color ? 'swatch-button active' : 'swatch-button'}
+                style={{ background: c.hex }}
+                onClick={() => onChange({ color: c.hex, colorName: c.name, colorCode: c.code })}
+                title={[c.name, c.code].filter(Boolean).join(' · ') || c.hex.toUpperCase()}
+                aria-label={c.name || c.hex}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {used.length > 1 && (
         <div className="inspector-block">

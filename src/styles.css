@@ -1052,3 +1052,59 @@ input:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+/* Perfil: colores de la marca */
+.brand-colors {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.brand-color {
+  display: grid;
+  grid-template-columns: 40px 1fr 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.brand-color input[type='color'] {
+  width: 40px;
+  height: 34px;
+  padding: 2px;
+}
+
+.brand-chart {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 26px);
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.swatch-grid .swatch-button {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid rgb(0 0 0 / 0.15);
+  padding: 0;
+  cursor: pointer;
+}
+
+@media (max-width: 560px) {
+  .brand-color {
+    grid-template-columns: 40px 1fr auto;
+  }
+  .brand-color input:nth-child(3) {
+    grid-column: 2 / 3;
+  }
+}
+
+.brand-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+}

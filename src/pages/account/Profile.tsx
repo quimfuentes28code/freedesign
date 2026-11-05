@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { api } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { Field, PageHeader } from '../../components/ui'
-import { MIN_PASSWORD, type ProfileInput } from '../../shared/users'
+import { COLOR_CHART } from '../../designer/colors'
+import { MAX_BRAND_COLORS, MIN_PASSWORD, type BrandColor, type ProfileInput } from '../../shared/users'
 import { AccountTypePicker } from '../auth/AuthPages'
 
 /** /perfil — datos de la cuenta y cambio de contraseña. */
@@ -82,9 +83,93 @@ export function ProfilePage() {
             </button>
           </div>
         </form>
+        <BrandColorsCard />
         <PasswordCard />
       </div>
     </div>
+  )
+}
+
+/** Paleta de colores de la marca: sale en el creador de gráficos y en el Diseñador. */
+function BrandColorsCard() {
+  const { user, setUser } = useAuth()
+  const [colors, setColors] = useState<BrandColor[]>(() => user!.brandColors ?? [])
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [chart, setChart] = useState(false)
+  const edit = (i: number, patch: Partial<BrandColor>) => {
+    setColors((cs) => cs.map((c, j) => (j === i ? { ...c, ...patch } : c)))
+    setMsg(null)
+  }
+  const add = (c: BrandColor) => {
+    setColors((cs) => (cs.length >= MAX_BRAND_COLORS ? cs : [...cs, c]))
+    setMsg(null)
+  }
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      setUser(await api.saveBrandColors(colors))
+      setMsg({ ok: true, text: 'Paleta guardada.' })
+    } catch (err) {
+      setMsg({ ok: false, text: (err as Error).message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form className="card" onSubmit={submit}>
+      <h2>Colores de la marca</h2>
+      <p className="muted">Tu paleta sale la primera en el creador de gráficos y en las piezas del Diseñador.</p>
+      {msg && <p className={msg.ok ? 'status ok' : 'status error'}>{msg.text}</p>}
+      <div className="brand-colors">
+        {colors.map((c, i) => (
+          <div key={i} className="brand-color">
+            <input type="color" value={c.hex} onChange={(e) => edit(i, { hex: e.target.value })} aria-label="Color" />
+            <input placeholder="Nombre (p. ej. Rojo marca)" value={c.name} maxLength={40} onChange={(e) => edit(i, { name: e.target.value })} />
+            <input placeholder="Código (p. ej. Pantone 186 C)" value={c.code} maxLength={30} onChange={(e) => edit(i, { code: e.target.value })} />
+            <button type="button" className="button small" onClick={() => setColors((cs) => cs.filter((_, j) => j !== i))} aria-label="Quitar color">
+              ✕
+            </button>
+          </div>
+        ))}
+        {!colors.length && <p className="muted">Aún no hay colores.</p>}
+      </div>
+      <div className="form-actions brand-actions">
+        <button type="button" className="button" disabled={colors.length >= MAX_BRAND_COLORS} onClick={() => add({ hex: '#000000', name: '', code: '' })}>
+          Añadir color
+        </button>
+        <button type="button" className="button" onClick={() => setChart((v) => !v)}>
+          {chart ? 'Cerrar carta' : 'Desde la carta de colores'}
+        </button>
+        <button type="submit" className="button primary" disabled={saving}>
+          {saving ? 'Guardando…' : 'Guardar paleta'}
+        </button>
+      </div>
+      {chart && (
+        <div className="brand-chart">
+          {COLOR_CHART.map((g) => (
+            <div key={g.name}>
+              <span className="muted">{g.name}</span>
+              <div className="swatch-grid">
+                {g.colors.map((c) => (
+                  <button
+                    key={c.code}
+                    type="button"
+                    className="swatch-button"
+                    style={{ background: c.hex }}
+                    title={`${c.name} · ${c.code}`}
+                    onClick={() => add({ hex: c.hex, name: c.name, code: c.code })}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </form>
   )
 }
 

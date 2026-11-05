@@ -6,7 +6,7 @@ import type { Material, MaterialInput, Supplier, SupplierInput } from '../shared
 import type { Collection, CollectionInput, FileCategory, Project, ProjectInput, ProjectStatus, ProjectSummary } from '../shared/projects'
 import type { EconomySummary, Expense, ExpenseInput } from '../shared/economy'
 import type { ProductionOrder, ProductionOrderInput, TechPack, TechPackInput } from '../shared/production'
-import type { ProfileInput, RegisterInput, User } from '../shared/users'
+import type { BrandColor, ProfileInput, RegisterInput, User } from '../shared/users'
 
 /** Evento que se lanza cuando la API responde que no hay sesión (caducada o cerrada en otro sitio). */
 export const SESSION_EXPIRED = 'fd:session-expired'
@@ -39,6 +39,7 @@ export const api = {
   register: (r: RegisterInput) => request<User>('/auth/register', send('POST', r)),
   logout: () => request<void>('/auth/logout', send('POST')),
   updateProfile: (p: ProfileInput) => request<User>('/auth/me', send('PUT', p)),
+  saveBrandColors: (colors: BrandColor[]) => request<User>('/auth/brand', send('PUT', { colors })),
   changePassword: (current: string, password: string) => request<void>('/auth/password', send('PUT', { current, password })),
 
   stats: () => request<Stats>('/stats'),

@@ -10,6 +10,10 @@ import { fileUrl } from '../../shared/library'
 import { useHistory } from '../designer/useHistory'
 import { ART_SIZE, ArtLayerView, exportSvg, layerSize, warpOf } from './artLayers'
 import { nodesBox, nodesPath, shapePath, smoothNodes } from './artShapes'
+import { useAuth } from '../../auth/AuthContext'
+import type { BrandColor } from '../../shared/users'
+import { COLOR_CHART } from '../../designer/colors'
+import { buildTemplate, LOGO_TEMPLATES, templatePalette, type LogoTemplate } from './artTemplates'
 import './creator.css'
 
 const SWATCHES = ['#1d1d1f', '#ffffff', '#f2efe8', '#b3261e', '#c4643a', '#e3b341', '#2f4a3a', '#1f2a44', '#3b5b8c', '#a99bc9']
@@ -70,6 +74,8 @@ export function ArtworkCreator() {
   const [draft, setDraft] = useState<PathNode[]>([])
   const drawing = useRef<{ down: boolean; start: [number, number] } | null>(null)
   const [shapeMenu, setShapeMenu] = useState(false)
+  const [templateMenu, setTemplateMenu] = useState(false)
+  const brand = useAuth().user?.brandColors ?? []
   const exportRef = useRef<SVGGElement>(null)
   const imageInput = useRef<HTMLInputElement>(null)
   const fillInput = useRef<HTMLInputElement>(null)
@@ -139,6 +145,14 @@ export function ArtworkCreator() {
     const [w, h] = SHAPE_SIZE[shape] ?? [220, 220]
     add({ id: crypto.randomUUID(), type: 'shape', shape, fill: shape === 'laurel' ? '#2f4a3a' : '#c4643a', stroke: '', strokeWidth: 6, w, h, ...center })
     setShapeMenu(false)
+  }
+
+  /** Empieza desde una plantilla: sustituye lo que hay en el lienzo (se puede deshacer). */
+  const applyTemplate = (t: LogoTemplate) => {
+    setLayers(buildTemplate(t, templatePalette(brand)))
+    setSelection([])
+    setTemplateMenu(false)
+    if (name === 'Logo sin título') setName(t.label)
   }
 
   /** Termina el trazo de la pluma o el lápiz y lo convierte en capa (centrada en su caja). */
@@ -484,6 +498,24 @@ export function ArtworkCreator() {
             + Imagen
           </button>
           <div className="shape-menu">
+            <button
+              className={templateMenu ? 'button active' : 'button'}
+              onClick={() => {
+                setTemplateMenu((v) => !v)
+                setShapeMenu(false)
+              }}
+              aria-expanded={templateMenu}
+            >
+              Plantillas ▾
+            </button>
+            {templateMenu && (
+              <div className="shape-menu-panel template-panel" role="menu">
+                <TemplateGallery brand={brand} onPick={applyTemplate} />
+                <p className="muted small">Sustituye lo que hay en el lienzo (Ctrl+Z para volver).</p>
+              </div>
+            )}
+          </div>
+          <div className="shape-menu">
             <button className={shapeMenu ? 'button active' : 'button'} onClick={() => setShapeMenu((v) => !v)} aria-expanded={shapeMenu}>
               + Forma ▾
             </button>
@@ -623,7 +655,12 @@ export function ArtworkCreator() {
               ))}
             </g>
           </svg>
-          {layers.length === 0 && <p className="artboard-empty">Añade un texto, una imagen o una forma para empezar</p>}
+          {layers.length === 0 && (
+            <div className="artboard-empty">
+              <p>Añade un texto, una imagen o una forma, o empieza con una plantilla:</p>
+              <TemplateGallery brand={brand} onPick={applyTemplate} />
+            </div>
+          )}
         </div>
         <p className="creator-hint muted small">
           Mayús + clic: varias capas · Ctrl+G agrupar · Flechas: mover (Mayús, de 10 en 10) · Ctrl+D duplicar · Supr quitar · Ctrl+Z deshacer · Ctrl + rueda: zoom
@@ -960,19 +997,70 @@ function Range({ label, value, min, max, onChange }: { label: string; value: num
   )
 }
 
+/** Miniaturas de las plantillas de logo, con los colores de la marca. */
+function TemplateGallery({ brand, onPick }: { brand: BrandColor[]; onPick: (t: LogoTemplate) => void }) {
+  const palette = templatePalette(brand)
+  const previews = LOGO_TEMPLATES.map((t) => ({ t, layers: buildTemplate(t, palette, `tpl-${t.id}`) }))
+  useFontsVersion()
+  useEffect(() => {
+    for (const p of previews) for (const l of p.layers) if (l.type === 'text') loadFont(l.font)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return (
+    <div className="template-gallery">
+      {previews.map(({ t, layers }) => (
+        <button key={t.id} className="template-pick" onClick={() => onPick(t)} role="menuitem">
+          <svg viewBox={`0 0 ${ART_SIZE} ${ART_SIZE}`} aria-hidden>
+            {layers.map((l) => (
+              <ArtLayerView key={l.id} layer={l} />
+            ))}
+          </svg>
+          <span>{t.label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Color: los de la marca (del perfil) primero, unos básicos, cualquier otro y la carta de colores del Diseñador. */
 function ColorField({ label, value, optional, onChange }: { label: string; value: string; optional?: boolean; onChange: (v: string) => void }) {
+  const brand = useAuth().user?.brandColors ?? []
+  const [chart, setChart] = useState(false)
+  const swatch = (hex: string, title: string, key: string, cls = '') => (
+    <button
+      key={key}
+      className={`swatch-button${cls}${hex === value ? ' active' : ''}`}
+      style={{ background: hex }}
+      onClick={() => onChange(hex)}
+      title={title}
+      aria-label={title}
+    />
+  )
   return (
     <div className="field">
       <span>{label}</span>
       <div className="color-line">
         {optional && (
-          <button className={!value ? 'swatch-button none active' : 'swatch-button none'} onClick={() => onChange('')} aria-label="Sin color" />
+          <button className={!value ? 'swatch-button none active' : 'swatch-button none'} onClick={() => onChange('')} aria-label="Sin color" title="Sin color" />
         )}
-        {SWATCHES.map((c) => (
-          <button key={c} className={c === value ? 'swatch-button active' : 'swatch-button'} style={{ background: c }} onClick={() => onChange(c)} aria-label={c} />
-        ))}
-        <input type="color" value={value || '#1d1d1f'} onChange={(e) => onChange(e.target.value)} />
+        {brand.map((c, i) => swatch(c.hex, [c.name, c.code].filter(Boolean).join(' · ') || c.hex, `b${i}`, ' brand'))}
+        {brand.length > 0 && <span className="color-sep" />}
+        {SWATCHES.filter((c) => !brand.some((b) => b.hex === c)).map((c) => swatch(c, c, c))}
+        <input type="color" value={value || '#1d1d1f'} onChange={(e) => onChange(e.target.value)} title="Cualquier color" />
+        <button className={chart ? 'chip active' : 'chip'} onClick={() => setChart((v) => !v)} title="Carta de colores (con código)">
+          Carta
+        </button>
       </div>
+      {chart && (
+        <div className="color-chart">
+          {COLOR_CHART.map((g) => (
+            <div key={g.name}>
+              <span className="muted small">{g.name}</span>
+              <div className="color-line">{g.colors.map((c) => swatch(c.hex, `${c.name} · ${c.code}`, c.code))}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

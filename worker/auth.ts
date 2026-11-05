@@ -1,4 +1,4 @@
-import { ACCOUNT_TYPES, MIN_PASSWORD, type AccountType, type ProfileInput, type User } from '../src/shared/users'
+import { ACCOUNT_TYPES, MAX_BRAND_COLORS, MIN_PASSWORD, type AccountType, type BrandColor, type ProfileInput, type User } from '../src/shared/users'
 import { HttpError, json, now, readBody, required, text, type Env } from './http'
 
 /**
@@ -25,6 +25,13 @@ export async function authRoute(request: Request, env: Env, action: string | und
     if (!user) throw new HttpError(401, 'Inicia sesión para continuar')
     if (m === 'GET') return json(user)
     if (m === 'PUT') return json(await updateProfile(env, user.id, readProfile(await readBody(request))))
+  }
+  if (action === 'brand' && m === 'PUT') {
+    const user = await currentUser(request, env)
+    if (!user) throw new HttpError(401, 'Inicia sesión para continuar')
+    const colors = readBrandColors((await readBody(request)).colors)
+    await env.DB.prepare('UPDATE users SET brand_colors = ?, updated_at = ? WHERE id = ?').bind(JSON.stringify(colors), now(), user.id).run()
+    return json(await getUser(env, user.id))
   }
   if (action === 'password' && m === 'PUT') {
     const user = await currentUser(request, env)
@@ -126,6 +133,7 @@ interface UserRow {
   company_name: string
   tax_id: string
   phone: string
+  brand_colors: string | null
   created_at: string
 }
 
@@ -143,6 +151,7 @@ function toUser(r: UserRow): User {
     companyName: r.company_name,
     taxId: r.tax_id,
     phone: r.phone,
+    brandColors: parseBrandColors(r.brand_colors),
     createdAt: r.created_at,
   }
 }
@@ -170,6 +179,28 @@ function readProfile(b: Record<string, unknown>): ProfileInput {
     taxId: isCompany ? text(b.taxId).toUpperCase().slice(0, 20) : '',
     phone: text(b.phone).slice(0, 30),
   }
+}
+
+function parseBrandColors(v: string | null): BrandColor[] {
+  try {
+    return readBrandColors(JSON.parse(v || '[]'))
+  } catch {
+    return []
+  }
+}
+
+/** Valida la paleta que llega del navegador: solo colores hexadecimales, con nombre y código cortos. */
+function readBrandColors(v: unknown): BrandColor[] {
+  if (!Array.isArray(v)) return []
+  const out: BrandColor[] = []
+  for (const c of v.slice(0, MAX_BRAND_COLORS)) {
+    if (!c || typeof c !== 'object') continue
+    const o = c as Record<string, unknown>
+    const hex = text(o.hex).toLowerCase()
+    if (!/^#[0-9a-f]{6}$/.test(hex)) continue
+    out.push({ hex, name: text(o.name).slice(0, 40), code: text(o.code).slice(0, 30) })
+  }
+  return out
 }
 
 function readEmail(v: unknown) {
