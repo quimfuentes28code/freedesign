@@ -138,11 +138,19 @@ export interface Print {
 export const DETAIL_KINDS = [
   { id: 'boton', label: 'Botón' },
   { id: 'cremallera', label: 'Cremallera' },
-  { id: 'ojal', label: 'Ojal metálico' },
+  { id: 'ojal', label: 'Ojete metálico' },
   { id: 'remache', label: 'Remache' },
   { id: 'herrete', label: 'Herrete' },
   { id: 'etiqueta', label: 'Etiqueta' },
   { id: 'parche', label: 'Parche' },
+  { id: 'bolsillo', label: 'Bolsillo' },
+  { id: 'trabilla', label: 'Trabilla' },
+  { id: 'cordon', label: 'Cordón con topes' },
+  { id: 'cinta', label: 'Cinta o banda' },
+  { id: 'velcro', label: 'Velcro' },
+  { id: 'hebilla', label: 'Hebilla' },
+  { id: 'costura', label: 'Costura decorativa' },
+  { id: 'pinza', label: 'Pinza' },
 ] as const
 
 export type DetailKind = (typeof DETAIL_KINDS)[number]['id']
@@ -184,6 +192,57 @@ export const PATCH_SHAPES = [
 ] as const
 export type PatchShape = (typeof PATCH_SHAPES)[number]['id']
 
+/** Bolsillos que se colocan donde se quiera. */
+export const POCKET_STYLES = [
+  { id: 'parche', label: 'De parche' },
+  { id: 'vivo', label: 'De vivo (ojal)' },
+  { id: 'cargo', label: 'Cargo con fuelle y tapeta' },
+  { id: 'cremallera', label: 'Con cremallera' },
+] as const
+
+/** Cintas y bandas (laterales, de mangas, de cintura…). */
+export const TAPE_STYLES = [
+  { id: 'lisa', label: 'Lisa' },
+  { id: 'rayas', label: 'Con rayas' },
+  { id: 'reflectante', label: 'Reflectante' },
+] as const
+
+export const BUCKLE_STYLES = [
+  { id: 'cuadrada', label: 'Metálica' },
+  { id: 'clip', label: 'Clip de plástico' },
+  { id: 'anillas', label: 'Anillas (D)' },
+] as const
+
+/** Puntadas de las costuras decorativas. */
+export const STITCH_STYLES = [
+  { id: 'simple', label: 'Pespunte' },
+  { id: 'doble', label: 'Pespunte doble' },
+  { id: 'zigzag', label: 'Zigzag' },
+  { id: 'cadeneta', label: 'Cadeneta' },
+] as const
+
+/** Remates del cordón. */
+export const CORD_STYLES = [
+  { id: 'tope', label: 'Con tope' },
+  { id: 'herrete', label: 'Con herretes' },
+  { id: 'nudo', label: 'Con nudo' },
+] as const
+
+/** Estilos que se pueden elegir en cada tipo de detalle. */
+export const DETAIL_STYLES: Partial<Record<DetailKind, readonly { id: string; label: string }[]>> = {
+  boton: BUTTON_STYLES,
+  cremallera: ZIP_STYLES,
+  parche: PATCH_SHAPES,
+  bolsillo: POCKET_STYLES,
+  cinta: TAPE_STYLES,
+  hebilla: BUCKLE_STYLES,
+  costura: STITCH_STYLES,
+  cordon: CORD_STYLES,
+}
+
+/** Detalles alargados: además del ancho tienen su largo (`Detail.length`). */
+export const LONG_DETAILS: readonly DetailKind[] = ['cremallera', 'cordon', 'cinta', 'costura', 'pinza']
+
 /** Gráfico usado en un detalle (botón, tirador o parche con logo). */
 export interface DetailArt {
   artworkId: string | null
@@ -207,7 +266,7 @@ export interface Detail {
   x: number
   y: number
   w: number
-  /** Largo de la cremallera. */
+  /** Largo de los detalles alargados (cremallera, cordón, cinta, costura, pinza). */
   length?: number
   rotation: number
   /** Color principal y de contraste (cinta de la cremallera, borde del parche…). */

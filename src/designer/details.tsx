@@ -2,7 +2,8 @@ import type { Detail, DetailArt, HardwareStyle, PullerStyle, ZipStyle } from '..
 import { fileUrl } from '../shared/library'
 
 /**
- * Dibujo de los detalles (botones, cremalleras, ojales, remaches, herretes, etiquetas y parches) como una lista de
+ * Dibujo de los detalles (botones, cremalleras, ojetes, remaches, herretes, etiquetas, parches, bolsillos, trabillas,
+ * cordones, cintas, velcro, hebillas, costuras decorativas y pinzas) como una lista de
  * trazos sencillos centrados en (0, 0). La misma lista se pinta en SVG (el plano) y en canvas (la imagen del 3D).
  */
 
@@ -32,7 +33,19 @@ export function shade(hex: string, f: number) {
 export function detailAspect(d: Pick<Detail, 'kind' | 'style' | 'length' | 'w' | 'art'>) {
   switch (d.kind) {
     case 'cremallera':
+    case 'cordon':
+    case 'cinta':
+    case 'costura':
+    case 'pinza':
       return (d.length ?? 120) / d.w
+    case 'bolsillo':
+      return POCKET_ASPECT[d.style] ?? 1.15
+    case 'trabilla':
+      return 2.6
+    case 'velcro':
+      return 0.55
+    case 'hebilla':
+      return d.style === 'clip' ? 0.6 : d.style === 'anillas' ? 0.75 : 1
     case 'etiqueta':
       return 0.42
     case 'herrete':
@@ -45,6 +58,9 @@ export function detailAspect(d: Pick<Detail, 'kind' | 'style' | 'length' | 'w' |
       return 1
   }
 }
+
+/** Alto / ancho de cada bolsillo. */
+const POCKET_ASPECT: Record<string, number> = { parche: 1.15, vivo: 0.2, cargo: 1.3, cremallera: 0.16 }
 
 // --- Fornituras ---
 
@@ -192,7 +208,151 @@ export function detailPrims(d: Detail): Prim[] {
       return patchPrims(d, true)
     case 'parche':
       return patchPrims(d)
+    case 'bolsillo':
+      return pocketPrims(d.style, d.w, d.color, d.color2)
+    case 'trabilla': {
+      const h = d.w * 2.6
+      return [
+        { t: 'path', d: roundRect(-d.w / 2, -h / 2, d.w, h, d.w * 0.15), fill: d.color, stroke: shade(d.color, -0.45), sw: Math.max(0.4, d.w * 0.06) },
+        { t: 'path', d: `M${n(-d.w * 0.4)} ${n(-h * 0.38)}H${n(d.w * 0.4)}M${n(-d.w * 0.4)} ${n(h * 0.38)}H${n(d.w * 0.4)}`, stroke: d.color2, sw: Math.max(0.4, d.w * 0.12) },
+      ]
+    }
+    case 'cordon':
+      return cordPrims(d.style, d.w, d.length ?? 80, d.color, d.color2)
+    case 'cinta':
+      return tapePrims(d.style, d.w, d.length ?? 120, d.color, d.color2)
+    case 'velcro':
+      return velcroPrims(d.w, d.color, d.color2)
+    case 'hebilla':
+      return bucklePrims(d.style, d.w, d.color, d.color2)
+    case 'costura':
+      return stitchPrims(d.style, d.w, d.length ?? 80, d.color)
+    case 'pinza':
+      return dartPrims(d.w, d.length ?? 40, d.color)
   }
+}
+
+// --- Bolsillos, trabillas, cordones, cintas, velcro, hebillas, costuras y pinzas ---
+
+/** Pespunte discontinuo (de `color`) del tamaño del detalle. */
+const stitch = (d: string, w: number, color: string): Prim => ({ t: 'path', d, stroke: color, sw: Math.max(0.3, w * 0.018), dash: `${n(Math.max(1, w * 0.05))} ${n(Math.max(0.7, w * 0.035))}` })
+
+function pocketPrims(style: string, w: number, color: string, thread: string): Prim[] {
+  const h = w * (POCKET_ASPECT[style] ?? 1.15)
+  const edge = shade(color, -0.45)
+  const sw = Math.max(0.5, w * 0.02)
+  if (style === 'vivo') {
+    return [
+      { t: 'path', d: roundRect(-w / 2, -h / 2, w, h / 2, h * 0.2), fill: color, stroke: edge, sw },
+      { t: 'path', d: roundRect(-w / 2, 0, w, h / 2, h * 0.2), fill: color, stroke: edge, sw },
+      { t: 'path', d: `M${n(-w / 2)} ${n(-h * 0.7)}V${n(h * 0.7)}M${n(w / 2)} ${n(-h * 0.7)}V${n(h * 0.7)}`, stroke: thread, sw: Math.max(0.5, w * 0.03) },
+    ]
+  }
+  if (style === 'cremallera') {
+    return [
+      { t: 'path', d: roundRect(-w / 2, -h / 2, w, h, h * 0.3), fill: shade(color, -0.2), stroke: edge, sw },
+      { t: 'path', d: `M${n(-w / 2 + h * 0.4)} 0H${n(w / 2 - h * 0.4)}`, stroke: thread, sw: h * 0.32, dash: `${n(h * 0.12)} ${n(h * 0.1)}` },
+      { t: 'path', d: roundRect(w / 2 - h * 1.2, -h * 0.75, h * 0.7, h * 1.5, h * 0.2), fill: thread, stroke: shade(thread, -0.4), sw: sw * 0.6 },
+    ]
+  }
+  if (style === 'cargo') {
+    const top = -h / 2 + h * 0.2
+    return [
+      { t: 'path', d: roundRect(-w / 2, top, w, h * 0.8, w * 0.04), fill: color, stroke: edge, sw },
+      // Fuelle: los pliegues a los lados y el del centro
+      { t: 'path', d: `M${n(-w / 2 + w * 0.08)} ${n(top)}V${n(h / 2)}M${n(w / 2 - w * 0.08)} ${n(top)}V${n(h / 2)}M0 ${n(top)}V${n(h / 2)}`, stroke: shade(color, -0.3), sw: sw * 0.7 },
+      stitch(roundRect(-w / 2 + w * 0.04, top + w * 0.04, w * 0.92, h * 0.8 - w * 0.08, w * 0.03), w, thread),
+      { t: 'path', d: roundRect(-w * 0.53, -h / 2, w * 1.06, h * 0.28, w * 0.04), fill: shade(color, -0.06), stroke: edge, sw },
+      stitch(`M${n(-w * 0.46)} ${n(-h / 2 + h * 0.22)}H${n(w * 0.46)}`, w, thread),
+      { t: 'path', d: circle(0, -h / 2 + h * 0.14, w * 0.05), fill: thread, stroke: shade(thread, -0.4), sw: sw * 0.6 },
+    ]
+  }
+  // De parche, con el dobladillo arriba
+  return [
+    { t: 'path', d: roundRect(-w / 2, -h / 2, w, h, w * 0.06), fill: color, stroke: edge, sw },
+    stitch(roundRect(-w / 2 + w * 0.07, -h / 2 + w * 0.07, w * 0.86, h - w * 0.14, w * 0.04), w, thread),
+    stitch(`M${n(-w * 0.43)} ${n(-h / 2 + h * 0.16)}H${n(w * 0.43)}`, w, thread),
+  ]
+}
+
+function cordPrims(style: string, w: number, L: number, color: string, trim: string): Prim[] {
+  const out: Prim[] = [{ t: 'path', d: `M0 ${n(-L / 2)}V${n(L / 2)}`, stroke: color, sw: Math.max(0.6, w * 0.32) }]
+  const end = L / 2
+  if (style === 'tope') {
+    const y = -L / 2 + L * 0.35
+    out.push({ t: 'path', d: roundRect(-w / 2, y - w * 0.6, w, w * 1.2, w * 0.35), fill: trim, stroke: shade(trim, -0.4), sw: Math.max(0.3, w * 0.06) })
+    out.push({ t: 'path', d: circle(0, y - w * 0.2, w * 0.12), fill: shade(trim, -0.5) })
+  }
+  if (style === 'nudo') out.push({ t: 'path', d: circle(0, end - w * 0.4, w * 0.45), fill: color, stroke: shade(color, -0.35), sw: Math.max(0.3, w * 0.06) })
+  else out.push({ t: 'path', d: roundRect(-w * 0.2, end - w * 1.1, w * 0.4, w * 1.1, w * 0.12), fill: trim, stroke: shade(trim, -0.4), sw: Math.max(0.25, w * 0.05) })
+  return out
+}
+
+function tapePrims(style: string, w: number, L: number, color: string, color2: string): Prim[] {
+  const base = style === 'reflectante' ? '#c3c7cc' : color
+  const out: Prim[] = [{ t: 'path', d: `M${n(-w / 2)} ${n(-L / 2)}H${n(w / 2)}V${n(L / 2)}H${n(-w / 2)}Z`, fill: base, stroke: shade(base, -0.35), sw: Math.max(0.3, w * 0.04) }]
+  if (style === 'rayas') {
+    for (const x of [-w * 0.28, w * 0.13]) out.push({ t: 'path', d: `M${n(x)} ${n(-L / 2)}H${n(x + w * 0.15)}V${n(L / 2)}H${n(x)}Z`, fill: color2 })
+  } else if (style === 'reflectante') {
+    out.push({ t: 'path', d: `M${n(-w * 0.18)} ${n(-L / 2)}H${n(w * 0.18)}V${n(L / 2)}H${n(-w * 0.18)}Z`, fill: '#eef1f4', opacity: 0.8 })
+  }
+  const x = w / 2 - Math.max(0.6, w * 0.1)
+  out.push(stitch(`M${n(-x)} ${n(-L / 2)}V${n(L / 2)}M${n(x)} ${n(-L / 2)}V${n(L / 2)}`, w * 3, style === 'lisa' ? color2 : shade(base, -0.4)))
+  return out
+}
+
+function velcroPrims(w: number, color: string, thread: string): Prim[] {
+  const h = w * 0.55
+  const rows = Array.from({ length: 5 }, (_, i) => -h / 2 + (h * (i + 1)) / 6)
+  return [
+    { t: 'path', d: roundRect(-w / 2, -h / 2, w, h, h * 0.15), fill: color, stroke: shade(color, -0.4), sw: Math.max(0.4, w * 0.02) },
+    { t: 'path', d: rows.map((y) => `M${n(-w * 0.4)} ${n(y)}H${n(w * 0.4)}`).join(''), stroke: shade(color, -0.25), sw: Math.max(0.3, w * 0.025), dash: `${n(w * 0.02)} ${n(w * 0.025)}` },
+    stitch(roundRect(-w / 2 + w * 0.05, -h / 2 + w * 0.05, w * 0.9, h - w * 0.1, h * 0.1), w, thread),
+  ]
+}
+
+function bucklePrims(style: string, w: number, color: string, color2: string): Prim[] {
+  const h = w * (style === 'clip' ? 0.6 : style === 'anillas' ? 0.75 : 1)
+  const edge = shade(color, -0.45)
+  if (style === 'clip') {
+    return [
+      { t: 'path', d: roundRect(-w / 2, -h / 2, w * 0.56, h, h * 0.2), fill: color, stroke: edge, sw: Math.max(0.4, w * 0.03) },
+      { t: 'path', d: `M${n(w * 0.06)} ${n(-h * 0.42)}L${n(w / 2)} ${n(-h * 0.2)}V${n(h * 0.2)}L${n(w * 0.06)} ${n(h * 0.42)}Z`, fill: shade(color, 0.1), stroke: edge, sw: Math.max(0.4, w * 0.03) },
+      { t: 'path', d: roundRect(-w * 0.36, -h * 0.18, w * 0.2, h * 0.36, h * 0.08), fill: shade(color, -0.3) },
+      { t: 'path', d: `M${n(-w * 0.75)} ${n(-h * 0.3)}H${n(-w / 2)}V${n(h * 0.3)}H${n(-w * 0.75)}Z`, fill: color2 },
+    ]
+  }
+  if (style === 'anillas') {
+    const ring = (x: number) => `M${n(x)} ${n(-h / 2)}H${n(x + w * 0.12)}A${n(h / 2)} ${n(h / 2)} 0 0 1 ${n(x + w * 0.12)} ${n(h / 2)}H${n(x)}Z`
+    return [ring(-w * 0.3), ring(-w * 0.12)].map((d): Prim => ({ t: 'path', d, stroke: color, sw: Math.max(0.6, w * 0.07) }))
+  }
+  return [
+    { t: 'path', d: roundRect(-w / 2, -h / 2, w, h, w * 0.12), stroke: color, sw: Math.max(0.7, w * 0.13) },
+    { t: 'path', d: `M0 ${n(-h / 2)}V${n(h / 2)}`, stroke: color, sw: Math.max(0.6, w * 0.1) },
+    { t: 'path', d: `M0 0H${n(w * 0.46)}`, stroke: edge, sw: Math.max(0.5, w * 0.07) },
+  ]
+}
+
+function stitchPrims(style: string, w: number, L: number, color: string): Prim[] {
+  const sw = Math.max(0.35, w * 0.22)
+  const dash = `${n(w * 0.9)} ${n(w * 0.6)}`
+  const v = (x: number) => `M${n(x)} ${n(-L / 2)}V${n(L / 2)}`
+  if (style === 'doble') return [{ t: 'path', d: v(-w * 0.5) + v(w * 0.5), stroke: color, sw, dash }]
+  if (style === 'zigzag') {
+    const steps = Math.max(2, Math.round(L / (w * 0.9)))
+    const pts = Array.from({ length: steps + 1 }, (_, i) => `${i ? 'L' : 'M'}${n(i % 2 ? w / 2 : -w / 2)} ${n(-L / 2 + (L * i) / steps)}`)
+    return [{ t: 'path', d: pts.join(''), stroke: color, sw: sw * 0.8 }]
+  }
+  if (style === 'cadeneta') return [{ t: 'path', d: v(0), stroke: color, sw: sw * 1.8, dash: `${n(w * 0.7)} ${n(w * 0.25)}` }, { t: 'path', d: v(0), stroke: shade(color, 0.4), sw: sw * 0.5, dash: `${n(w * 0.7)} ${n(w * 0.25)}` }]
+  return [{ t: 'path', d: v(0), stroke: color, sw, dash }]
+}
+
+/** Pinza: dos costuras que se juntan en una punta, con el pliegue en el centro. */
+function dartPrims(w: number, L: number, color: string): Prim[] {
+  return [
+    { t: 'path', d: `M${n(-w / 2)} ${n(-L / 2)}L0 ${n(L / 2)}L${n(w / 2)} ${n(-L / 2)}`, stroke: color, sw: Math.max(0.4, w * 0.08) },
+    { t: 'path', d: `M0 ${n(-L / 2)}V${n(L / 2 - L * 0.1)}`, stroke: color, sw: Math.max(0.3, w * 0.05), dash: `${n(L * 0.04)} ${n(L * 0.03)}`, opacity: 0.6 },
+  ]
 }
 
 // --- Pintar en SVG ---

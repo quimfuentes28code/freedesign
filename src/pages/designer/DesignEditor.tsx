@@ -11,7 +11,7 @@ import { fileUrl } from '../../shared/library'
 import { getTemplate } from '../../designer/templates'
 import { OPTION_GROUPS, opt, type GarmentTemplate } from '../../designer/types'
 import { clientBody, standardBody } from '../../production/measurements'
-import { DETAIL_KINDS, type Callout, type DesignData, type DesignInput, type Detail, type PieceStyle, type Print } from '../../shared/designs'
+import { DETAIL_KINDS, LONG_DETAILS, type Callout, type DesignData, type DesignInput, type Detail, type PieceStyle, type Print } from '../../shared/designs'
 import { detailAspect, detailPrims, PrimsView } from '../../designer/details'
 import { DetailsPanel } from './DetailsPanel'
 import { Canvas, type CanvasSettings, type CanvasView } from './Canvas'
@@ -746,7 +746,7 @@ const VIEW_LABEL = { front: 'Delantero', back: 'Espalda', side: 'Lateral' } as c
 
 /** Miniatura de un detalle para la lista de capas. */
 function DetailIcon({ d }: { d: Detail }) {
-  const sample = { ...d, x: 0, y: 0, rotation: 0, ...(d.kind === 'cremallera' ? { length: d.w * 5 } : {}) }
+  const sample = { ...d, x: 0, y: 0, rotation: 0, ...(LONG_DETAILS.includes(d.kind) ? { length: d.w * 5 } : {}) }
   const s = Math.max(sample.w, sample.w * detailAspect(sample)) * 1.2
   return (
     <svg viewBox={`${-s / 2} ${-s / 2} ${s} ${s}`} width="20" height="20" aria-hidden>

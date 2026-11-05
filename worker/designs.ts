@@ -1,7 +1,7 @@
 import { TECHNIQUES, type Technique } from '../src/shared/artworks'
 import {
   BUTTON_STYLES,
-  DETAIL_KINDS,
+  DETAIL_KINDS, LONG_DETAILS,
   PULLER_STYLES,
   ZIP_STYLES,
   SURFACE_KINDS,
@@ -225,7 +225,8 @@ function readDetail(raw: unknown): Detail | null {
     view: viewOf(d.view),
     kind,
     style: text(d.style).slice(0, 20),
-    ...(kind === 'cremallera' ? { puller: oneOf(d.puller, PULLER_STYLES, 'clasico'), length: Math.max(10, finite(d.length, 120)) } : {}),
+    ...(kind === 'cremallera' ? { puller: oneOf(d.puller, PULLER_STYLES, 'clasico') } : {}),
+    ...(LONG_DETAILS.includes(kind) ? { length: Math.min(800, Math.max(4, finite(d.length, 120))) } : {}),
     x: finite(d.x, 200),
     y: finite(d.y, 200),
     w: Math.min(300, Math.max(2, finite(d.w, 10))),

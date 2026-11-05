@@ -4,7 +4,7 @@ import { CX } from '../../designer/geometry'
 import { UNITS_PER_CM as CLOTHES_UNITS } from '../../designer/prints'
 import { VIEWS, type View } from '../../designer/types'
 import type { Artwork } from '../../shared/artworks'
-import { BUTTON_STYLES, DETAIL_KINDS, PATCH_SHAPES, PULLER_STYLES, ZIP_STYLES, type Detail, type DetailArt, type DetailKind } from '../../shared/designs'
+import { DETAIL_KINDS, DETAIL_STYLES, LONG_DETAILS, PULLER_STYLES, type Detail, type DetailArt, type DetailKind } from '../../shared/designs'
 import { fileUrl } from '../../shared/library'
 
 /** Cómo empieza cada detalle al añadirlo (tamaños en unidades del lienzo: 2 = 1 cm). */
@@ -16,7 +16,19 @@ const DEFAULTS: Record<DetailKind, Omit<Detail, 'id' | 'view' | 'x' | 'y'>> = {
   herrete: { kind: 'herrete', style: '', w: 3, rotation: 0, color: '#c9c9c9', color2: '#1d1c1a' },
   etiqueta: { kind: 'etiqueta', style: 'rect', w: 40, rotation: 0, color: '#1d1c1a', color2: '#f2efe8', text: 'TU MARCA' },
   parche: { kind: 'parche', style: 'rect', w: 50, rotation: 0, color: '#f2efe8', color2: '#1d1c1a', text: 'FD', relief: true },
+  bolsillo: { kind: 'bolsillo', style: 'parche', w: 30, rotation: 0, color: '#8a8780', color2: '#1d1c1a' },
+  trabilla: { kind: 'trabilla', style: '', w: 4, rotation: 0, color: '#8a8780', color2: '#1d1c1a' },
+  cordon: { kind: 'cordon', style: 'tope', w: 5, length: 70, rotation: 0, color: '#f4f1ea', color2: '#2b2b2b' },
+  cinta: { kind: 'cinta', style: 'lisa', w: 8, length: 160, rotation: 0, color: '#f2efe8', color2: '#1d1c1a' },
+  velcro: { kind: 'velcro', style: '', w: 20, rotation: 0, color: '#2b2b2b', color2: '#1d1c1a' },
+  hebilla: { kind: 'hebilla', style: 'cuadrada', w: 10, rotation: 0, color: '#c9c9c9', color2: '#1d1c1a' },
+  costura: { kind: 'costura', style: 'simple', w: 3, length: 80, rotation: 0, color: '#1d1c1a', color2: '#1d1c1a' },
+  pinza: { kind: 'pinza', style: '', w: 6, length: 40, rotation: 0, color: '#1d1c1a', color2: '#1d1c1a' },
 }
+
+/** Cómo se llama el estilo y el ancho en cada tipo de detalle. */
+const STYLE_LABEL: Partial<Record<DetailKind, string>> = { cremallera: 'Cremallera', parche: 'Forma', bolsillo: 'Bolsillo', cinta: 'Cinta', hebilla: 'Hebilla', costura: 'Puntada', cordon: 'Remate' }
+const SIZE_LABEL: Partial<Record<DetailKind, string>> = { cremallera: 'Ancho de la cinta', cinta: 'Ancho', costura: 'Separación', pinza: 'Ancho', cordon: 'Grosor del tope', bolsillo: 'Ancho' }
 
 /** Nombre de los dos colores según el tipo de detalle. */
 const COLOR_LABELS: Record<DetailKind, [string, string | null]> = {
@@ -27,6 +39,14 @@ const COLOR_LABELS: Record<DetailKind, [string, string | null]> = {
   herrete: ['Metal', null],
   etiqueta: ['Fondo', 'Texto y borde'],
   parche: ['Fondo', 'Borde y texto'],
+  bolsillo: ['Tela', 'Pespunte y cierre'],
+  trabilla: ['Tela', 'Presillas'],
+  cordon: ['Cordón', 'Topes y herretes'],
+  cinta: ['Cinta', 'Rayas y pespunte'],
+  velcro: ['Velcro', 'Pespunte'],
+  hebilla: ['Hebilla', 'Cinta'],
+  costura: ['Hilo', null],
+  pinza: ['Línea', null],
 }
 
 interface Props {
@@ -63,7 +83,7 @@ export function DetailsPanel({ details, onChange, view, selected, onSelect, artw
       <p className="muted small">Se añaden en la vista {VIEWS.find((v) => v.id === view)?.label.toLowerCase()}. Arrástralos para colocarlos; la esquina los escala.</p>
       <div className="detail-kinds">
         {DETAIL_KINDS.map((k) => {
-          const sample = { id: k.id, view, x: 0, y: 0, ...DEFAULTS[k.id], ...(k.id === 'cremallera' ? { length: 40 } : {}) } as Detail
+          const sample = { id: k.id, view, x: 0, y: 0, ...DEFAULTS[k.id], ...(LONG_DETAILS.includes(k.id) ? { length: DEFAULTS[k.id].w * 5 } : {}) } as Detail
           const h = sample.w * detailAspect(sample)
           const s = Math.max(sample.w, h) * 1.25
           return (
@@ -81,16 +101,12 @@ export function DetailsPanel({ details, onChange, view, selected, onSelect, artw
         <div className="print-editor detail-editor">
           <h3 className="form-sub">{DETAIL_KINDS.find((k) => k.id === current.kind)?.label}</h3>
 
-          {current.kind === 'boton' && (
-            <Chips label="Tipo" value={current.style} options={BUTTON_STYLES} onChange={(style) => update({ style })} />
+          {DETAIL_STYLES[current.kind] && (
+            <Chips label={STYLE_LABEL[current.kind] ?? 'Tipo'} value={current.style} options={DETAIL_STYLES[current.kind]!} onChange={(style) => update({ style })} />
           )}
           {current.kind === 'cremallera' && (
-            <>
-              <Chips label="Cremallera" value={current.style} options={ZIP_STYLES} onChange={(style) => update({ style })} />
-              <Chips label="Tirador" value={current.puller ?? 'clasico'} options={PULLER_STYLES} onChange={(puller) => update({ puller: puller as Detail['puller'] })} />
-            </>
+            <Chips label="Tirador" value={current.puller ?? 'clasico'} options={PULLER_STYLES} onChange={(puller) => update({ puller: puller as Detail['puller'] })} />
           )}
-          {current.kind === 'parche' && <Chips label="Forma" value={current.style} options={PATCH_SHAPES} onChange={(style) => update({ style })} />}
 
           {(current.kind === 'etiqueta' || current.kind === 'parche') && (
             <Field label="Texto">
@@ -116,23 +132,23 @@ export function DetailsPanel({ details, onChange, view, selected, onSelect, artw
 
           <label className="field">
             <span>
-              {current.kind === 'cremallera' ? 'Ancho de la cinta' : 'Tamaño'} ≈ <strong>{cm(current.w).toLocaleString('es-ES')} cm</strong>
+              {SIZE_LABEL[current.kind] ?? 'Tamaño'} ≈ <strong>{cm(current.w).toLocaleString('es-ES')} cm</strong>
             </span>
             <input
               type="range"
-              min={current.kind === 'cremallera' ? 2 : 2}
-              max={current.kind === 'etiqueta' || current.kind === 'parche' ? 120 : 40}
+              min={current.kind === 'costura' ? 1 : 2}
+              max={(['etiqueta', 'parche', 'bolsillo'].includes(current.kind) ? 120 : current.kind === 'costura' ? 10 : 40) * (upc / CLOTHES_UNITS)}
               step={0.5}
               value={current.w}
               onChange={(e) => update({ w: Number(e.target.value) })}
             />
           </label>
-          {current.kind === 'cremallera' && (
+          {LONG_DETAILS.includes(current.kind) && (
             <label className="field">
               <span>
                 Largo ≈ <strong>{cm(current.length ?? 120).toLocaleString('es-ES')} cm</strong>
               </span>
-              <input type="range" min={10} max={320} step={1} value={current.length ?? 120} onChange={(e) => update({ length: Number(e.target.value) })} />
+              <input type="range" min={4} max={800} step={1} value={current.length ?? 120} onChange={(e) => update({ length: Number(e.target.value) })} />
             </label>
           )}
           <label className="field">

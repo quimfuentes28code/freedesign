@@ -57,11 +57,12 @@ Se marca cada fase al terminarla.
 - [x] Lengüeta en el cuello alto (puffer, chaleco, cortavientos), con automáticos o velcro; la cremallera sube hasta arriba del cuello
 - En 2D y ficha técnica (medidas y confección); en 3D todavía no
 
-## 9. Detalles donde quieras
+## 9. Detalles donde quieras ✓
 
-- [ ] Bolsillos colocables en cualquier pieza y vista: de parche, de vivo, cargo con fuelle y tapeta, con cremallera
-- [ ] Más fornituras colocables: cremalleras de bolsillo o laterales, trabillas, cordones con topes, cintas laterales, velcro, hebillas, ojetes
-- [ ] Costuras decorativas y pinzas dibujadas sobre la prenda
+- [x] Bolsillos colocables en cualquier pieza y vista: de parche, de vivo, cargo con fuelle y tapeta, con cremallera
+- [x] Más fornituras colocables: trabillas, cordón con topes, herretes o nudo, cintas y bandas (lisas, con rayas, reflectantes), velcro, hebillas (metálica, clip, anillas) y ojetes; las cremalleras ya se podían poner donde se quisiera
+- [x] Costuras decorativas (pespunte, doble, zigzag, cadeneta) y pinzas
+- Todo sale en la ficha técnica y, con relieve, en 3D (las costuras, pinzas y cintas van planas)
 
 ## 10. Acabados y efectos
 

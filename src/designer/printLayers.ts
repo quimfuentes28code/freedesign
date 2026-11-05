@@ -149,7 +149,8 @@ export async function printLayer(t: GarmentTemplate, data: DesignData, view: Vie
         : zipperPrims(hw.zip ?? 'metal', hw.puller ?? 'clasico', b.w, b.h, tint(s.piece), tint(t.pieces[0]?.id), hw.pullerArt)
     surface(prims, b.x + b.w / 2, b.y + b.h / 2, 0, true)
   }
-  for (const d of details) surface(detailPrims(d), d.x, d.y, d.rotation, d.kind !== 'etiqueta' || !!d.relief)
+  const flat = ['etiqueta', 'costura', 'pinza', 'cinta']
+  for (const d of details) surface(detailPrims(d), d.x, d.y, d.rotation, !flat.includes(d.kind) || !!d.relief)
 
   return { color, relief: raised ? relief : null }
 }

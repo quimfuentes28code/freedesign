@@ -20,7 +20,7 @@ import { clientBody, garmentPoms, measurementLabel, standardBody } from '../../p
 import { TECHNIQUES, type Artwork } from '../../shared/artworks'
 import type { Client } from '../../shared/clients'
 import { surfaceLabel } from '../../designer/surfaces'
-import { BUTTON_STYLES, DETAIL_KINDS, PATCH_SHAPES, PULLER_STYLES, SURFACE_KINDS, WASH_KINDS, ZIP_STYLES, type Design, type DetailArt, type PieceStyle, type Print } from '../../shared/designs'
+import { BUTTON_STYLES, DETAIL_KINDS, DETAIL_STYLES, LONG_DETAILS, PULLER_STYLES, SURFACE_KINDS, WASH_KINDS, ZIP_STYLES, type Design, type DetailArt, type PieceStyle, type Print } from '../../shared/designs'
 import { buttonPrims, detailPrims, PrimsView, zipperPrims, type Prim } from '../../designer/details'
 import { fileUrl, MATERIAL_CATEGORIES, type Material } from '../../shared/library'
 import { EMPTY_TECH_PACK, SIZES, type ConstructionRow, type Size, type SpecColumn, type TechPack, type TechPackData } from '../../shared/production'
@@ -629,18 +629,11 @@ function DetailsTable({ template, design, artworks }: { template: GarmentTemplat
           {details.map((d) => {
             const zones = template.printZones[d.view] ?? []
             const zone = [...zones].sort((a, b) => Math.hypot(a.x - d.x, a.y - d.y) - Math.hypot(b.x - d.x, b.y - d.y))[0]
-            const style =
-              d.kind === 'boton'
-                ? label(BUTTON_STYLES, d.style)
-                : d.kind === 'cremallera'
-                  ? `${label(ZIP_STYLES, d.style)} · tirador ${label(PULLER_STYLES, d.puller).toLowerCase()}`
-                  : d.kind === 'parche'
-                    ? label(PATCH_SHAPES, d.style)
-                    : ''
+            const style = d.kind === 'cremallera' ? `${label(ZIP_STYLES, d.style)} · tirador ${label(PULLER_STYLES, d.puller).toLowerCase()}` : DETAIL_STYLES[d.kind] ? label(DETAIL_STYLES[d.kind]!, d.style) : ''
             return (
               <tr key={d.id}>
                 <td className="print-cell">
-                  <MiniPrims prims={detailPrims({ ...d, rotation: 0, ...(d.kind === 'cremallera' ? { length: d.w * 4 } : {}) })} />
+                  <MiniPrims prims={detailPrims({ ...d, rotation: 0, ...(LONG_DETAILS.includes(d.kind) ? { length: d.w * 4 } : {}) })} />
                 </td>
                 <td>
                   {DETAIL_KINDS.find((k) => k.id === d.kind)?.label}
@@ -654,7 +647,7 @@ function DetailsTable({ template, design, artworks }: { template: GarmentTemplat
                   {zone && <span className="muted"> · cerca de: {zone.label.toLowerCase()}</span>}
                   {d.rotation ? <span className="muted"> · girado {Math.round(d.rotation)}°</span> : null}
                 </td>
-                <td>{d.kind === 'cremallera' ? `${cm(d.length ?? 0)} cm de largo` : `${cm(d.w)} cm`}</td>
+                <td>{LONG_DETAILS.includes(d.kind) ? `${cm(d.w)} × ${cm(d.length ?? 0)} cm` : `${cm(d.w)} cm`}</td>
                 <td>
                   <span className="color-cell">
                     <span className="color-chip" style={{ background: d.color }} /> {d.color.toUpperCase()}

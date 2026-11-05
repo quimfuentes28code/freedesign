@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import type { DesignData, Detail, Print, ZipStyle } from '../shared/designs'
+import { LONG_DETAILS, type DesignData, type Detail, type Print, type ZipStyle } from '../shared/designs'
 import { blockLine, halfPlane, onTilesChange, pieceTile, tileUrl, type Tile } from './surfaces'
 import { buttonPrims, DetailGraphic, detailAspect, PrimsView, shade, zipperPrims } from './details'
 import { useFontsVersion } from './fonts'
@@ -381,7 +381,7 @@ export function FlatView(props: Props) {
             aspect={aspect}
             selected={selectedDetail === d.id}
             onSelect={() => onSelectDetail?.(d.id)}
-            onChange={(t) => onChangeDetail({ ...d, x: t.x, y: t.y, rotation: t.rotation, w: t.w, ...(d.kind === 'cremallera' ? { length: t.w * aspect } : {}) })}
+            onChange={(t) => onChangeDetail({ ...d, x: t.x, y: t.y, rotation: t.rotation, w: t.w, ...(LONG_DETAILS.includes(d.kind) ? { length: t.w * aspect } : {}) })}
           >
             {shape}
           </Transformable>
