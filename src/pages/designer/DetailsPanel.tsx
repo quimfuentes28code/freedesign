@@ -24,11 +24,15 @@ const DEFAULTS: Record<DetailKind, Omit<Detail, 'id' | 'view' | 'x' | 'y'>> = {
   hebilla: { kind: 'hebilla', style: 'cuadrada', w: 10, rotation: 0, color: '#c9c9c9', color2: '#1d1c1a' },
   costura: { kind: 'costura', style: 'simple', w: 3, length: 80, rotation: 0, color: '#1d1c1a', color2: '#1d1c1a' },
   pinza: { kind: 'pinza', style: '', w: 6, length: 40, rotation: 0, color: '#1d1c1a', color2: '#1d1c1a' },
+  roto: { kind: 'roto', style: 'rasgado', w: 34, rotation: 0, color: '#2e2a26', color2: '#f2efe8' },
+  // Girado: los hilos cuelgan hacia abajo, como en un bajo
+  deshilachado: { kind: 'deshilachado', style: 'flecos', w: 10, length: 120, rotation: 90, color: '#f2efe8', color2: '#8a8780' },
+  desgaste: { kind: 'desgaste', style: 'zona', w: 50, rotation: 0, color: '#ffffff', color2: '#ffffff' },
 }
 
 /** Cómo se llama el estilo y el ancho en cada tipo de detalle. */
-const STYLE_LABEL: Partial<Record<DetailKind, string>> = { cremallera: 'Cremallera', parche: 'Forma', bolsillo: 'Bolsillo', cinta: 'Cinta', hebilla: 'Hebilla', costura: 'Puntada', cordon: 'Remate' }
-const SIZE_LABEL: Partial<Record<DetailKind, string>> = { cremallera: 'Ancho de la cinta', cinta: 'Ancho', costura: 'Separación', pinza: 'Ancho', cordon: 'Grosor del tope', bolsillo: 'Ancho' }
+const STYLE_LABEL: Partial<Record<DetailKind, string>> = { cremallera: 'Cremallera', parche: 'Forma', bolsillo: 'Bolsillo', cinta: 'Cinta', hebilla: 'Hebilla', costura: 'Puntada', cordon: 'Remate', roto: 'Roto', deshilachado: 'Borde', desgaste: 'Desgaste' }
+const SIZE_LABEL: Partial<Record<DetailKind, string>> = { cremallera: 'Ancho de la cinta', cinta: 'Ancho', costura: 'Separación', pinza: 'Ancho', cordon: 'Grosor del tope', bolsillo: 'Ancho', deshilachado: 'Largo de los hilos' }
 
 /** Nombre de los dos colores según el tipo de detalle. */
 const COLOR_LABELS: Record<DetailKind, [string, string | null]> = {
@@ -47,6 +51,9 @@ const COLOR_LABELS: Record<DetailKind, [string, string | null]> = {
   hebilla: ['Hebilla', 'Cinta'],
   costura: ['Hilo', null],
   pinza: ['Línea', null],
+  roto: ['Interior del roto', 'Hilos'],
+  deshilachado: ['Hilos', 'Borde'],
+  desgaste: ['Color del desgaste', null],
 }
 
 interface Props {
@@ -83,7 +90,9 @@ export function DetailsPanel({ details, onChange, view, selected, onSelect, artw
       <p className="muted small">Se añaden en la vista {VIEWS.find((v) => v.id === view)?.label.toLowerCase()}. Arrástralos para colocarlos; la esquina los escala.</p>
       <div className="detail-kinds">
         {DETAIL_KINDS.map((k) => {
-          const sample = { id: k.id, view, x: 0, y: 0, ...DEFAULTS[k.id], ...(LONG_DETAILS.includes(k.id) ? { length: DEFAULTS[k.id].w * 5 } : {}) } as Detail
+          // Los claros (hilos, desgaste) se ven en el icono con un color de muestra; y todos sin girar
+          const light = k.id === 'desgaste' || k.id === 'deshilachado' ? { color: '#5a6f8f' } : {}
+          const sample = { id: k.id, view, x: 0, y: 0, ...DEFAULTS[k.id], ...light, rotation: 0, ...(LONG_DETAILS.includes(k.id) ? { length: DEFAULTS[k.id].w * 5 } : {}) } as Detail
           const h = sample.w * detailAspect(sample)
           const s = Math.max(sample.w, h) * 1.25
           return (
@@ -137,7 +146,7 @@ export function DetailsPanel({ details, onChange, view, selected, onSelect, artw
             <input
               type="range"
               min={current.kind === 'costura' ? 1 : 2}
-              max={(['etiqueta', 'parche', 'bolsillo'].includes(current.kind) ? 120 : current.kind === 'costura' ? 10 : 40) * (upc / CLOTHES_UNITS)}
+              max={(['etiqueta', 'parche', 'bolsillo', 'roto', 'desgaste'].includes(current.kind) ? 120 : current.kind === 'costura' ? 10 : 40) * (upc / CLOTHES_UNITS)}
               step={0.5}
               value={current.w}
               onChange={(e) => update({ w: Number(e.target.value) })}

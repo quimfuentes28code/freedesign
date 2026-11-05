@@ -64,9 +64,9 @@ Se marca cada fase al terminarla.
 - [x] Costuras decorativas (pespunte, doble, zigzag, cadeneta) y pinzas
 - Todo sale en la ficha técnica y, con relieve, en 3D (las costuras, pinzas y cintas van planas)
 
-## 10. Acabados y efectos
+## 10. Acabados y efectos ✓
 
-- [ ] Rotos (rodillas, muslos…), con su tamaño y forma y los hilos a la vista
-- [ ] Deshilachado en bajos y bordes, bajo sin coser
-- [ ] Desgastado en zonas concretas (no solo el lavado de toda la pieza)
-- [ ] Rotos y deshilachados también en 3D
+- [x] Rotos donde quieras: rasgado con los hilos de la trama a la vista, agujero con el borde deshilachado o cortes en escalera
+- [x] Deshilachado en bajos y bordes: flecos, bajo sin coser o desflecado (sale girado, con los hilos hacia abajo)
+- [x] Desgaste en zonas concretas: zona aclarada, bigotes y roce
+- [x] También en 3D: se pintan sobre la prenda (los rotos y deshilachados con relieve); aún no son agujeros de verdad en la tela

@@ -37,7 +37,12 @@ export function detailAspect(d: Pick<Detail, 'kind' | 'style' | 'length' | 'w' |
     case 'cinta':
     case 'costura':
     case 'pinza':
+    case 'deshilachado':
       return (d.length ?? 120) / d.w
+    case 'roto':
+      return d.style === 'agujero' ? 0.8 : d.style === 'cortes' ? 0.75 : 0.6
+    case 'desgaste':
+      return d.style === 'bigotes' ? 0.5 : 0.7
     case 'bolsillo':
       return POCKET_ASPECT[d.style] ?? 1.15
     case 'trabilla':
@@ -229,6 +234,12 @@ export function detailPrims(d: Detail): Prim[] {
       return stitchPrims(d.style, d.w, d.length ?? 80, d.color)
     case 'pinza':
       return dartPrims(d.w, d.length ?? 40, d.color)
+    case 'roto':
+      return ripPrims(d.style, d.w, d.color, d.color2)
+    case 'deshilachado':
+      return frayPrims(d.style, d.w, d.length ?? 120, d.color, d.color2)
+    case 'desgaste':
+      return wearPrims(d.style, d.w, d.color)
   }
 }
 
@@ -353,6 +364,122 @@ function dartPrims(w: number, L: number, color: string): Prim[] {
     { t: 'path', d: `M${n(-w / 2)} ${n(-L / 2)}L0 ${n(L / 2)}L${n(w / 2)} ${n(-L / 2)}`, stroke: color, sw: Math.max(0.4, w * 0.08) },
     { t: 'path', d: `M0 ${n(-L / 2)}V${n(L / 2 - L * 0.1)}`, stroke: color, sw: Math.max(0.3, w * 0.05), dash: `${n(L * 0.04)} ${n(L * 0.03)}`, opacity: 0.6 },
   ]
+}
+
+// --- Rotos, deshilachados y desgastes ---
+
+/** Números «al azar» que siempre salen iguales para el mismo detalle (para que el roto no cambie al repintar). */
+function seeded(seed: number) {
+  let s = Math.floor(seed * 1000) % 2147483647 || 7
+  return () => {
+    s = (s * 16807) % 2147483647
+    return (s - 1) / 2147483646
+  }
+}
+
+/** Contorno irregular (de rotura) dentro de una elipse de semiejes rx, ry. */
+function jagged(rx: number, ry: number, rand: () => number, rough = 0.18, points = 22) {
+  const pts = Array.from({ length: points }, (_, i) => {
+    const a = (i / points) * Math.PI * 2
+    const k = 1 - rough + rand() * rough * 2
+    return `${n(Math.cos(a) * rx * k)} ${n(Math.sin(a) * ry * k)}`
+  })
+  return `M${pts.join('L')}Z`
+}
+
+function ripPrims(style: string, w: number, hole: string, thread: string): Prim[] {
+  const rand = seeded(w + style.length)
+  const h = w * (style === 'agujero' ? 0.8 : style === 'cortes' ? 0.75 : 0.6)
+  const sw = Math.max(0.25, w * 0.012)
+  const out: Prim[] = []
+  if (style === 'cortes') {
+    // Varios cortes horizontales uno encima de otro, cada uno con sus hilos
+    const rows = 4
+    for (let i = 0; i < rows; i++) {
+      const y = -h / 2 + (h * (i + 0.5)) / rows
+      const len = w * (0.55 + rand() * 0.4)
+      const x0 = -len / 2 + (rand() - 0.5) * w * 0.12
+      out.push({ t: 'path', d: `M${n(x0)} ${n(y)}Q${n(x0 + len / 2)} ${n(y + h * 0.05)} ${n(x0 + len)} ${n(y)}Q${n(x0 + len / 2)} ${n(y - h * 0.04)} ${n(x0)} ${n(y)}Z`, fill: hole, stroke: hole, sw: Math.max(0.5, w * 0.03) })
+      for (let k = 0; k < 4; k++) {
+        const x = x0 + len * (0.15 + 0.7 * rand())
+        out.push({ t: 'path', d: `M${n(x)} ${n(y - h * 0.05)}l${n((rand() - 0.5) * w * 0.04)} ${n(h * 0.1)}`, stroke: thread, sw })
+      }
+    }
+    return out
+  }
+  out.push({ t: 'path', d: jagged(w / 2, h / 2, rand), fill: hole, opacity: 0.9 })
+  if (style === 'rasgado') {
+    // Los hilos de la trama cruzan el roto de lado a lado
+    const lines = 7
+    for (let i = 0; i < lines; i++) {
+      const y = -h * 0.38 + (h * 0.76 * i) / (lines - 1) + (rand() - 0.5) * h * 0.05
+      const half = (w / 2) * Math.sqrt(Math.max(0, 1 - (y / (h / 2)) ** 2)) * 0.95
+      out.push({ t: 'path', d: `M${n(-half)} ${n(y)}Q0 ${n(y + (rand() - 0.5) * h * 0.12)} ${n(half)} ${n(y)}`, stroke: thread, sw: sw * 1.6 })
+    }
+  }
+  // Borde deshilachado: hilos cortos hacia fuera
+  const fringe = style === 'agujero' ? 36 : 26
+  for (let i = 0; i < fringe; i++) {
+    const a = (i / fringe) * Math.PI * 2 + rand() * 0.2
+    const x = Math.cos(a) * (w / 2) * 0.95
+    const y = Math.sin(a) * (h / 2) * 0.95
+    const l = w * (0.03 + rand() * 0.06)
+    out.push({ t: 'path', d: `M${n(x)} ${n(y)}l${n(Math.cos(a) * l)} ${n(Math.sin(a) * l)}`, stroke: thread, sw })
+  }
+  return out
+}
+
+/** Borde deshilachado a lo largo de `L` (en vertical; se gira para ponerlo en un bajo). Los hilos salen hacia +x. */
+function frayPrims(style: string, w: number, L: number, thread: string, edge: string): Prim[] {
+  const rand = seeded(L + w)
+  const out: Prim[] = []
+  const step = style === 'desflecado' ? w * 0.06 : w * 0.1
+  const count = Math.max(4, Math.floor(L / Math.max(0.4, step)))
+  const reach = style === 'sin-coser' ? 0.35 : style === 'desflecado' ? 0.75 : 1
+  const sw = Math.max(0.25, w * 0.03)
+  if (style === 'sin-coser') {
+    // Borde cortado e irregular, sin dobladillo
+    const pts = Array.from({ length: 24 }, (_, i) => `${i ? 'L' : 'M'}${n(-w / 2 + rand() * w * 0.12)} ${n(-L / 2 + (L * i) / 23)}`)
+    out.push({ t: 'path', d: pts.join(''), stroke: edge, sw: sw * 1.4 })
+  }
+  for (let i = 0; i < count; i++) {
+    const y = -L / 2 + (L * (i + rand() * 0.6)) / count
+    const len = w * reach * (0.4 + rand() * 0.6)
+    const bend = (rand() - 0.5) * w * 0.15
+    out.push({ t: 'path', d: `M${n(-w / 2)} ${n(y)}q${n(len / 2)} ${n(bend)} ${n(len)} ${n(bend * 0.6)}`, stroke: thread, sw })
+  }
+  return out
+}
+
+function wearPrims(style: string, w: number, color: string): Prim[] {
+  const rand = seeded(w + style.length * 3)
+  const h = w * (style === 'bigotes' ? 0.5 : 0.7)
+  const out: Prim[] = []
+  if (style === 'bigotes') {
+    // Pliegues aclarados en abanico (caderas o entrepierna de un vaquero)
+    for (let i = 0; i < 6; i++) {
+      const y = -h / 2 + (h * i) / 5
+      const len = w * (0.45 + rand() * 0.5)
+      out.push({ t: 'path', d: `M${n(-w / 2)} ${n(y)}q${n(len / 2)} ${n(h * 0.12)} ${n(len)} ${n(h * 0.2)}`, stroke: color, sw: Math.max(0.6, w * (0.04 + rand() * 0.03)), opacity: 0.45 })
+    }
+    return out
+  }
+  if (style === 'roce') {
+    for (let i = 0; i < 70; i++) {
+      const a = rand() * Math.PI * 2
+      const r = Math.sqrt(rand())
+      const x = Math.cos(a) * r * (w / 2)
+      const y = Math.sin(a) * r * (h / 2)
+      out.push({ t: 'path', d: `M${n(x)} ${n(y)}h${n(w * (0.02 + rand() * 0.05))}`, stroke: color, sw: Math.max(0.3, w * 0.015), opacity: 0.35 + rand() * 0.35 })
+    }
+    return out
+  }
+  // Zona aclarada: varias elipses superpuestas, más claras hacia el centro (borde suave)
+  for (let i = 0; i < 6; i++) {
+    const k = 1 - i * 0.15
+    out.push({ t: 'path', d: jagged((w / 2) * k, (h / 2) * k, rand, 0.08, 18), fill: color, opacity: 0.12 })
+  }
+  return out
 }
 
 // --- Pintar en SVG ---

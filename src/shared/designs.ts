@@ -151,6 +151,9 @@ export const DETAIL_KINDS = [
   { id: 'hebilla', label: 'Hebilla' },
   { id: 'costura', label: 'Costura decorativa' },
   { id: 'pinza', label: 'Pinza' },
+  { id: 'roto', label: 'Roto' },
+  { id: 'deshilachado', label: 'Deshilachado' },
+  { id: 'desgaste', label: 'Desgaste' },
 ] as const
 
 export type DetailKind = (typeof DETAIL_KINDS)[number]['id']
@@ -228,6 +231,27 @@ export const CORD_STYLES = [
   { id: 'nudo', label: 'Con nudo' },
 ] as const
 
+/** Rotos: rasgado con los hilos de la trama a la vista, agujero con el borde deshilachado o cortes en escalera. */
+export const RIP_STYLES = [
+  { id: 'rasgado', label: 'Rasgado (hilos a la vista)' },
+  { id: 'agujero', label: 'Agujero' },
+  { id: 'cortes', label: 'Cortes en escalera' },
+] as const
+
+/** Bordes deshilachados: flecos largos, bajo sin coser o desflecado. */
+export const FRAY_STYLES = [
+  { id: 'flecos', label: 'Flecos' },
+  { id: 'sin-coser', label: 'Bajo sin coser' },
+  { id: 'desflecado', label: 'Desflecado' },
+] as const
+
+/** Desgaste en una zona: aclarado, bigotes (como en las caderas de un vaquero) o roce. */
+export const WEAR_STYLES = [
+  { id: 'zona', label: 'Zona aclarada' },
+  { id: 'bigotes', label: 'Bigotes' },
+  { id: 'roce', label: 'Roce' },
+] as const
+
 /** Estilos que se pueden elegir en cada tipo de detalle. */
 export const DETAIL_STYLES: Partial<Record<DetailKind, readonly { id: string; label: string }[]>> = {
   boton: BUTTON_STYLES,
@@ -238,10 +262,13 @@ export const DETAIL_STYLES: Partial<Record<DetailKind, readonly { id: string; la
   hebilla: BUCKLE_STYLES,
   costura: STITCH_STYLES,
   cordon: CORD_STYLES,
+  roto: RIP_STYLES,
+  deshilachado: FRAY_STYLES,
+  desgaste: WEAR_STYLES,
 }
 
 /** Detalles alargados: además del ancho tienen su largo (`Detail.length`). */
-export const LONG_DETAILS: readonly DetailKind[] = ['cremallera', 'cordon', 'cinta', 'costura', 'pinza']
+export const LONG_DETAILS: readonly DetailKind[] = ['cremallera', 'cordon', 'cinta', 'costura', 'pinza', 'deshilachado']
 
 /** Gráfico usado en un detalle (botón, tirador o parche con logo). */
 export interface DetailArt {
