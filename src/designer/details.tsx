@@ -44,6 +44,15 @@ export interface ShapeParam {
 }
 
 const ALTO: ShapeParam = { id: 'alto', label: 'Alto', min: 0.4, max: 2.5, step: 0.05, def: 1 }
+const POINT: ShapeParam = { id: 'pico', label: 'Profundidad del pico', min: 0.05, max: 1, step: 0.05, def: 0.35 }
+
+/** Forma de los bolsillos que trae la prenda (al elegir la pieza «Bolsillos»). */
+export const POCKET_SHAPE_PARAMS: ShapeParam[] = [
+  { id: 'fondo', label: 'Fondo', min: 0, max: 2, step: 1, def: 0, choices: ['Recto', 'En pico', 'Redondo'] },
+  POINT,
+  { id: 'esquinas', label: 'Esquinas redondeadas', min: 0, max: 1, step: 0.05, def: 0.1 },
+  ALTO,
+]
 
 /** Forma que se puede ajustar en cada tipo de detalle. */
 export const SHAPE_PARAMS: Partial<Record<Detail['kind'], ShapeParam[]>> = {
@@ -51,6 +60,7 @@ export const SHAPE_PARAMS: Partial<Record<Detail['kind'], ShapeParam[]>> = {
     ALTO,
     { id: 'esquinas', label: 'Esquinas redondeadas', min: 0, max: 1, step: 0.05, def: 0.2 },
     { id: 'fondo', label: 'Fondo', min: 0, max: 2, step: 1, def: 0, choices: ['Recto', 'En pico', 'Redondo'] },
+    POINT,
     { id: 'tapeta', label: 'Alto de la tapeta (cargo)', min: 0.4, max: 2, step: 0.05, def: 1 },
   ],
   parche: [ALTO],
@@ -303,8 +313,8 @@ export function detailPrims(d: Detail): Prim[] {
 /** Pespunte discontinuo (de `color`) del tamaño del detalle. */
 const stitch = (d: string, w: number, color: string): Prim => ({ t: 'path', d, stroke: color, sw: Math.max(0.3, w * 0.018), dash: `${n(Math.max(1, w * 0.05))} ${n(Math.max(0.7, w * 0.035))}` })
 
-/** Cuerpo de un bolsillo con su fondo recto, en pico o redondo (`inset` para el pespunte). */
-function pocketBody(x0: number, y0: number, w: number, h: number, r: number, fondo: number, inset = 0) {
+/** Cuerpo de un bolsillo con su fondo recto, en pico o redondo (`inset` para el pespunte); `depth`: lo que baja el pico (0–1). */
+export function pocketBody(x0: number, y0: number, w: number, h: number, r: number, fondo: number, inset = 0, depth = 0.35) {
   const x = x0 + inset
   const y = y0 + inset
   const ww = w - inset * 2
@@ -312,7 +322,7 @@ function pocketBody(x0: number, y0: number, w: number, h: number, r: number, fon
   const rr = Math.max(0, Math.min(r, ww / 2, hh / 2) - inset * 0.5)
   if (fondo === 1) {
     // En pico: los lados bajan y se juntan en el centro
-    const tip = Math.min(hh * 0.35, ww * 0.35)
+    const tip = Math.min(hh * 0.9, ww * depth)
     return `M${n(x + rr)} ${n(y)}H${n(x + ww - rr)}Q${n(x + ww)} ${n(y)} ${n(x + ww)} ${n(y + rr)}V${n(y + hh - tip)}L${n(x + ww / 2)} ${n(y + hh)}L${n(x)} ${n(y + hh - tip)}V${n(y + rr)}Q${n(x)} ${n(y)} ${n(x + rr)} ${n(y)}Z`
   }
   if (fondo === 2) {
@@ -328,6 +338,7 @@ function pocketPrims(style: string, w: number, color: string, thread: string, sh
   const h = w * (POCKET_ASPECT[style] ?? 1.15) * get('alto')
   const r = get('esquinas') * w * 0.3
   const fondo = Math.round(get('fondo'))
+  const depth = get('pico')
   const edge = shade(color, -0.45)
   const sw = Math.max(0.5, w * 0.02)
   if (style === 'vivo') {
@@ -349,10 +360,10 @@ function pocketPrims(style: string, w: number, color: string, thread: string, sh
     const top = -h / 2 + flapH * 0.72
     const bodyH = h / 2 - top
     return [
-      { t: 'path', d: pocketBody(-w / 2, top, w, bodyH, r, fondo), fill: color, stroke: edge, sw },
+      { t: 'path', d: pocketBody(-w / 2, top, w, bodyH, r, fondo, 0, depth), fill: color, stroke: edge, sw },
       // Fuelle: los pliegues a los lados y el del centro
       { t: 'path', d: `M${n(-w / 2 + w * 0.08)} ${n(top)}V${n(h / 2)}M${n(w / 2 - w * 0.08)} ${n(top)}V${n(h / 2)}M0 ${n(top)}V${n(h / 2)}`, stroke: shade(color, -0.3), sw: sw * 0.7 },
-      stitch(pocketBody(-w / 2, top, w, bodyH, r, fondo, w * 0.04), w, thread),
+      stitch(pocketBody(-w / 2, top, w, bodyH, r, fondo, w * 0.04, depth), w, thread),
       { t: 'path', d: roundRect(-w * 0.53, -h / 2, w * 1.06, flapH, w * 0.04), fill: shade(color, -0.06), stroke: edge, sw },
       stitch(`M${n(-w * 0.46)} ${n(-h / 2 + flapH * 0.78)}H${n(w * 0.46)}`, w, thread),
       { t: 'path', d: circle(0, -h / 2 + flapH * 0.5, w * 0.05), fill: thread, stroke: shade(thread, -0.4), sw: sw * 0.6 },
@@ -360,8 +371,8 @@ function pocketPrims(style: string, w: number, color: string, thread: string, sh
   }
   // De parche, con el dobladillo arriba
   return [
-    { t: 'path', d: pocketBody(-w / 2, -h / 2, w, h, r, fondo), fill: color, stroke: edge, sw },
-    stitch(pocketBody(-w / 2, -h / 2, w, h, r, fondo, w * 0.07), w, thread),
+    { t: 'path', d: pocketBody(-w / 2, -h / 2, w, h, r, fondo, 0, depth), fill: color, stroke: edge, sw },
+    stitch(pocketBody(-w / 2, -h / 2, w, h, r, fondo, w * 0.07, depth), w, thread),
     stitch(`M${n(-w * 0.43)} ${n(-h / 2 + h * 0.16)}H${n(w * 0.43)}`, w, thread),
   ]
 }

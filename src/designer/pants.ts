@@ -162,7 +162,7 @@ export function drawPants(view: View, c: PantsCfg): Shape[] {
     out.push({ kind: 'line', piece: P.legs, d: line([CX, TOP], [CX, CROTCH_Y - 10]) })
     if (c.backPockets) {
       pair([
-        { kind: 'fill', piece: P.pockets, d: path([CX + 22, 108], [{ to: [CX + 68, 104] }, { to: [CX + 70, 152] }, { to: [CX + 47, 162] }, { to: [CX + 24, 154] }]) },
+        { kind: 'fill', piece: P.pockets, pocket: true, d: path([CX + 22, 108], [{ to: [CX + 68, 104] }, { to: [CX + 70, 152] }, { to: [CX + 47, 162] }, { to: [CX + 24, 154] }]) },
         { kind: 'fill', piece: P.pockets, d: path([CX + 20, 104], [{ to: [CX + 70, 100] }, { to: [CX + 71, 120] }, { to: [CX + 21, 124] }]) },
         ...offs.map((o): Shape => ({ kind: 'stitch', piece: P.pockets, d: line([CX + 24, 124 + o], [CX + 69, 120 + o]) })),
       ])
@@ -178,7 +178,7 @@ export function drawPants(view: View, c: PantsCfg): Shape[] {
     const x2 = f.outerAt(y1) - 3
     const w = 42
     pair([
-      { kind: 'fill', piece: P.pockets, d: quad([x1 - w, y0 + 4], [x1, y0 + 4], [x2, y1], [x2 - w, y1]) },
+      { kind: 'fill', piece: P.pockets, pocket: true, d: quad([x1 - w, y0 + 4], [x1, y0 + 4], [x2, y1], [x2 - w, y1]) },
       { kind: 'fill', piece: P.pockets, d: quad([x1 - w - 2, y0 - 2], [x1 + 1, y0 - 2], [x1 + 1, y0 + 18], [x1 - w - 2, y0 + 18]) },
       { kind: 'line', piece: P.pockets, d: line([(x1 + x2) / 2 - w / 2, y0 + 18], [(x1 + x2) / 2 - w / 2, y1]) },
       ...offs.map((o): Shape => ({ kind: 'stitch', piece: P.pockets, d: line([x1 - w + 2, y0 + 18 - o], [x1 - 1, y0 + 18 - o]) })),
@@ -264,7 +264,7 @@ function drawSide(c: PantsCfg, f: ReturnType<typeof frame>): Shape[] {
   if (c.sidePockets) out.push({ kind: 'line', piece: P.legs, d: curve([CX + depth - 14, TOP], [CX + depth - 6, 110], [CX + 2, 132]) })
   if (c.cargo) {
     const top: Pt = lerp(seamTop, seamKnee, (226 - TOP) / (f.kneeY - TOP))
-    out.push({ kind: 'fill', piece: P.pockets, d: rect(top[0] - 24, 230, 48, 66, 3) })
+    out.push({ kind: 'fill', piece: P.pockets, pocket: true, d: rect(top[0] - 24, 230, 48, 66, 3) })
     out.push({ kind: 'fill', piece: P.pockets, d: rect(top[0] - 26, 224, 52, 20, 3) })
     for (const o of offs) out.push({ kind: 'stitch', piece: P.pockets, d: line([top[0] - 22, 244 - o], [top[0] + 22, 244 - o]) })
   }

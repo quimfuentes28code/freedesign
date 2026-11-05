@@ -5,6 +5,7 @@ import { buttonPrims, detailFiles, detailPrims, drawPrims, zipperPrims, type Pri
 import { CX } from './geometry'
 import { blockLine, halfPlane } from './surfaces'
 import { drawScale } from './measures'
+import { reshapePockets } from './pocketShape'
 import { loadFont } from './fonts'
 import { printSize, textLayout } from './prints'
 import { isPants, type GarmentTemplate, type View } from './types'
@@ -75,7 +76,7 @@ export async function printLayer(t: GarmentTemplate, data: DesignData, view: Vie
   const details = (data.details ?? []).filter((d) => d.view === view && !d.hidden)
   const hw = data.hardware ?? {}
   // Botones y cremallera de la propia prenda, con su estilo
-  const all = t.draw(view, data.options, drawScale(t, data, body))
+  const all = reshapePockets(t.draw(view, data.options, drawScale(t, data, body)), data)
   const shapes = all.filter((s) => s.role)
   // Bloques de color del cuerpo (los de mangas o capucha solo se ven en 2D)
   const blocks = (data.blocks ?? []).filter((b) => b.view === view && BODY_PIECES(t).includes(b.piece))

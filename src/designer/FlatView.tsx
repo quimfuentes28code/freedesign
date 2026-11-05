@@ -3,6 +3,7 @@ import { LONG_DETAILS, type DesignData, type Detail, type Print, type ZipStyle }
 import { blockLine, halfPlane, onTilesChange, pieceTile, tileUrl, type Tile } from './surfaces'
 import { buttonPrims, DetailGraphic, detailAspect, PrimsView, shade, zipperPrims } from './details'
 import { useFontsVersion } from './fonts'
+import { reshapePockets } from './pocketShape'
 import { fileUrl, type Material } from '../shared/library'
 import { VIEW_H, VIEW_W } from './geometry'
 import type { Body } from '../production/measurements'
@@ -102,7 +103,7 @@ export function FlatView(props: Props) {
   const uid = useId().replace(/:/g, '')
   // Al terminar de descargar una fuente se vuelve a pintar (cambia el tamaño de los textos)
   useFontsVersion()
-  const shapes = template.draw(view, data.options, drawScale(template, data, body))
+  const shapes = reshapePockets(template.draw(view, data.options, drawScale(template, data, body)), data)
   const prints = (data.prints ?? []).filter((p) => p.view === view && !p.hidden)
 
   // Encuadre: el lienzo se ajusta al dibujo (con un margen), así la prenda ocupa todo el espacio disponible

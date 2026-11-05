@@ -7,6 +7,7 @@ import { ArtPicker } from './DetailsPanel'
 import type { Material } from '../../shared/library'
 import { MaterialPicker } from './MaterialPicker'
 import { Fold } from './Fold'
+import { POCKET_SHAPE_PARAMS } from '../../designer/details'
 
 interface Props {
   template: string
@@ -23,6 +24,8 @@ interface Props {
   onHardware?: (h: HardwareStyle) => void
   /** La pieza es la cremallera de la prenda. */
   isZip?: boolean
+  /** La pieza tiene bolsillos de parche cuya forma se puede cambiar. */
+  hasPockets?: boolean
   artworks?: Artwork[]
   /** Bloques de color de esta pieza (en todas las vistas). */
   blocks?: ColorBlock[]
@@ -34,7 +37,7 @@ interface Props {
 
 /** Propiedades de la pieza seleccionada: color (con nombre y código), carta de colores y material. */
 export function PieceInspector(props: Props) {
-  const { template, piece, style, used, materials, onChange, onApplyToAll, hardware = {}, onHardware, isZip, artworks = [], blocks = [], onBlocks, blockTool, onBlockTool } = props
+  const { template, piece, style, used, materials, onChange, onApplyToAll, hardware = {}, onHardware, isZip, hasPockets, artworks = [], blocks = [], onBlocks, blockTool, onBlockTool } = props
   const label = colorLabel(style)
   // Al elegir un color a mano se olvidan el nombre y el código (salvo que sea uno de la carta)
   const setHex = (hex: string) => {
@@ -155,6 +158,39 @@ export function PieceInspector(props: Props) {
             ))}
           </div>
           {hardware.puller === 'logo' && <ArtPicker art={hardware.pullerArt ?? null} artworks={artworks} onChange={(pullerArt) => onHardware({ ...hardware, pullerArt })} />}
+        </Fold>
+      )}
+
+      {hasPockets && (
+        <Fold title="Forma del bolsillo" open={!!style.shape}>
+          {POCKET_SHAPE_PARAMS.map((p) => {
+            const v = style.shape?.[p.id] ?? p.def
+            const set = (value: number) => onChange({ shape: { ...style.shape, [p.id]: value } })
+            return p.choices ? (
+              <div key={p.id} className="option-row">
+                <span>{p.label}</span>
+                <div className="chips">
+                  {p.choices.map((c, i) => (
+                    <button key={c} className={Math.round(v) === i ? 'chip active' : 'chip'} onClick={() => set(i)}>
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <label key={p.id} className="field">
+                <span>
+                  {p.label} <strong>{Math.round(v * 100)} %</strong>
+                </span>
+                <input type="range" min={p.min} max={p.max} step={p.step} value={v} onChange={(e) => set(Number(e.target.value))} />
+              </label>
+            )
+          })}
+          {style.shape && (
+            <button className="link-button" onClick={() => onChange({ shape: undefined })}>
+              Volver a la forma de la prenda
+            </button>
+          )}
         </Fold>
       )}
 

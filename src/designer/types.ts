@@ -28,6 +28,8 @@ export interface Shape {
    * y `zip` una cremallera vertical (su caja da el ancho de la cinta y el largo).
    */
   role?: 'button' | 'zip'
+  /** Cuerpo de un bolsillo de parche de la prenda base: su forma se puede cambiar (ver pocketShape.ts). */
+  pocket?: boolean
 }
 
 export interface PieceDef {

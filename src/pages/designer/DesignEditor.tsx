@@ -585,6 +585,7 @@ export function DesignEditor() {
             hardware={design.data.hardware}
             onHardware={(hardware) => setData({ hardware })}
             isZip={template.draw('front', design.data.options).some((s) => s.role === 'zip' && s.piece === piece.id)}
+            hasPockets={(['front', 'back', 'side'] as const).some((v) => template.draw(v, design.data.options).some((s) => s.pocket && s.piece === piece.id))}
             artworks={artworks.data ?? []}
             blocks={(design.data.blocks ?? []).filter((b) => b.piece === piece.id)}
             onBlocks={(list) => setData({ blocks: [...(design.data.blocks ?? []).filter((b) => b.piece !== piece.id), ...list] })}

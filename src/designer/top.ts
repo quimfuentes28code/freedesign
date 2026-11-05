@@ -327,7 +327,7 @@ function pockets(c: TopCfg, f: Frame, offs: number[]): Shape[] {
   } else if (c.pocket === 'solapa') {
     for (const s of [1, -1]) {
       const x0 = s > 0 ? CX + 24 : CX - 64
-      out.push({ kind: 'fill', piece: P.pocket, d: rect(x0, f.hemTop - 66, 40, 54, 3) })
+      out.push({ kind: 'fill', piece: P.pocket, pocket: true, d: rect(x0, f.hemTop - 66, 40, 54, 3) })
       out.push({ kind: 'fill', piece: P.pocket, d: rect(x0 - 1, f.hemTop - 72, 42, 18, 3) })
       out.push({ kind: 'stitch', piece: P.pocket, d: rect(x0 + 3, f.hemTop - 50, 34, 35, 2) })
       out.push({ kind: 'hardware', piece: P.hardware, role: 'button', d: rect(x0 + 17, f.hemTop - 64, 6, 6, 3) })
@@ -336,7 +336,7 @@ function pockets(c: TopCfg, f: Frame, offs: number[]): Shape[] {
     for (const k of [1, -1]) {
       const x0 = k > 0 ? CX + 20 : CX - 60
       const y0 = Math.max(f.neckY + 30, 150)
-      out.push({ kind: 'fill', piece: P.pocket, d: rect(x0, y0 + 6, 40, 40, 3) })
+      out.push({ kind: 'fill', piece: P.pocket, pocket: true, d: rect(x0, y0 + 6, 40, 40, 3) })
       for (const d of offs) out.push({ kind: 'stitch', piece: P.pocket, d: rect(x0 + d - 1, y0 + 6 + d - 1, 40 - 2 * (d - 1), 40 - 2 * (d - 1), 2) })
       // Tapeta en pico
       out.push({ kind: 'fill', piece: P.pocket, d: path([x0 - 1, y0], [{ to: [x0 + 41, y0] }, { to: [x0 + 41, y0 + 12] }, { to: [x0 + 20, y0 + 20] }, { to: [x0 - 1, y0 + 12] }]) })
@@ -344,7 +344,7 @@ function pockets(c: TopCfg, f: Frame, offs: number[]): Shape[] {
       out.push({ kind: 'hardware', piece: P.buttons, role: 'button', d: rect(x0 + 17, y0 + 11, 6, 6, 3) })
     }
   } else if (c.pocket === 'pecho') {
-    out.push({ kind: 'fill', piece: P.pocket, d: rect(CX + 24, 140, 30, 34, 3) })
+    out.push({ kind: 'fill', piece: P.pocket, pocket: true, d: rect(CX + 24, 140, 30, 34, 3) })
     for (const d of offs) out.push({ kind: 'stitch', piece: P.pocket, d: line([CX + 24, 140 + d], [CX + 54, 140 + d]) })
   }
   return out
@@ -395,7 +395,7 @@ function sleeves(c: TopCfg, f: Frame, front: boolean, offs: number[]): Shape[] {
   if (front && c.sleevePocket && f.long) {
     const o = add(add(f.S, mul(f.dir, 40)), mul(f.inward, 12))
     const corner = (u: number, v: number): Pt => add(add(o, mul(f.inward, u)), mul(f.dir, v))
-    out.push({ kind: 'fill', piece: P.pocket, d: quad(corner(0, 0), corner(26, 0), corner(26, 36), corner(0, 36)) })
+    out.push({ kind: 'fill', piece: P.pocket, pocket: true, d: quad(corner(0, 0), corner(26, 0), corner(26, 36), corner(0, 36)) })
     out.push({ kind: 'hardware', piece: P.hardware, d: quad(corner(3, 4), corner(23, 4), corner(23, 7), corner(3, 7)) })
     out.push({ kind: 'stitch', piece: P.pocket, d: line(corner(2, 33), corner(24, 33)) })
   }

@@ -13,6 +13,8 @@ export interface PieceStyle {
   colorCode?: string
   /** Estampado por toda la pieza (rayas, cuadros, camuflaje…), sobre el color de la pieza. */
   surface?: Surface
+  /** Forma de los bolsillos de esta pieza (fondo, pico, esquinas, alto), ver pocketShape.ts. */
+  shape?: Record<string, number>
   /** Lavado o efecto de la tela. */
   wash?: Wash
 }

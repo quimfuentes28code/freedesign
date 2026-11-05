@@ -173,6 +173,7 @@ function readPieces(raw: unknown): DesignData['pieces'] {
       ...(text(s.colorCode) ? { colorCode: text(s.colorCode).slice(0, 40) } : {}),
       ...(surface ? { surface } : {}),
       ...(wash ? { wash } : {}),
+      ...(readShape(s.shape) ? { shape: readShape(s.shape)! } : {}),
     }
   }
   return pieces
