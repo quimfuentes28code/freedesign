@@ -38,3 +38,33 @@ Se marca cada fase al terminarla.
 ## 6. Exportar ✓
 
 - [x] Exportar el dibujo en PNG, SVG o PDF (vista actual o las tres, color o línea, con cotas y notas)
+
+## 7. Más prendas
+
+- [ ] Atajos en «Nuevo diseño»: camiseta de manga larga, polo de manga larga y camisa de manga corta (ya existen como opción de manga; que salgan como prendas propias)
+- [ ] Pantalón corto más ancho por defecto
+- [ ] Pantalón de chándal (banda lateral, bajo con puño o cremallera)
+- [ ] Chaleco (acolchado o de tela, sin mangas)
+- [ ] Cazadora (tipo trucker: canesú, bolsillos de pecho con tapeta, botones)
+- [ ] Cortavientos (nylon, cremallera entera o media, capucha recogible, paneles de color)
+- [ ] Gorro (beanie, con o sin vuelta) y gorra (visera, 5 o 6 paneles, cierre trasero): prendas de cabeza, en 2D y ficha; en 3D más adelante
+
+## 8. Cuellos y capuchas combinables
+
+- [ ] Capucha cruzada (solapada por delante)
+- [ ] Cuello alto y capucha a la vez
+- [ ] Balaclava por dentro de la capucha
+- [ ] Cierre en el cuello de la puffer (lengüeta con automáticos o velcro, o cremallera hasta arriba)
+
+## 9. Detalles donde quieras
+
+- [ ] Bolsillos colocables en cualquier pieza y vista: de parche, de vivo, cargo con fuelle y tapeta, con cremallera
+- [ ] Más fornituras colocables: cremalleras de bolsillo o laterales, trabillas, cordones con topes, cintas laterales, velcro, hebillas, ojetes
+- [ ] Costuras decorativas y pinzas dibujadas sobre la prenda
+
+## 10. Acabados y efectos
+
+- [ ] Rotos (rodillas, muslos…), con su tamaño y forma y los hilos a la vista
+- [ ] Deshilachado en bajos y bordes, bajo sin coser
+- [ ] Desgastado en zonas concretas (no solo el lavado de toda la pieza)
+- [ ] Rotos y deshilachados también en 3D
