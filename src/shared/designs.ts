@@ -62,6 +62,16 @@ export interface Print {
   /** Capa oculta (no se dibuja) o bloqueada (no se puede mover). */
   hidden?: boolean
   locked?: boolean
+  /** Efectos del texto: cursiva, espaciado entre letras (unidades del lienzo), arco (−100…100, positivo hacia arriba), vertical. */
+  italic?: boolean
+  letterSpacing?: number
+  arc?: number
+  vertical?: boolean
+  /** Contorno (color y grosor) y sombra (color y distancia), vacíos = sin ellos. */
+  stroke?: string
+  strokeWidth?: number
+  shadow?: string
+  shadowOffset?: number
 }
 
 /** Tipos de detalle que se colocan sobre la prenda. */

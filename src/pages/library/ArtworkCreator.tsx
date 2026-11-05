@@ -3,7 +3,9 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { api, imageSize } from '../../api/client'
 import { Field, Status } from '../../components/ui'
 import { Transformable } from '../../designer/prints'
-import { FONTS, type ArtLayer } from '../../shared/artworks'
+import { FontPicker } from '../../components/FontPicker'
+import { loadFont, useFontsVersion } from '../../designer/fonts'
+import type { ArtLayer } from '../../shared/artworks'
 import { fileUrl } from '../../shared/library'
 import { ART_SIZE, ArtLayerView, exportSvg, layerSize } from './artLayers'
 import './creator.css'
@@ -28,6 +30,13 @@ export function ArtworkCreator() {
   const [uploaded, setUploaded] = useState<{ file: string; width: number; height: number } | null>(null)
   const exportRef = useRef<SVGGElement>(null)
   const imageInput = useRef<HTMLInputElement>(null)
+  // Fuentes de los textos: se descargan al usarlas y, al llegar, se vuelve a medir y pintar
+  useFontsVersion()
+  const fontsKey = layers.map((l) => (l.type === 'text' ? l.font : '')).join('|')
+  useEffect(() => {
+    for (const l of layers) if (l.type === 'text') loadFont(l.font)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fontsKey])
 
   useEffect(() => {
     if (isNew) return
@@ -56,7 +65,7 @@ export function ArtworkCreator() {
       id: crypto.randomUUID(),
       type: 'text',
       text: 'FREEDESIGN',
-      font: FONTS[0].id,
+      font: "'Anton', sans-serif",
       size: 64,
       color: '#1d1d1f',
       bold: true,
@@ -105,7 +114,7 @@ export function ArtworkCreator() {
     setSaving(true)
     setError(null)
     try {
-      const { blob, width, height } = await exportSvg(exportRef.current)
+      const { blob, width, height } = await exportSvg(exportRef.current, layers)
       const { key } = await api.uploadImage(new File([blob], 'grafico.svg', { type: 'image/svg+xml' }))
       const input = { name: name.trim() || 'Gráfico', file: key, width, height, data: { layers }, tags: '' }
       if (isNew) {
@@ -259,15 +268,7 @@ export function ArtworkCreator() {
                 <Field label="Texto">
                   <input value={current.text} onChange={(e) => update({ text: e.target.value })} />
                 </Field>
-                <Field label="Tipografía">
-                  <select value={current.font} onChange={(e) => update({ font: e.target.value })}>
-                    {FONTS.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+                <FontPicker value={current.font} onChange={(font) => update({ font })} />
                 <ColorField label="Color" value={current.color} onChange={(color) => update({ color })} />
                 <div className="toggle-pair">
                   <label className="toggle-row">

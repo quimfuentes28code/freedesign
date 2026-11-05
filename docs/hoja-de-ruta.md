@@ -24,10 +24,10 @@ Se marca cada fase al terminarla.
 - [x] Ojales, remaches, herretes, etiquetas y parches
 - [x] Bordado y parches con relieve (también en 3D)
 
-## 4. Texto
+## 4. Texto ✓
 
-- [ ] Catálogo grande de tipografías (streetwear, college, gótica, manuscrita, grafiti…)
-- [ ] Efectos: en arco, contorno, sombra, vertical y espaciado, en el Diseñador
+- [x] Catálogo grande de tipografías (streetwear, college, gótica, manuscrita, grafiti…)
+- [x] Efectos: en arco, contorno, sombra, vertical y espaciado, en el Diseñador
 
 ## 5. Color y superficie
 

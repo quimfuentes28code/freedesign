@@ -5,7 +5,8 @@ import { Field } from '../../components/ui'
 import { CX } from '../../designer/geometry'
 import { printSize, UNITS_PER_CM } from '../../designer/prints'
 import { VIEWS, type GarmentTemplate, type View } from '../../designer/types'
-import { FONTS, TECHNIQUES, type Artwork, type Technique } from '../../shared/artworks'
+import { FontPicker } from '../../components/FontPicker'
+import { TECHNIQUES, type Artwork, type Technique } from '../../shared/artworks'
 import type { Print } from '../../shared/designs'
 import { fileUrl } from '../../shared/library'
 
@@ -20,6 +21,54 @@ interface Props {
   onSelect: (id: string | null) => void
   artworks: Artwork[]
   onArtworksChange: () => void
+}
+
+/** Efectos de un texto: espaciado, arco, vertical, contorno y sombra. */
+function TextEffects({ p, update }: { p: Print; update: (patch: Partial<Print>) => void }) {
+  return (
+    <div className="text-effects">
+      <label className="field">
+        <span>
+          Espaciado <strong>{(p.letterSpacing ?? 0).toLocaleString('es-ES')}</strong>
+        </span>
+        <input type="range" min={-4} max={20} step={0.5} value={p.letterSpacing ?? 0} onChange={(e) => update({ letterSpacing: Number(e.target.value) || undefined })} />
+      </label>
+      <label className="field">
+        <span>
+          Arco <strong>{p.arc ? `${p.arc > 0 ? '∩' : '∪'} ${Math.abs(p.arc)}` : 'recto'}</strong>
+        </span>
+        <input type="range" min={-100} max={100} value={p.arc ?? 0} disabled={p.vertical} onChange={(e) => update({ arc: Number(e.target.value) || undefined })} />
+      </label>
+      <label className="toggle-row">
+        <span>Vertical (letra a letra)</span>
+        <input type="checkbox" checked={!!p.vertical} onChange={(e) => update({ vertical: e.target.checked || undefined, ...(e.target.checked ? { arc: undefined } : {}) })} />
+      </label>
+      <div className="effect-row">
+        <label className="toggle-row">
+          <span>Contorno</span>
+          <input type="checkbox" checked={!!p.stroke} onChange={(e) => update(e.target.checked ? { stroke: '#ffffff', strokeWidth: 1 } : { stroke: undefined, strokeWidth: undefined })} />
+        </label>
+        {p.stroke && (
+          <>
+            <input type="color" value={p.stroke} onChange={(e) => update({ stroke: e.target.value })} aria-label="Color del contorno" />
+            <input type="range" min={0.2} max={6} step={0.1} value={p.strokeWidth ?? 1} onChange={(e) => update({ strokeWidth: Number(e.target.value) })} aria-label="Grosor del contorno" />
+          </>
+        )}
+      </div>
+      <div className="effect-row">
+        <label className="toggle-row">
+          <span>Sombra</span>
+          <input type="checkbox" checked={!!p.shadow} onChange={(e) => update(e.target.checked ? { shadow: '#000000', shadowOffset: 1.5 } : { shadow: undefined, shadowOffset: undefined })} />
+        </label>
+        {p.shadow && (
+          <>
+            <input type="color" value={p.shadow} onChange={(e) => update({ shadow: e.target.value })} aria-label="Color de la sombra" />
+            <input type="range" min={0.3} max={8} step={0.1} value={p.shadowOffset ?? 1.5} onChange={(e) => update({ shadowOffset: Number(e.target.value) })} aria-label="Distancia de la sombra" />
+          </>
+        )}
+      </div>
+    </div>
+  )
 }
 
 /** Panel de estampados y logos del editor: añadir gráficos o textos, y ajustar el seleccionado. */
@@ -55,7 +104,7 @@ export function PrintsPanel({ template, prints, onChange, view, onViewChange, se
       bold: false,
     })
   const addText = () =>
-    add({ kind: 'text', artworkId: null, file: '', aspect: 1, w: 60, text: 'TEXTO', font: FONTS[0].id, size: 18, color: '#1d1d1f', bold: true })
+    add({ kind: 'text', artworkId: null, file: '', aspect: 1, w: 60, text: 'TEXTO', font: "'Anton', sans-serif", size: 18, color: '#1d1d1f', bold: true })
 
   const upload = async (f: File | undefined) => {
     if (!f) return
@@ -163,24 +212,23 @@ export function PrintsPanel({ template, prints, onChange, view, onViewChange, se
               <Field label="Texto">
                 <input value={current.text} onChange={(e) => update({ text: e.target.value })} />
               </Field>
+              <FontPicker value={current.font} onChange={(font) => update({ font })} />
               <div className="fields">
-                <Field label="Tipografía">
-                  <select value={current.font} onChange={(e) => update({ font: e.target.value })}>
-                    {FONTS.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
                 <Field label="Color">
                   <input type="color" value={current.color} onChange={(e) => update({ color: e.target.value })} />
                 </Field>
+                <div className="toggle-pair">
+                  <label className="toggle-row">
+                    <span>Negrita</span>
+                    <input type="checkbox" checked={current.bold} onChange={(e) => update({ bold: e.target.checked })} />
+                  </label>
+                  <label className="toggle-row">
+                    <span>Cursiva</span>
+                    <input type="checkbox" checked={!!current.italic} onChange={(e) => update({ italic: e.target.checked || undefined })} />
+                  </label>
+                </div>
               </div>
-              <label className="toggle-row">
-                <span>Negrita</span>
-                <input type="checkbox" checked={current.bold} onChange={(e) => update({ bold: e.target.checked })} />
-              </label>
+              <TextEffects p={current} update={update} />
             </>
           )}
           <Field label="Técnica">

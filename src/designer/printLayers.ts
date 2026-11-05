@@ -4,7 +4,8 @@ import type { Body } from '../production/measurements'
 import { buttonPrims, detailFiles, detailPrims, drawPrims, zipperPrims, type Prim } from './details'
 import { CX } from './geometry'
 import { drawScale } from './measures'
-import { printSize } from './prints'
+import { loadFont } from './fonts'
+import { printSize, textLayout } from './prints'
 import { isPants, type GarmentTemplate, type View } from './types'
 
 /**
@@ -89,6 +90,8 @@ export async function printLayer(t: GarmentTemplate, data: DesignData, view: Vie
   const rctx = relief.getContext('2d')
   if (!ctx || !rctx) return null
 
+  // Las fuentes de los textos tienen que estar descargadas antes de pintarlos
+  await Promise.all(prints.filter((p) => p.kind === 'text').map((p) => loadFont(p.font)))
   const files = [...prints.filter((p) => p.kind === 'artwork').map((p) => p.file), ...detailFiles(details, hw)]
   const loaded = new Map(await Promise.all(files.map(async (file) => [file, await loadImage(file)] as const)))
   const img = (file: string) => loaded.get(file) ?? null
@@ -152,11 +155,36 @@ function drawPrint(ctx: CanvasRenderingContext2D, p: Print, img: HTMLImageElemen
     t.fillRect(0, 0, tmp.width, tmp.height)
     ctx.drawImage(tmp, -w / 2, -h / 2, w, h)
   } else {
-    ctx.font = `${p.bold ? 700 : 400} ${p.size}px ${p.font || 'sans-serif'}`
-    ctx.fillStyle = mono ?? p.color
+    // Mismo reparto que en el dibujo (recto, en arco o vertical), con sombra y contorno
+    const { glyphs } = textLayout(p)
+    ctx.font = `${p.italic ? 'italic ' : ''}${p.bold ? 700 : 400} ${p.size}px ${p.font || 'sans-serif'}`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText(p.text, 0, 0)
+    ctx.lineJoin = 'round'
+    const write = (fill: string, dx: number, dy: number, outline: string | null) => {
+      const one = (ch: string, x: number, y: number, rot: number) => {
+        ctx.save()
+        ctx.translate(x + dx, y + dy)
+        if (rot) ctx.rotate((rot * Math.PI) / 180)
+        if (outline && p.stroke) {
+          ctx.strokeStyle = outline
+          ctx.lineWidth = (p.strokeWidth ?? 1) * 2
+          ctx.strokeText(ch, 0, 0)
+        }
+        ctx.fillStyle = fill
+        ctx.fillText(ch, 0, 0)
+        ctx.restore()
+      }
+      if (glyphs) glyphs.forEach((g) => one(g.ch, g.x, g.y, g.rot))
+      else {
+        ;(ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${p.letterSpacing ?? 0}px`
+        one(p.text, 0, 0, 0)
+        ;(ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = '0px'
+      }
+    }
+    const off = p.shadowOffset ?? 1.5
+    if (p.shadow) write(mono ?? p.shadow, off * 0.7, off, mono ?? p.shadow)
+    write(mono ?? p.color, 0, 0, mono ?? p.stroke ?? null)
   }
 }
 

@@ -1,6 +1,7 @@
-import { useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import type { Print } from '../shared/designs'
 import { fileUrl } from '../shared/library'
+import { loadFont } from './fonts'
 
 /** Unidades del lienzo del dibujo técnico por cm real (aprox. en una talla M). */
 export const UNITS_PER_CM = 2
@@ -14,10 +15,90 @@ export function measureText(text: string, font: string, size: number, bold = fal
   return (ctx.measureText(text || ' ').width / 100) * size + Math.max(0, text.length - 1) * letterSpacing
 }
 
+/** Una letra colocada (centro y giro en grados), para el texto en arco o vertical. */
+export interface Glyph {
+  ch: string
+  x: number
+  y: number
+  rot: number
+}
+
+/**
+ * Cómo se reparte un texto: recto (glyphs = null, se pinta de una vez), en arco (cada letra sobre un trozo de
+ * circunferencia, tangente a ella) o vertical (una letra debajo de otra). Centrado en (0, 0).
+ */
+export function textLayout(p: Pick<Print, 'text' | 'font' | 'size' | 'bold' | 'italic' | 'letterSpacing' | 'arc' | 'vertical'>) {
+  const ls = p.letterSpacing ?? 0
+  const chars = [...(p.text || ' ')]
+  const width = (s: string) => measureText(s, p.font, p.size, p.bold, p.italic)
+  if (p.vertical) {
+    const lineH = p.size * 0.95 + ls
+    const glyphs = chars.map((ch, i): Glyph => ({ ch, x: 0, y: (i - (chars.length - 1) / 2) * lineH, rot: 0 }))
+    return { glyphs, w: Math.max(...chars.map(width)), h: chars.length * lineH }
+  }
+  if (p.arc) {
+    const ws = chars.map(width)
+    const W = ws.reduce((a, b) => a + b, 0) + ls * (chars.length - 1)
+    const theta = Math.max(0.05, (Math.PI * Math.abs(p.arc)) / 100)
+    const r = W / theta
+    const s = Math.sign(p.arc)
+    const sag = r * (1 - Math.cos(Math.min(theta, 2 * Math.PI) / 2))
+    let cum = 0
+    const glyphs = chars.map((ch, i): Glyph => {
+      const a = (cum + ws[i] / 2 - W / 2) / r
+      cum += ws[i] + ls
+      // Arco hacia arriba (∩): las puntas bajan; hacia abajo (∪): suben. Centrado en el alto del arco
+      return { ch, x: r * Math.sin(a), y: s * (r * (1 - Math.cos(a)) - sag / 2), rot: (s * a * 180) / Math.PI }
+    })
+    return { glyphs, w: (theta > Math.PI ? 2 * r : 2 * r * Math.sin(theta / 2)) + p.size * 0.6, h: sag + p.size * 1.15 }
+  }
+  return { glyphs: null, w: measureText(p.text, p.font, p.size, p.bold, p.italic, ls), h: p.size * 1.15 }
+}
+
 /** Ancho y alto que ocupa un estampado. */
 export function printSize(p: Print) {
-  if (p.kind === 'text') return { w: measureText(p.text, p.font, p.size, p.bold), h: p.size * 1.15 }
+  if (p.kind === 'text') {
+    const { w, h } = textLayout(p)
+    const extra = (p.stroke ? (p.strokeWidth ?? 1) : 0) + (p.shadow ? (p.shadowOffset ?? 1.5) : 0)
+    return { w: w + extra, h: h + extra }
+  }
   return { w: p.w, h: p.w * p.aspect }
+}
+
+/** Texto de un estampado (con sus efectos) centrado en (0, 0). */
+export function PrintText({ p }: { p: Print }) {
+  useEffect(() => {
+    loadFont(p.font)
+  }, [p.font])
+  const { glyphs } = textLayout(p)
+  const font = { fontFamily: p.font, fontSize: p.size, fontWeight: p.bold ? 700 : 400, fontStyle: p.italic ? 'italic' : 'normal' }
+  const paint = (fill: string, dx: number, dy: number, key: string, outline: boolean) => {
+    const stroke = outline && p.stroke ? { stroke: p.stroke, strokeWidth: p.strokeWidth ?? 1, paintOrder: 'stroke' as const, strokeLinejoin: 'round' as const } : {}
+    const shadowStroke = !outline && p.stroke ? { stroke: fill, strokeWidth: p.strokeWidth ?? 1, strokeLinejoin: 'round' as const } : {}
+    if (!glyphs) {
+      return (
+        <text key={key} x={dx} y={dy} textAnchor="middle" dominantBaseline="central" fill={fill} letterSpacing={p.letterSpacing || undefined} {...font} {...stroke} {...shadowStroke}>
+          {p.text}
+        </text>
+      )
+    }
+    return (
+      <g key={key}>
+        {glyphs.map((g, i) => (
+          <text key={i} x={g.x + dx} y={g.y + dy} transform={g.rot ? `rotate(${g.rot} ${g.x + dx} ${g.y + dy})` : undefined} textAnchor="middle" dominantBaseline="central" fill={fill} {...font} {...stroke} {...shadowStroke}>
+            {g.ch}
+          </text>
+        ))}
+      </g>
+    )
+  }
+  const off = p.shadowOffset ?? 1.5
+  return (
+    <>
+      {p.shadow && paint(p.shadow, off * 0.7, off, 'sombra', false)}
+      {paint(p.color, 0, 0, 'texto', true)}
+    </>
+  )
 }
 
 /** Dibuja un estampado en su sitio (centrado en x, y y girado). */
@@ -28,16 +109,7 @@ export function PrintShape({ p }: { p: Print }) {
       {p.kind === 'artwork' ? (
         <image href={fileUrl(p.file)} x={-w / 2} y={-h / 2} width={w} height={h} preserveAspectRatio="none" />
       ) : (
-        <text
-          textAnchor="middle"
-          dominantBaseline="central"
-          fontFamily={p.font}
-          fontSize={p.size}
-          fontWeight={p.bold ? 700 : 400}
-          fill={p.color}
-        >
-          {p.text}
-        </text>
+        <PrintText p={p} />
       )}
     </g>
   )

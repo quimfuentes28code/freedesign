@@ -467,6 +467,44 @@
   margin-bottom: 24px;
 }
 
+/* --- Efectos de texto --- */
+
+.print-editor .toggle-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.text-effects {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0 4px;
+}
+
+.effect-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.effect-row .toggle-row {
+  flex: 1;
+  margin: 0;
+}
+
+.effect-row input[type='color'] {
+  width: 32px;
+  height: 26px;
+  padding: 1px;
+  flex: none;
+}
+
+.effect-row input[type='range'] {
+  width: 90px;
+  flex: none;
+}
+
 /* --- Detalles --- */
 
 .detail-kinds {

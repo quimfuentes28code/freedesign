@@ -943,3 +943,81 @@ input:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+/* --- Selector de tipografía --- */
+
+.font-picker {
+  position: relative;
+}
+
+.font-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 17px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.font-current:hover {
+  border-color: var(--muted);
+}
+
+.font-pop {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.12);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.font-list {
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.font-group h3 {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 10px 6px 4px;
+}
+
+.font-option {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font-size: 19px;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+}
+
+.font-option:hover {
+  background: var(--soft);
+}
+
+.font-option.active {
+  background: color-mix(in srgb, #2563eb 10%, var(--panel));
+}

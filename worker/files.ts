@@ -45,7 +45,8 @@ export async function filesRoute(request: Request, env: Env, uid: string, key: s
         // Las claves no se reutilizan nunca: el navegador puede guardar la imagen para siempre
         'Cache-Control': 'private, max-age=31536000, immutable',
         // Los SVG se muestran como imagen, sin ejecutar nada que traigan dentro
-        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+        // (con sus fuentes e imágenes incrustadas: los logos del creador las llevan dentro)
+        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; sandbox",
       },
     })
   }

@@ -311,5 +311,12 @@ function readPrint(raw: unknown): Print | null {
     clip: p.clip !== false,
     ...(p.hidden === true ? { hidden: true } : {}),
     ...(p.locked === true ? { locked: true } : {}),
+    // Efectos del texto (solo los que estén puestos)
+    ...(kind === 'text' && p.italic === true ? { italic: true } : {}),
+    ...(kind === 'text' && p.vertical === true ? { vertical: true } : {}),
+    ...(kind === 'text' && n(p.letterSpacing, 0) ? { letterSpacing: Math.max(-10, Math.min(40, n(p.letterSpacing, 0))) } : {}),
+    ...(kind === 'text' && n(p.arc, 0) ? { arc: Math.max(-100, Math.min(100, n(p.arc, 0))) } : {}),
+    ...(kind === 'text' && /^#[0-9a-f]{6}$/i.test(text(p.stroke)) ? { stroke: text(p.stroke), strokeWidth: Math.max(0.2, Math.min(12, n(p.strokeWidth, 1))) } : {}),
+    ...(kind === 'text' && /^#[0-9a-f]{6}$/i.test(text(p.shadow)) ? { shadow: text(p.shadow), shadowOffset: Math.max(0.2, Math.min(12, n(p.shadowOffset, 1.5))) } : {}),
   }
 }

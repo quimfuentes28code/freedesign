@@ -8,6 +8,7 @@ import { DrawingsView } from '../../designer/drawings'
 import { colorLabel } from '../../designer/colors'
 import { activeColorwayId, colorwaysOf, withColorway } from '../../designer/colorways'
 import { FlatView } from '../../designer/FlatView'
+import { fontLabel } from '../../designer/fonts'
 import { measureDeltas } from '../../designer/measures'
 import { CX } from '../../designer/geometry'
 import { resolveMaterial } from '../../designer/materials'
@@ -710,7 +711,7 @@ function PrintsTable({ template, prints, artworks }: { template: GarmentTemplate
                   <span style={{ fontFamily: p.font, color: p.color, fontWeight: p.bold ? 700 : 400 }}>Aa</span>
                 )}
               </td>
-              <td>{p.kind === 'artwork' ? (artworks.get(p.artworkId ?? '')?.name ?? 'Gráfico') : `Texto «${p.text}» (${p.color.toUpperCase()})`}</td>
+              <td>{p.kind === 'artwork' ? (artworks.get(p.artworkId ?? '')?.name ?? 'Gráfico') : `Texto «${p.text}» · ${fontLabel(p.font)}${p.bold ? ' negrita' : ''}${p.italic ? ' cursiva' : ''} · ${p.color.toUpperCase()}${textEffects(p)}`}</td>
               <td>{VIEWS.find((v) => v.id === p.view)?.label}</td>
               <td>
                 {zone ? (Math.hypot(zone.x - p.x, zone.y - p.y) < 8 ? zone.label : `Cerca de: ${zone.label}`) : '—'}
@@ -930,4 +931,15 @@ function defaultLabels(design: Design, materials: Map<string, Material>) {
   const r = resolveMaterial(t.id, main.id, design.data.pieces[main.id]?.materialId, materials)
   const composition = r.library?.composition || r.catalog.composition
   return `Marca y talla: ${t.family === 'pants' ? 'centro de la cinturilla trasera' : 'nuca'}.\nComposición: ${composition}.\nCuidados: lavar a 30 °C del revés, no usar secadora, planchar a temperatura media.`
+}
+
+/** Efectos de un texto, para la ficha (arco, vertical, espaciado, contorno y sombra). */
+function textEffects(p: Print) {
+  const out: string[] = []
+  if (p.arc) out.push(`en arco ${p.arc > 0 ? 'hacia arriba' : 'hacia abajo'} (${Math.abs(p.arc)})`)
+  if (p.vertical) out.push('vertical')
+  if (p.letterSpacing) out.push(`espaciado ${p.letterSpacing}`)
+  if (p.stroke) out.push(`contorno ${p.stroke.toUpperCase()}`)
+  if (p.shadow) out.push(`sombra ${p.shadow.toUpperCase()}`)
+  return out.length ? ` · ${out.join(', ')}` : ''
 }
