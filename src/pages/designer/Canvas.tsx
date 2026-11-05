@@ -262,6 +262,14 @@ export function Canvas(props: Props) {
     </>
   )
   const poms = settings.dims ? garmentPoms(template, data.options) : []
+  // Qué hacer con la herramienta en uso (en la barra de abajo, sin tapar el dibujo)
+  const toolHint = shaping
+    ? 'Arrastra los puntos azules para estirar la prenda · las medidas se apuntan en la ficha · Esc termina'
+    : adding
+      ? 'Haz clic en el dibujo donde quieras la nota · Esc cancela'
+      : blockPiece
+        ? 'Arrastra una línea de lado a lado de la pieza para dividirla · Esc cancela'
+        : notice
 
   return (
     <div className="canvas">
@@ -437,17 +445,6 @@ export function Canvas(props: Props) {
               {uploadError && <span className="status error small">{uploadError}</span>}
             </div>
           )}
-          {(adding || blockPiece || notice || shaping) && (
-            <div className="canvas-context hint">
-              {shaping
-                ? 'Arrastra los puntos azules para estirar la prenda · las medidas se apuntan en la ficha · Esc termina'
-                : adding
-                ? 'Haz clic en el dibujo donde quieras la nota · Esc cancela'
-                : blockPiece
-                  ? 'Arrastra una línea de lado a lado de la pieza para dividirla · Esc cancela'
-                  : notice}
-            </div>
-          )}
           <input ref={fileInput} type="file" accept="image/*" hidden onChange={(e) => uploadTracing(e.target.files?.[0]).finally(() => (e.target.value = ''))} />
       <div
         className={`canvas-stage${zoom > 1 ? ' zoomed' : ''}${settings.mode === 'linea' ? ' line-mode' : ''}`}
@@ -497,8 +494,10 @@ export function Canvas(props: Props) {
       </div>
         </div>
       </div>
-      <p className="canvas-hint">
-        {settings.dims && poms.length > 0 ? (
+      <p className={toolHint ? 'canvas-hint active' : 'canvas-hint'} role="status">
+        {toolHint ? (
+          toolHint
+        ) : settings.dims && poms.length > 0 ? (
           <>
             <strong>Cotas ({bodyLabel}):</strong>{' '}
             {poms

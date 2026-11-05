@@ -737,3 +737,9 @@ button.design-card {
   max-width: calc(100% - 24px);
   border-radius: 14px;
 }
+
+/* En el editor, el aviso «Ajustando prenda…» va en el centro (arriba lo taparía la barra) */
+.design-3d.studio .busy {
+  top: 50%;
+  transform: translate(-50%, -50%);
+}

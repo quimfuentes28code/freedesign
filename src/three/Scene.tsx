@@ -12,6 +12,10 @@ interface Props {
   outfit?: Design[]
   autoRotate: boolean
   animate: boolean
+  /** Ver el maniquí o solo la ropa. */
+  showBody?: boolean
+  /** Altura a la que mira la cámara, como fracción de la estatura (por defecto, el centro del cuerpo). */
+  focus?: number
 }
 
 /**
@@ -41,7 +45,7 @@ function DevHandle() {
 }
 
 /** Escena 3D: maniquí con la prenda, en un estudio con luces suaves y cámara orbital para verlo en 360°. */
-export function Scene({ measurements, design, outfit, autoRotate, animate }: Props) {
+export function Scene({ measurements, design, outfit, autoRotate, animate, showBody = true, focus = 0.53 }: Props) {
   const H = measurements.height / 100
   // Aviso de carga fuera de la escena 3D (el modelo pesa varios MB)
   const { active } = useProgress()
@@ -51,7 +55,7 @@ export function Scene({ measurements, design, outfit, autoRotate, animate }: Pro
     <>
       {active && <span className="loading">Cargando maniquí…</span>}
       {!active && dressing && <span className="busy">Ajustando prenda…</span>}
-      <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 1.2, 3.6], fov: 36 }}>
+      <Canvas shadows dpr={[1, 2]} camera={{ position: showBody ? [0, 1.2, 3.6] : [0, H * focus + 0.1, 3.2], fov: 36 }}>
         <color attach="background" args={['#e4dfd6']} />
         <fog attach="fog" args={['#e4dfd6', 6, 14]} />
 
@@ -77,12 +81,12 @@ export function Scene({ measurements, design, outfit, autoRotate, animate }: Pro
         </Environment>
 
         <Suspense fallback={null}>
-          <Mannequin measurements={measurements} design={design} outfit={outfit} animate={animate} />
+          <Mannequin measurements={measurements} design={design} outfit={outfit} animate={animate} showBody={showBody} />
         </Suspense>
 
         <ContactShadows position={[0, 0.001, 0]} opacity={0.5} scale={4} blur={2.2} far={2} resolution={512} />
         <OrbitControls
-          target={[0, H * 0.53, 0]}
+          target={[0, H * focus, 0]}
           enablePan={false}
           // Se puede acercar mucho para ver costuras y pespuntes
           minDistance={0.45}

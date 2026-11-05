@@ -1093,3 +1093,10 @@
 .tool-rail {
   overflow-y: auto;
 }
+
+/* Aviso de la herramienta en uso, en la barra de abajo del lienzo (no tapa el dibujo) */
+.canvas-hint.active {
+  background: #fff7ed;
+  color: #9a3412;
+  font-weight: 500;
+}

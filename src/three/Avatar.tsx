@@ -48,10 +48,12 @@ interface Props {
   /** Otras prendas que lleva a la vez (p. ej. el pantalón bajo la sudadera). */
   outfit?: Design[]
   animate: boolean
+  /** Ver el maniquí (en el Probador) o solo la ropa (en el editor del Diseñador). */
+  showBody?: boolean
 }
 
 /** Maniquí animado, ajustado a las medidas, con la prenda puesta. */
-export function Mannequin({ measurements, design, outfit = [], animate }: Props) {
+export function Mannequin({ measurements, design, outfit = [], animate, showBody = true }: Props) {
   const gltf = useLoader(GLTFLoader, MODEL_URL)
   const model = useMemo(() => prepare(gltf.scene, gltf.animations), [gltf])
   const fit = useMemo(() => fitBody(model.info, measurements), [model, measurements])
@@ -73,6 +75,14 @@ export function Mannequin({ measurements, design, outfit = [], animate }: Props)
     ;(attr.array as Float32Array).set(cloud.pos)
     attr.needsUpdate = true
   }, [model, cloud])
+
+  // Sin maniquí, la ropa se sigue construyendo sobre su cuerpo, pero el cuerpo no se pinta. Se oculta su material
+  // (no la malla): una malla oculta deja de mover su esqueleto, y la ropa lo necesita
+  useLayoutEffect(() => {
+    const list = Array.isArray(model.body.material) ? model.body.material : [model.body.material]
+    for (const m of list) m.visible = showBody
+    model.body.castShadow = showBody
+  }, [model, showBody])
 
   // Animación de reposo en bucle
   const mixer = useMemo(() => new THREE.AnimationMixer(model.root), [model])

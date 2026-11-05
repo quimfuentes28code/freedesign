@@ -65,7 +65,8 @@ const stored = (key: string) => {
 
 /** Vista 3D del diseño que se está editando: el maniquí con la prenda, sus colores y materiales, al momento. */
 export function Design3D({ template, data, materials, client, designId }: Props) {
-  const [hoodUp, setHoodUp] = useState(true)
+  // Sin maniquí, la capucha se ve mejor bajada
+  const [hoodUp, setHoodUp] = useState(false)
   const body = useMemo(() => bodyOf(client), [client])
   const main = useDesign3D(template, data, materials, body)!
   const pants = isPants(template)
@@ -100,7 +101,8 @@ export function Design3D({ template, data, materials, client, designId }: Props)
   return (
     <div className="design-3d studio">
       <div className="viewport">
-        <Scene measurements={measurements} design={shown} outfit={outfit} autoRotate={autoRotate} animate={animate} />
+        {/* En el editor se ve solo la ropa (el maniquí sale en el Probador); la cámara mira a la prenda */}
+        <Scene measurements={measurements} design={shown} outfit={outfit} autoRotate={autoRotate} animate={animate} showBody={false} focus={outfit.length ? 0.5 : pants ? 0.3 : 0.66} />
         <div className="design-3d-bar">
           <label className="outfit-pick" title={pants ? 'Ver el pantalón con una prenda de arriba ya diseñada' : 'Ver la prenda con un pantalón ya diseñado'}>
             <span>Llevar con</span>
