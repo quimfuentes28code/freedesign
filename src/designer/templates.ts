@@ -81,6 +81,50 @@ const topBase = (o: Options, t: GarmentTemplate): Pick<TopCfg, 'fit' | 'length' 
   pocket: 'ninguno',
 })
 
+/** Si la prenda lleva capucha con estas opciones (sudadera: casilla; el resto: el cuello «capucha»). */
+const hasHood = (t: GarmentTemplate, o: Options) => opt<boolean>(t, o, 'capucha') === true || opt(t, o, 'cuello') === 'capucha'
+
+/**
+ * Extras de cuello y capucha que se combinan con lo demás: capucha cruzada, cuello alto bajo la capucha,
+ * balaclava por dentro y lengüeta de cierre en el cuello alto. Se añaden a una prenda con `withNeckExtras`.
+ */
+const neckExtrasCfg = (t: GarmentTemplate, o: Options): Pick<TopCfg, 'hoodCross' | 'hoodCollar' | 'balaclava' | 'neckTab'> => {
+  const hood = hasHood(t, o)
+  return {
+    hoodCross: hood && opt<boolean>(t, o, 'capuchaCruzada') === true,
+    hoodCollar: hood && opt<boolean>(t, o, 'cuelloAltoCapucha') === true,
+    balaclava: hood && opt<boolean>(t, o, 'balaclava') === true,
+    neckTab: opt(t, o, 'lengueta') ?? 'ninguna',
+  }
+}
+
+function withNeckExtras(t: GarmentTemplate, { tab }: { tab: boolean }) {
+  const color = t.pieces.find((p) => p.id === T.body)?.defaultColor ?? '#cccccc'
+  const extra: OptionDef[] = [
+    toggle('capuchaCruzada', 'Capucha cruzada', 'detalles', false),
+    toggle('cuelloAltoCapucha', 'Cuello alto bajo la capucha', 'detalles', false),
+    toggle('balaclava', 'Balaclava dentro de la capucha', 'detalles', false),
+    ...(tab ? [choice('lengueta', 'Lengüeta en el cuello', 'detalles', [['ninguna', 'Sin lengüeta'], ['automaticos', 'Con automáticos'], ['velcro', 'Con velcro']], 'ninguna')] : []),
+  ]
+  // Antes de los pespuntes (que van al final del grupo de acabados)
+  const at = t.options.findIndex((x) => x.group === 'acabados')
+  t.options.splice(at < 0 ? t.options.length : at, 0, ...extra)
+  t.pieces.push({ id: T.balaclava, label: 'Balaclava', defaultColor: color, materials: FABRIC }, ...(tab ? [{ id: T.tab, label: 'Lengüeta', defaultColor: color, materials: FABRIC }] : []))
+  if (!t.pieces.some((p) => p.id === T.collar)) t.pieces.push({ id: T.collar, label: 'Cuello', defaultColor: color, materials: FABRIC })
+  const active = t.activePieces
+  t.activePieces = (o) => {
+    const c = neckExtrasCfg(t, o)
+    const list = active(o)
+    return [
+      ...list,
+      ...(c.balaclava ? [T.balaclava] : []),
+      ...(c.hoodCollar && !list.includes(T.collar) ? [T.collar] : []),
+      ...(c.neckTab !== 'ninguna' && (c.hoodCollar || opt(t, o, 'cuello') === 'alto') ? [T.tab] : []),
+    ]
+  }
+  return t
+}
+
 // --- Sudadera ---
 
 const sudadera: GarmentTemplate = {
@@ -133,6 +177,7 @@ const sudadera: GarmentTemplate = {
     const neck: Neck = hood ? 'capucha' : opt<Neck>(sudadera, o, 'cuelloSin')
     return drawTop(view, {
       ...topBase(o, sudadera),
+      ...neckExtrasCfg(sudadera, o),
       sleeve: 'larga',
       neck,
       // Cuello polo en sudadera (estilo rugby): con tapeta corta de botones
@@ -343,6 +388,7 @@ const bomber: GarmentTemplate = {
     const buttons = opt(bomber, o, 'cierre') === 'botones'
     return drawTop(view, {
       ...topBase(o, bomber),
+      ...neckExtrasCfg(bomber, o),
       sleeve: 'larga',
       neck: neck === 'canale' ? 'bomber' : (neck as Neck),
       hem: 'canale',
@@ -399,6 +445,7 @@ const puffer: GarmentTemplate = {
     const rib = opt(puffer, o, 'punos') === 'canale' ? 'canale' : 'recto'
     return drawTop(view, {
       ...topBase(o, puffer),
+      ...neckExtrasCfg(puffer, o),
       sleeve: 'larga',
       neck: opt(puffer, o, 'cuello') === 'capucha' ? 'capucha' : 'alto',
       hem: rib,
@@ -564,6 +611,7 @@ const chaleco: GarmentTemplate = {
     const buttons = opt(chaleco, o, 'cierre') === 'botones'
     return drawTop(view, {
       ...topBase(o, chaleco),
+      ...neckExtrasCfg(chaleco, o),
       sleeve: 'sin',
       neck: opt<Neck>(chaleco, o, 'cuello'),
       hem: opt(chaleco, o, 'bajo') === 'canale' ? 'canale' : 'recto',
@@ -676,6 +724,7 @@ const cortavientos: GarmentTemplate = {
     const rib = opt(cortavientos, o, 'punos') === 'canale' ? 'canale' : 'recto'
     return drawTop(view, {
       ...topBase(o, cortavientos),
+      ...neckExtrasCfg(cortavientos, o),
       sleeve: 'larga',
       neck: opt(cortavientos, o, 'cuello') === 'capucha' ? 'capucha' : 'alto',
       hem: rib,
@@ -771,6 +820,12 @@ const gorra: GarmentTemplate = {
       stitch: opt(gorra, o, 'costuras'),
     }),
 }
+
+withNeckExtras(sudadera, { tab: false })
+withNeckExtras(bomber, { tab: false })
+withNeckExtras(puffer, { tab: true })
+withNeckExtras(chaleco, { tab: true })
+withNeckExtras(cortavientos, { tab: true })
 
 export const TEMPLATES: GarmentTemplate[] = [sudadera, camiseta, polo, camisa, bomber, puffer, chaleco, cazadora, cortavientos, pantalon, pantalonAncho, pantalonCorto, gorro, gorra]
 

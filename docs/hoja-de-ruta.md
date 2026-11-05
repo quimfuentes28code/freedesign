@@ -49,12 +49,13 @@ Se marca cada fase al terminarla.
 - [x] Cortavientos (nylon, cremallera entera o media, capucha o cuello alto, ribetes elásticos). Los paneles de color se hacen con «Dividir color»
 - [x] Gorro (beanie, normal o corto, con o sin vuelta y pompón) y gorra (5 o 6 paneles, visera curva o plana, trucker, snapback, hebilla o velcro), en 2D y ficha; en 3D más adelante
 
-## 8. Cuellos y capuchas combinables
+## 8. Cuellos y capuchas combinables ✓
 
-- [ ] Capucha cruzada (solapada por delante)
-- [ ] Cuello alto y capucha a la vez
-- [ ] Balaclava por dentro de la capucha
-- [ ] Cierre en el cuello de la puffer (lengüeta con automáticos o velcro, o cremallera hasta arriba)
+- [x] Capucha cruzada (solapada por delante)
+- [x] Cuello alto y capucha a la vez
+- [x] Balaclava por dentro de la capucha, con la abertura de los ojos
+- [x] Lengüeta en el cuello alto (puffer, chaleco, cortavientos), con automáticos o velcro; la cremallera sube hasta arriba del cuello
+- En 2D y ficha técnica (medidas y confección); en 3D todavía no
 
 ## 9. Detalles donde quieras
 

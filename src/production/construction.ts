@@ -173,6 +173,12 @@ export function defaultConstruction(t: GarmentTemplate, o: Options): Constructio
     else add('Bajos', 'Dobladillo de 3 cm', fixed ? 'Punto invisible' : COVER)
   }
 
+  // Extras de cuello y capucha (en cualquier prenda que los tenga)
+  if (get<boolean>('capuchaCruzada')) add('Capucha cruzada', 'Solapar los delanteros de la capucha y fijarlos al escote', OVERLOCK, 'Hilvanar el cruce antes de montar')
+  if (get<boolean>('cuelloAltoCapucha')) add('Cuello alto', 'Cuello alto doble montado al escote, por delante de la capucha', OVERLOCK, 'La capucha se monta por detrás del cuello')
+  if (get<boolean>('balaclava')) add('Balaclava', 'Balaclava de punto con la abertura de los ojos ribeteada, cosida por dentro de la capucha', `${FLAT} + ${COVER}`, 'Fijarla en la costura del escote')
+  const tab = get<string>('lengueta')
+  if (tab && tab !== 'ninguna') add('Lengüeta del cuello', tab === 'velcro' ? 'Lengüeta con velcro que cruza la cremallera' : 'Lengüeta con dos automáticos que cruza la cremallera', FLAT, 'Entretelada')
   if (t.family !== 'head') rows.push({ ...topstitch, notes: isPants(t) ? 'En costados, bolsillos y cinturilla' : 'En hombros, sisas y escote' })
   add(
     'Etiquetas',
@@ -188,6 +194,19 @@ export function defaultConstruction(t: GarmentTemplate, o: Options): Constructio
 
 /** Orden de montaje por defecto. */
 export function defaultAssembly(t: GarmentTemplate, o: Options, withPrints: boolean): string[] {
+  // Los extras de cuello y capucha van antes de las etiquetas
+  const steps = baseAssembly(t, o, withPrints)
+  const get = <T extends string | boolean>(id: string) => opt<T>(t, o, id)
+  const extras = [
+    ...(get<boolean>('balaclava') ? ['Montar la balaclava por dentro de la capucha'] : []),
+    ...(get<boolean>('cuelloAltoCapucha') ? ['Montar el cuello alto por delante de la capucha'] : []),
+    ...(get<string>('lengueta') && get('lengueta') !== 'ninguna' ? ['Coser la lengüeta del cuello y sus cierres'] : []),
+  ]
+  const at = steps.indexOf('Coser etiquetas')
+  return at < 0 ? [...steps, ...extras] : [...steps.slice(0, at), ...extras, ...steps.slice(at)]
+}
+
+function baseAssembly(t: GarmentTemplate, o: Options, withPrints: boolean): string[] {
   const get = <T extends string | boolean>(id: string) => opt<T>(t, o, id)
   const prints = withPrints ? ['Estampar o bordar las piezas sueltas antes de coser (ver estampados)'] : []
   const start = ['Revisar el tejido y dejarlo reposar 24 h antes de cortar', 'Cortar todas las piezas al hilo, marcando piquetes', ...prints]

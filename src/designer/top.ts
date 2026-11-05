@@ -51,6 +51,14 @@ export interface TopCfg {
   frontYoke?: boolean
   /** Acolchado (puffer): separación entre canales, en unidades del lienzo (0 = sin acolchar). */
   quilt?: number
+  /** Capucha cruzada: los dos lados se solapan por delante, bajo la barbilla. */
+  hoodCross?: boolean
+  /** Cuello alto bajo la capucha (las dos cosas a la vez). */
+  hoodCollar?: boolean
+  /** Balaclava (pasamontañas) por dentro de la capucha, con la abertura de los ojos. */
+  balaclava?: boolean
+  /** Lengüeta que cierra el cuello alto por delante, con automáticos o velcro. */
+  neckTab?: 'ninguna' | 'automaticos' | 'velcro'
   /** Escala de las bandas de canalé (la bomber las lleva más anchas). */
   ribScale?: number
   /** Medidas propias del diseño (ver measures.ts). */
@@ -82,6 +90,8 @@ export const TOP_PIECES = {
   cords: 'cordones',
   placket: 'tapeta',
   buttons: 'botones',
+  balaclava: 'balaclava',
+  tab: 'lengueta',
 } as const
 
 const FIT = {
@@ -203,16 +213,18 @@ export function drawTop(view: View, c: TopCfg): Shape[] {
 
   // --- Cuello / capucha ---
   out.push(...neck(c, f, front, stitchOffsets))
+  if (c.neck === 'capucha') out.push(...hoodExtras(c, f, front, stitchOffsets))
 
   // --- Tapeta con botones (delante) ---
   if (front && c.placket && c.placket !== 'ninguna') out.push(...placket(c, f, neckY, stitchOffsets))
 
   // --- Cremallera y cordones (delante) ---
   if (front && c.zip !== 'ninguna') {
-    const top = c.neck === 'capucha' ? 130 : c.neck === 'alto' ? 70 : neckY
+    const top = c.neck === 'capucha' ? (c.hoodCollar ? 86 : 130) : c.neck === 'alto' ? 70 : neckY
     const bottom = c.zip === 'completa' ? f.hemY : top + 86
     out.push(...zipper(top, bottom, P.hardware, stitchOffsets))
   }
+  if (front && c.neckTab && c.neckTab !== 'ninguna' && (c.neck === 'alto' || c.hoodCollar)) out.push(...neckTab(c.neckTab, stitchOffsets, c.neck === 'alto' ? 74 : 90))
   if (front && c.cords && c.neck === 'capucha') {
     for (const s of [1, -1]) {
       const x = CX + s * 10
@@ -221,6 +233,56 @@ export function drawTop(view: View, c: TopCfg): Shape[] {
       out.push({ kind: 'hardware', piece: P.cords, d: rect(x + s * 3 - 2.5, 196, 5, 12, 2) })
     }
   }
+  return out
+}
+
+/** Capucha cruzada, cuello alto bajo la capucha y balaclava por dentro (de frente). */
+function hoodExtras(c: TopCfg, f: Frame, front: boolean, offs: number[]): Shape[] {
+  const out: Shape[] = []
+  const P = TOP_PIECES
+  const nw = f.nw
+  if (!front) return out
+  if (c.balaclava) {
+    // Ocupa la abertura de la capucha y deja solo los ojos a la vista
+    out.push({
+      kind: 'fill',
+      piece: P.balaclava,
+      d: symmetric([CX, 30], [
+        { to: [CX + 28, 42], c: [CX + 23, 30] },
+        { to: [CX + 34, 84], c: [CX + 38, 58] },
+        { to: [CX + 6, 126], c: [CX + 30, 110] },
+        { to: [CX, 128] },
+      ]),
+    })
+    // Abertura de los ojos (se ve el interior, con el tono de la capucha por dentro)
+    out.push({ kind: 'shade', piece: P.hood, d: rect(CX - 22, 48, 44, 17, 8.5) })
+    out.push({ kind: 'stitch', piece: P.balaclava, d: rect(CX - 25.5, 44.5, 51, 24, 12) })
+  }
+  if (c.hoodCross) {
+    // El lado derecho de la capucha cruza por delante del izquierdo y baja hasta el escote
+    out.push({ kind: 'fill', piece: P.hood, d: path([CX + 12, 104], [{ to: [CX - 24, 140], c: [CX - 4, 126] }, { to: [CX - 12, 147] }, { to: [CX + 24, 124], c: [CX + 8, 138] }]) })
+    for (const d of offs) out.push({ kind: 'stitch', piece: P.hood, d: curve([CX + 12 - d * 0.4, 108], [CX - 4 - d * 0.6, 129 + d * 0.3], [CX - 22 + d * 0.3, 142 + d * 0.2]) })
+  }
+  if (c.hoodCollar) {
+    // Cuello alto por delante de la capucha (la capucha sale por detrás del cuello)
+    out.push({
+      kind: 'fill',
+      piece: P.collar,
+      d: symmetric([CX, 90], [{ to: [CX + nw + 4, 86], c: [CX + nw * 0.6, 92] }, { to: [CX + nw + 7, 108], c: [CX + nw + 8, 96] }, { to: [CX, 116], c: [CX + nw * 0.8, 116] }]),
+    })
+    out.push({ kind: 'shade', piece: P.collar, d: symmetric([CX, 86], [{ to: [CX + nw + 1, 85], c: [CX + nw * 0.5, 82] }, { to: [CX, 94], c: [CX + nw * 0.6, 94] }]) })
+    for (const d of offs) out.push({ kind: 'stitch', piece: P.collar, d: curve([CX - nw - 6, 104 - d], [CX, 112 - d], [CX + nw + 6, 104 - d]) })
+  }
+  return out
+}
+
+/** Lengüeta que cruza la cremallera arriba del cuello alto, con automáticos o velcro. */
+function neckTab(kind: 'automaticos' | 'velcro', offs: number[], y = 74): Shape[] {
+  const P = TOP_PIECES
+  const out: Shape[] = [{ kind: 'fill', piece: P.tab, d: rect(CX - 8, y, 38, 15, 5) }]
+  for (const d of offs.slice(0, 1)) out.push({ kind: 'stitch', piece: P.tab, d: rect(CX - 8 + d - 1, y + d - 1, 38 - 2 * (d - 1), 15 - 2 * (d - 1), 3) })
+  if (kind === 'automaticos') for (const x of [CX + 4, CX + 20]) out.push({ kind: 'hardware', piece: P.hardware, d: rect(x - 3, y + 4.5, 6, 6, 3) })
+  else out.push({ kind: 'shade', piece: P.tab, d: rect(CX + 10, y + 3, 16, 9, 2) })
   return out
 }
 
@@ -643,7 +705,10 @@ function drawSide(c: TopCfg, f: Frame): Shape[] {
     out.push({ kind: 'hardware', piece: P.hardware, d: quad([CX + d - 7, 112], [CX + d - 3, 112], [CX + d - 1, end], [CX + d - 5, end]) })
   }
 
-  // Cuello
+  // Cuello (con capucha puede llevar además un cuello alto)
+  if (c.neck === 'capucha' && c.hoodCollar) {
+    out.push({ kind: 'fill', piece: P.collar, d: path([CX - 20, 104], [{ to: [CX + 22, 112], c: [CX, 112] }, { to: [CX + 20, 72] }, { to: [CX - 18, 66], c: [CX, 66] }]) })
+  }
   if (c.neck === 'redondo' || c.neck === 'pico') {
     out.push({ kind: 'fill', piece: P.collar, d: path([CX - 16, 102], [{ to: [CX + 14, 112], c: [CX, 108] }, { to: [CX + 16, 104] }, { to: [CX - 14, 96], c: [CX, 100] }]) })
   } else if (c.neck === 'bomber') {

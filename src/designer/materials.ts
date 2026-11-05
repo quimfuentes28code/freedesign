@@ -189,17 +189,17 @@ export function groupCatalog(items: CatalogMaterial[]) {
 
 /** Material con el que se ve cada pieza si aún no se ha elegido ninguno (según la prenda base). */
 const DEFAULTS: Record<string, Record<string, string>> = {
-  sudadera: { '*': 'cat:felpa-perchada', punos: 'cat:canale-2x2', bajo: 'cat:canale-2x2', cuello: 'cat:canale-2x2', cordones: 'cat:cordon-algodon', fornituras: 'cat:metal-niquel', botones: 'cat:boton-resina' },
+  sudadera: { balaclava: 'cat:canale-1x1', '*': 'cat:felpa-perchada', punos: 'cat:canale-2x2', bajo: 'cat:canale-2x2', cuello: 'cat:canale-2x2', cordones: 'cat:cordon-algodon', fornituras: 'cat:metal-niquel', botones: 'cat:boton-resina' },
   camiseta: { '*': 'cat:jersey', cuello: 'cat:canale-1x1', botones: 'cat:boton-resina' },
   pantalon: { '*': 'cat:french-terry', punos: 'cat:canale-2x2', cinturilla: 'cat:canale-2x2', cordon: 'cat:cordon-algodon' },
-  bomber: { '*': 'cat:nylon-bomber', cuello: 'cat:canale-2x2', punos: 'cat:canale-2x2', bajo: 'cat:canale-2x2', fornituras: 'cat:metal-niquel', botones: 'cat:automatico' },
+  bomber: { balaclava: 'cat:canale-1x1', '*': 'cat:nylon-bomber', cuello: 'cat:canale-2x2', punos: 'cat:canale-2x2', bajo: 'cat:canale-2x2', fornituras: 'cat:metal-niquel', botones: 'cat:automatico' },
   polo: { '*': 'cat:pique', cuello: 'cat:canale-1x1', punos: 'cat:canale-1x1', botones: 'cat:boton-resina' },
   camisa: { '*': 'cat:popelin', botones: 'cat:boton-resina' },
-  puffer: { '*': 'cat:ripstop', punos: 'cat:licra', bajo: 'cat:licra', fornituras: 'cat:cremallera-vislon' },
+  puffer: { balaclava: 'cat:canale-1x1', '*': 'cat:ripstop', punos: 'cat:licra', bajo: 'cat:licra', fornituras: 'cat:cremallera-vislon' },
   'pantalon-ancho': { '*': 'cat:chino', cordon: 'cat:cordon-algodon', botones: 'cat:boton-corozo' },
-  chaleco: { '*': 'cat:ripstop', bajo: 'cat:licra', fornituras: 'cat:cremallera-vislon', botones: 'cat:automatico' },
+  chaleco: { balaclava: 'cat:canale-1x1', '*': 'cat:ripstop', bajo: 'cat:licra', fornituras: 'cat:cremallera-vislon', botones: 'cat:automatico' },
   cazadora: { '*': 'cat:denim-rigido', botones: 'cat:boton-metal' },
-  cortavientos: { '*': 'cat:ripstop', punos: 'cat:licra', bajo: 'cat:licra', cordones: 'cat:cordon-algodon', fornituras: 'cat:cremallera-vislon' },
+  cortavientos: { balaclava: 'cat:canale-1x1', '*': 'cat:ripstop', punos: 'cat:licra', bajo: 'cat:licra', cordones: 'cat:cordon-algodon', fornituras: 'cat:cremallera-vislon' },
   gorro: { '*': 'cat:canale-2x2', pompon: 'cat:punto-lana' },
   gorra: { '*': 'cat:chino', trasera: 'cat:malla', visera: 'cat:chino', boton: 'cat:chino', cierre: 'cat:metal-niquel', ojetes: 'cat:chino' },
   'pantalon-corto': { '*': 'cat:french-terry', punos: 'cat:canale-2x2', cinturilla: 'cat:canale-2x2', cordon: 'cat:cordon-algodon', botones: 'cat:boton-metal' },

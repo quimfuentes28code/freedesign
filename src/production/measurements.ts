@@ -131,7 +131,7 @@ function topPoms(id: string, get: Get): Pom[] {
     }
     poms.push({ id: 'sisa', label: 'Alto de sisa', how: 'Del hombro a la parte baja de la sisa, en recto', tol: 0.5, uses: ['pecho'], value: (b) => b.pecho * 0.26 + 2 })
   }
-  if (neck === 'alto' || (id === 'sudadera' && !hood && get('cuelloSin') === 'alto')) {
+  if (neck === 'alto' || (id === 'sudadera' && !hood && get('cuelloSin') === 'alto') || (hood && get<boolean>('cuelloAltoCapucha'))) {
     poms.push({ id: 'cuello-alto', label: 'Alto de cuello', how: 'Desde la costura del escote hasta el borde del cuello', tol: 0.5, uses: ['cuello'], value: (b) => 8 + (b.cuello - 39) * 0.2 })
   }
   if (hood) {
@@ -140,6 +140,7 @@ function topPoms(id: string, get: Get): Pom[] {
       { id: 'capucha-ancho', label: 'Ancho de capucha', how: 'De delante a atrás, en la parte más ancha', tol: 1, uses: ['cuello'], value: (b) => b.cuello * 0.33 + 12 },
     )
   }
+  if (hood && get<boolean>('balaclava')) poms.push({ id: 'balaclava-ojos', label: 'Abertura de ojos (balaclava)', how: 'Ancho × alto de la abertura, en recto', tol: 0.5, uses: [], value: () => 16 })
   if (zip === 'completa') poms.push({ id: 'cremallera', label: 'Largo de cremallera', how: 'Dientes, de tope a tope', tol: 0.5, uses: ['talleEspalda'], value: (b) => length(b) - (hood ? 2 : 5) })
   if (zip === 'media') poms.push({ id: 'cremallera', label: 'Largo de cremallera', how: 'Dientes, de tope a tope', tol: 0.5, uses: ['talleEspalda'], value: (b) => 20 + (b.talleEspalda - 42) * 0.5 })
   return poms.map((p) => ({ ...p, value: (b: Body) => half(p.value(b)) }))
