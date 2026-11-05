@@ -236,9 +236,20 @@ function readDetail(raw: unknown): Detail | null {
     ...(text(d.text) ? { text: text(d.text).slice(0, 80) } : {}),
     ...(art ? { art } : {}),
     ...(d.relief === true ? { relief: true } : {}),
+    ...(readShape(d.shape) ? { shape: readShape(d.shape)! } : {}),
     ...(d.hidden === true ? { hidden: true } : {}),
     ...(d.locked === true ? { locked: true } : {}),
   }
+}
+
+/** Forma de un detalle: unos pocos números pequeños por nombre. */
+function readShape(raw: unknown): Record<string, number> | null {
+  if (!raw || typeof raw !== 'object') return null
+  const out: Record<string, number> = {}
+  for (const [k, v] of Object.entries(raw).slice(0, 10)) {
+    if (typeof v === 'number' && Number.isFinite(v)) out[k.slice(0, 20)] = Math.min(40, Math.max(-5, Math.round(v * 100) / 100))
+  }
+  return Object.keys(out).length ? out : null
 }
 
 function readHardware(raw: unknown): HardwareStyle | null {

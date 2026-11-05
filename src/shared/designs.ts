@@ -304,6 +304,8 @@ export interface Detail {
   art?: DetailArt | null
   /** Bordado o en relieve (parches y etiquetas): se ve con volumen en 2D y en 3D. */
   relief?: boolean
+  /** Forma propia del detalle (alto, esquinas, fondo, cantidad de hilos…), ver `SHAPE_PARAMS` en details.tsx. */
+  shape?: Record<string, number>
   hidden?: boolean
   locked?: boolean
 }

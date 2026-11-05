@@ -29,8 +29,63 @@ export function shade(hex: string, f: number) {
   return `#${[16, 8, 0].map((s) => ch(s).toString(16).padStart(2, '0')).join('')}`
 }
 
+/** Un ajuste de forma de un detalle: un número (deslizador) o una de varias opciones. */
+export interface ShapeParam {
+  id: string
+  label: string
+  min: number
+  max: number
+  step: number
+  def: number
+  /** Si se elige entre opciones, sus nombres (el valor es su posición). */
+  choices?: string[]
+  /** Cómo se enseña el valor (por defecto, en %). */
+  unit?: '%' | ''
+}
+
+const ALTO: ShapeParam = { id: 'alto', label: 'Alto', min: 0.4, max: 2.5, step: 0.05, def: 1 }
+
+/** Forma que se puede ajustar en cada tipo de detalle. */
+export const SHAPE_PARAMS: Partial<Record<Detail['kind'], ShapeParam[]>> = {
+  bolsillo: [
+    ALTO,
+    { id: 'esquinas', label: 'Esquinas redondeadas', min: 0, max: 1, step: 0.05, def: 0.2 },
+    { id: 'fondo', label: 'Fondo', min: 0, max: 2, step: 1, def: 0, choices: ['Recto', 'En pico', 'Redondo'] },
+    { id: 'tapeta', label: 'Alto de la tapeta (cargo)', min: 0.4, max: 2, step: 0.05, def: 1 },
+  ],
+  parche: [ALTO],
+  etiqueta: [ALTO],
+  trabilla: [ALTO],
+  velcro: [ALTO],
+  roto: [
+    ALTO,
+    { id: 'hilos', label: 'Hilos que cruzan', min: 0, max: 16, step: 1, def: 7, unit: '' },
+    { id: 'irregular', label: 'Borde irregular', min: 0, max: 0.5, step: 0.02, def: 0.18 },
+    { id: 'flecos', label: 'Hilos sueltos en el borde', min: 0, max: 3, step: 0.1, def: 1 },
+  ],
+  deshilachado: [
+    { id: 'densidad', label: 'Cuánto se deshilacha (hilos)', min: 0.2, max: 3, step: 0.1, def: 1 },
+    { id: 'irregular', label: 'Largo desigual de los hilos', min: 0, max: 1, step: 0.05, def: 0.6 },
+    { id: 'curva', label: 'Hilos ondulados', min: 0, max: 1, step: 0.05, def: 0.15 },
+  ],
+  desgaste: [
+    ALTO,
+    { id: 'intensidad', label: 'Intensidad', min: 0.2, max: 3, step: 0.1, def: 1 },
+  ],
+}
+
+/** Valor de un ajuste de forma (el propio o el de partida). */
+export function shapeOf(d: Pick<Detail, 'kind' | 'shape'>, id: string) {
+  return d.shape?.[id] ?? SHAPE_PARAMS[d.kind]?.find((p) => p.id === id)?.def ?? 1
+}
+
 /** Alto / ancho de un detalle (su caja), para moverlo y escalarlo. */
-export function detailAspect(d: Pick<Detail, 'kind' | 'style' | 'length' | 'w' | 'art'>) {
+export function detailAspect(d: Pick<Detail, 'kind' | 'style' | 'length' | 'w' | 'art'> & { shape?: Detail['shape'] }) {
+  const tall = SHAPE_PARAMS[d.kind]?.some((p) => p.id === 'alto') ? shapeOf(d, 'alto') : 1
+  return baseAspect(d) * tall
+}
+
+function baseAspect(d: Pick<Detail, 'kind' | 'style' | 'length' | 'w' | 'art'>) {
   switch (d.kind) {
     case 'cremallera':
     case 'cordon':
@@ -172,8 +227,8 @@ const centeredText = (text: string, maxW: number, maxH: number, color: string, b
   bold,
 })
 
-export function patchPrims(d: Pick<Detail, 'style' | 'w' | 'color' | 'color2' | 'text' | 'art'>, label = false): Prim[] {
-  const h = label ? d.w * 0.42 : d.w * detailAspect({ kind: 'parche', style: d.style, w: d.w })
+export function patchPrims(d: Pick<Detail, 'style' | 'w' | 'color' | 'color2' | 'text' | 'art' | 'shape'>, label = false): Prim[] {
+  const h = d.w * detailAspect({ kind: label ? 'etiqueta' : 'parche', style: d.style, w: d.w, shape: d.shape })
   const style = label ? 'rect' : d.style
   const border = Math.max(0.8, d.w * (label ? 0.025 : 0.06))
   const out: Prim[] = [
@@ -214,9 +269,9 @@ export function detailPrims(d: Detail): Prim[] {
     case 'parche':
       return patchPrims(d)
     case 'bolsillo':
-      return pocketPrims(d.style, d.w, d.color, d.color2)
+      return pocketPrims(d.style, d.w, d.color, d.color2, d.shape)
     case 'trabilla': {
-      const h = d.w * 2.6
+      const h = d.w * 2.6 * shapeOf(d, 'alto')
       return [
         { t: 'path', d: roundRect(-d.w / 2, -h / 2, d.w, h, d.w * 0.15), fill: d.color, stroke: shade(d.color, -0.45), sw: Math.max(0.4, d.w * 0.06) },
         { t: 'path', d: `M${n(-d.w * 0.4)} ${n(-h * 0.38)}H${n(d.w * 0.4)}M${n(-d.w * 0.4)} ${n(h * 0.38)}H${n(d.w * 0.4)}`, stroke: d.color2, sw: Math.max(0.4, d.w * 0.12) },
@@ -227,7 +282,7 @@ export function detailPrims(d: Detail): Prim[] {
     case 'cinta':
       return tapePrims(d.style, d.w, d.length ?? 120, d.color, d.color2)
     case 'velcro':
-      return velcroPrims(d.w, d.color, d.color2)
+      return velcroPrims(d.w, d.color, d.color2, shapeOf(d, 'alto'))
     case 'hebilla':
       return bucklePrims(d.style, d.w, d.color, d.color2)
     case 'costura':
@@ -235,11 +290,11 @@ export function detailPrims(d: Detail): Prim[] {
     case 'pinza':
       return dartPrims(d.w, d.length ?? 40, d.color)
     case 'roto':
-      return ripPrims(d.style, d.w, d.color, d.color2)
+      return ripPrims(d.style, d.w, d.color, d.color2, d.shape)
     case 'deshilachado':
-      return frayPrims(d.style, d.w, d.length ?? 120, d.color, d.color2)
+      return frayPrims(d.style, d.w, d.length ?? 120, d.color, d.color2, d.shape)
     case 'desgaste':
-      return wearPrims(d.style, d.w, d.color)
+      return wearPrims(d.style, d.w, d.color, d.shape)
   }
 }
 
@@ -248,8 +303,31 @@ export function detailPrims(d: Detail): Prim[] {
 /** Pespunte discontinuo (de `color`) del tamaño del detalle. */
 const stitch = (d: string, w: number, color: string): Prim => ({ t: 'path', d, stroke: color, sw: Math.max(0.3, w * 0.018), dash: `${n(Math.max(1, w * 0.05))} ${n(Math.max(0.7, w * 0.035))}` })
 
-function pocketPrims(style: string, w: number, color: string, thread: string): Prim[] {
-  const h = w * (POCKET_ASPECT[style] ?? 1.15)
+/** Cuerpo de un bolsillo con su fondo recto, en pico o redondo (`inset` para el pespunte). */
+function pocketBody(x0: number, y0: number, w: number, h: number, r: number, fondo: number, inset = 0) {
+  const x = x0 + inset
+  const y = y0 + inset
+  const ww = w - inset * 2
+  const hh = h - inset * 2
+  const rr = Math.max(0, Math.min(r, ww / 2, hh / 2) - inset * 0.5)
+  if (fondo === 1) {
+    // En pico: los lados bajan y se juntan en el centro
+    const tip = Math.min(hh * 0.35, ww * 0.35)
+    return `M${n(x + rr)} ${n(y)}H${n(x + ww - rr)}Q${n(x + ww)} ${n(y)} ${n(x + ww)} ${n(y + rr)}V${n(y + hh - tip)}L${n(x + ww / 2)} ${n(y + hh)}L${n(x)} ${n(y + hh - tip)}V${n(y + rr)}Q${n(x)} ${n(y)} ${n(x + rr)} ${n(y)}Z`
+  }
+  if (fondo === 2) {
+    // Redondo: esquinas de abajo muy curvas
+    const rb = Math.min(ww / 2, hh * 0.6)
+    return `M${n(x + rr)} ${n(y)}H${n(x + ww - rr)}Q${n(x + ww)} ${n(y)} ${n(x + ww)} ${n(y + rr)}V${n(y + hh - rb)}Q${n(x + ww)} ${n(y + hh)} ${n(x + ww / 2)} ${n(y + hh)}Q${n(x)} ${n(y + hh)} ${n(x)} ${n(y + hh - rb)}V${n(y + rr)}Q${n(x)} ${n(y)} ${n(x + rr)} ${n(y)}Z`
+  }
+  return roundRect(x, y, ww, hh, rr)
+}
+
+function pocketPrims(style: string, w: number, color: string, thread: string, shape?: Detail['shape']): Prim[] {
+  const get = (id: string) => shapeOf({ kind: 'bolsillo', shape }, id)
+  const h = w * (POCKET_ASPECT[style] ?? 1.15) * get('alto')
+  const r = get('esquinas') * w * 0.3
+  const fondo = Math.round(get('fondo'))
   const edge = shade(color, -0.45)
   const sw = Math.max(0.5, w * 0.02)
   if (style === 'vivo') {
@@ -267,21 +345,23 @@ function pocketPrims(style: string, w: number, color: string, thread: string): P
     ]
   }
   if (style === 'cargo') {
-    const top = -h / 2 + h * 0.2
+    const flapH = Math.min(h * 0.6, h * 0.28 * get('tapeta'))
+    const top = -h / 2 + flapH * 0.72
+    const bodyH = h / 2 - top
     return [
-      { t: 'path', d: roundRect(-w / 2, top, w, h * 0.8, w * 0.04), fill: color, stroke: edge, sw },
+      { t: 'path', d: pocketBody(-w / 2, top, w, bodyH, r, fondo), fill: color, stroke: edge, sw },
       // Fuelle: los pliegues a los lados y el del centro
       { t: 'path', d: `M${n(-w / 2 + w * 0.08)} ${n(top)}V${n(h / 2)}M${n(w / 2 - w * 0.08)} ${n(top)}V${n(h / 2)}M0 ${n(top)}V${n(h / 2)}`, stroke: shade(color, -0.3), sw: sw * 0.7 },
-      stitch(roundRect(-w / 2 + w * 0.04, top + w * 0.04, w * 0.92, h * 0.8 - w * 0.08, w * 0.03), w, thread),
-      { t: 'path', d: roundRect(-w * 0.53, -h / 2, w * 1.06, h * 0.28, w * 0.04), fill: shade(color, -0.06), stroke: edge, sw },
-      stitch(`M${n(-w * 0.46)} ${n(-h / 2 + h * 0.22)}H${n(w * 0.46)}`, w, thread),
-      { t: 'path', d: circle(0, -h / 2 + h * 0.14, w * 0.05), fill: thread, stroke: shade(thread, -0.4), sw: sw * 0.6 },
+      stitch(pocketBody(-w / 2, top, w, bodyH, r, fondo, w * 0.04), w, thread),
+      { t: 'path', d: roundRect(-w * 0.53, -h / 2, w * 1.06, flapH, w * 0.04), fill: shade(color, -0.06), stroke: edge, sw },
+      stitch(`M${n(-w * 0.46)} ${n(-h / 2 + flapH * 0.78)}H${n(w * 0.46)}`, w, thread),
+      { t: 'path', d: circle(0, -h / 2 + flapH * 0.5, w * 0.05), fill: thread, stroke: shade(thread, -0.4), sw: sw * 0.6 },
     ]
   }
   // De parche, con el dobladillo arriba
   return [
-    { t: 'path', d: roundRect(-w / 2, -h / 2, w, h, w * 0.06), fill: color, stroke: edge, sw },
-    stitch(roundRect(-w / 2 + w * 0.07, -h / 2 + w * 0.07, w * 0.86, h - w * 0.14, w * 0.04), w, thread),
+    { t: 'path', d: pocketBody(-w / 2, -h / 2, w, h, r, fondo), fill: color, stroke: edge, sw },
+    stitch(pocketBody(-w / 2, -h / 2, w, h, r, fondo, w * 0.07), w, thread),
     stitch(`M${n(-w * 0.43)} ${n(-h / 2 + h * 0.16)}H${n(w * 0.43)}`, w, thread),
   ]
 }
@@ -312,8 +392,8 @@ function tapePrims(style: string, w: number, L: number, color: string, color2: s
   return out
 }
 
-function velcroPrims(w: number, color: string, thread: string): Prim[] {
-  const h = w * 0.55
+function velcroPrims(w: number, color: string, thread: string, tall = 1): Prim[] {
+  const h = w * 0.55 * tall
   const rows = Array.from({ length: 5 }, (_, i) => -h / 2 + (h * (i + 1)) / 6)
   return [
     { t: 'path', d: roundRect(-w / 2, -h / 2, w, h, h * 0.15), fill: color, stroke: shade(color, -0.4), sw: Math.max(0.4, w * 0.02) },
@@ -387,14 +467,15 @@ function jagged(rx: number, ry: number, rand: () => number, rough = 0.18, points
   return `M${pts.join('L')}Z`
 }
 
-function ripPrims(style: string, w: number, hole: string, thread: string): Prim[] {
+function ripPrims(style: string, w: number, hole: string, thread: string, shape?: Detail['shape']): Prim[] {
+  const get = (id: string) => shapeOf({ kind: 'roto', shape }, id)
   const rand = seeded(w + style.length)
-  const h = w * (style === 'agujero' ? 0.8 : style === 'cortes' ? 0.75 : 0.6)
+  const h = w * (style === 'agujero' ? 0.8 : style === 'cortes' ? 0.75 : 0.6) * get('alto')
   const sw = Math.max(0.25, w * 0.012)
   const out: Prim[] = []
   if (style === 'cortes') {
     // Varios cortes horizontales uno encima de otro, cada uno con sus hilos
-    const rows = 4
+    const rows = Math.max(1, Math.round(get('hilos') / 2))
     for (let i = 0; i < rows; i++) {
       const y = -h / 2 + (h * (i + 0.5)) / rows
       const len = w * (0.55 + rand() * 0.4)
@@ -407,10 +488,10 @@ function ripPrims(style: string, w: number, hole: string, thread: string): Prim[
     }
     return out
   }
-  out.push({ t: 'path', d: jagged(w / 2, h / 2, rand), fill: hole, opacity: 0.9 })
+  out.push({ t: 'path', d: jagged(w / 2, h / 2, rand, get('irregular')), fill: hole, opacity: 0.9 })
   if (style === 'rasgado') {
     // Los hilos de la trama cruzan el roto de lado a lado
-    const lines = 7
+    const lines = Math.round(get('hilos'))
     for (let i = 0; i < lines; i++) {
       const y = -h * 0.38 + (h * 0.76 * i) / (lines - 1) + (rand() - 0.5) * h * 0.05
       const half = (w / 2) * Math.sqrt(Math.max(0, 1 - (y / (h / 2)) ** 2)) * 0.95
@@ -418,7 +499,7 @@ function ripPrims(style: string, w: number, hole: string, thread: string): Prim[
     }
   }
   // Borde deshilachado: hilos cortos hacia fuera
-  const fringe = style === 'agujero' ? 36 : 26
+  const fringe = Math.round((style === 'agujero' ? 36 : 26) * get('flecos'))
   for (let i = 0; i < fringe; i++) {
     const a = (i / fringe) * Math.PI * 2 + rand() * 0.2
     const x = Math.cos(a) * (w / 2) * 0.95
@@ -430,10 +511,11 @@ function ripPrims(style: string, w: number, hole: string, thread: string): Prim[
 }
 
 /** Borde deshilachado a lo largo de `L` (en vertical; se gira para ponerlo en un bajo). Los hilos salen hacia +x. */
-function frayPrims(style: string, w: number, L: number, thread: string, edge: string): Prim[] {
+function frayPrims(style: string, w: number, L: number, thread: string, edge: string, shape?: Detail['shape']): Prim[] {
+  const get = (id: string) => shapeOf({ kind: 'deshilachado', shape }, id)
   const rand = seeded(L + w)
   const out: Prim[] = []
-  const step = style === 'desflecado' ? w * 0.06 : w * 0.1
+  const step = (style === 'desflecado' ? w * 0.06 : w * 0.1) / get('densidad')
   const count = Math.max(4, Math.floor(L / Math.max(0.4, step)))
   const reach = style === 'sin-coser' ? 0.35 : style === 'desflecado' ? 0.75 : 1
   const sw = Math.max(0.25, w * 0.03)
@@ -444,23 +526,26 @@ function frayPrims(style: string, w: number, L: number, thread: string, edge: st
   }
   for (let i = 0; i < count; i++) {
     const y = -L / 2 + (L * (i + rand() * 0.6)) / count
-    const len = w * reach * (0.4 + rand() * 0.6)
-    const bend = (rand() - 0.5) * w * 0.15
+    const uneven = get('irregular')
+    const len = w * reach * (1 - uneven + rand() * uneven)
+    const bend = (rand() - 0.5) * w * get('curva')
     out.push({ t: 'path', d: `M${n(-w / 2)} ${n(y)}q${n(len / 2)} ${n(bend)} ${n(len)} ${n(bend * 0.6)}`, stroke: thread, sw })
   }
   return out
 }
 
-function wearPrims(style: string, w: number, color: string): Prim[] {
+function wearPrims(style: string, w: number, color: string, shape?: Detail['shape']): Prim[] {
+  const get = (id: string) => shapeOf({ kind: 'desgaste', shape }, id)
   const rand = seeded(w + style.length * 3)
-  const h = w * (style === 'bigotes' ? 0.5 : 0.7)
+  const h = w * (style === 'bigotes' ? 0.5 : 0.7) * get('alto')
+  const k = get('intensidad')
   const out: Prim[] = []
   if (style === 'bigotes') {
     // Pliegues aclarados en abanico (caderas o entrepierna de un vaquero)
     for (let i = 0; i < 6; i++) {
       const y = -h / 2 + (h * i) / 5
       const len = w * (0.45 + rand() * 0.5)
-      out.push({ t: 'path', d: `M${n(-w / 2)} ${n(y)}q${n(len / 2)} ${n(h * 0.12)} ${n(len)} ${n(h * 0.2)}`, stroke: color, sw: Math.max(0.6, w * (0.04 + rand() * 0.03)), opacity: 0.45 })
+      out.push({ t: 'path', d: `M${n(-w / 2)} ${n(y)}q${n(len / 2)} ${n(h * 0.12)} ${n(len)} ${n(h * 0.2)}`, stroke: color, sw: Math.max(0.6, w * (0.04 + rand() * 0.03)), opacity: Math.min(1, 0.45 * k) })
     }
     return out
   }
@@ -470,14 +555,14 @@ function wearPrims(style: string, w: number, color: string): Prim[] {
       const r = Math.sqrt(rand())
       const x = Math.cos(a) * r * (w / 2)
       const y = Math.sin(a) * r * (h / 2)
-      out.push({ t: 'path', d: `M${n(x)} ${n(y)}h${n(w * (0.02 + rand() * 0.05))}`, stroke: color, sw: Math.max(0.3, w * 0.015), opacity: 0.35 + rand() * 0.35 })
+      out.push({ t: 'path', d: `M${n(x)} ${n(y)}h${n(w * (0.02 + rand() * 0.05))}`, stroke: color, sw: Math.max(0.3, w * 0.015), opacity: Math.min(1, (0.35 + rand() * 0.35) * k) })
     }
     return out
   }
   // Zona aclarada: varias elipses superpuestas, más claras hacia el centro (borde suave)
   for (let i = 0; i < 6; i++) {
     const k = 1 - i * 0.15
-    out.push({ t: 'path', d: jagged((w / 2) * k, (h / 2) * k, rand, 0.08, 18), fill: color, opacity: 0.12 })
+    out.push({ t: 'path', d: jagged((w / 2) * k, (h / 2) * k, rand, 0.08, 18), fill: color, opacity: Math.min(0.5, 0.12 * k) })
   }
   return out
 }

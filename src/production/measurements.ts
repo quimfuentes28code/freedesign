@@ -133,6 +133,13 @@ function topPoms(id: string, get: Get): Pom[] {
   }
   if (neck === 'alto' || (id === 'sudadera' && !hood && get('cuelloSin') === 'alto') || (hood && get<boolean>('cuelloAltoCapucha'))) {
     poms.push({ id: 'cuello-alto', label: 'Alto de cuello', how: 'Desde la costura del escote hasta el borde del cuello', tol: 0.5, uses: ['cuello'], value: (b) => 8 + (b.cuello - 39) * 0.2 })
+  } else if (neck === 'mao' || neck === 'canale' || id === 'bomber' && neck !== 'capucha' && neck !== 'solapa') {
+    poms.push({ id: 'cuello-alto', label: 'Alto de cuello', how: 'Desde la costura del escote hasta el borde del cuello', tol: 0.5, uses: ['cuello'], value: () => (neck === 'mao' ? 3.5 : 6) })
+  }
+  // Cuellos vueltos: largo de la punta
+  const tipNeck = id === 'sudadera' && !hood && get('cuelloSin') === 'polo' ? 'polo' : neck
+  if (tipNeck === 'polo' || tipNeck === 'camisero' || tipNeck === 'cubano' || tipNeck === 'solapa') {
+    poms.push({ id: 'punta-cuello', label: 'Largo de la punta del cuello', how: 'Desde la costura del cuello hasta la punta', tol: 0.3, uses: [], value: () => ({ polo: 7, camisero: 7.5, cubano: 9, solapa: 10 })[tipNeck] })
   }
   if (hood) {
     poms.push(

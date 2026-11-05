@@ -1,5 +1,5 @@
 import { Field } from '../../components/ui'
-import { detailAspect, detailPrims, PrimsView } from '../../designer/details'
+import { detailAspect, detailPrims, PrimsView, SHAPE_PARAMS, shapeOf } from '../../designer/details'
 import { CX } from '../../designer/geometry'
 import { UNITS_PER_CM as CLOTHES_UNITS } from '../../designer/prints'
 import { VIEWS, type View } from '../../designer/types'
@@ -112,6 +112,30 @@ export function DetailsPanel({ details, onChange, view, selected, onSelect, artw
 
           {DETAIL_STYLES[current.kind] && (
             <Chips label={STYLE_LABEL[current.kind] ?? 'Tipo'} value={current.style} options={DETAIL_STYLES[current.kind]!} onChange={(style) => update({ style })} />
+          )}
+          {SHAPE_PARAMS[current.kind] && (
+            <div className="detail-shape">
+              <h3 className="form-sub">Forma</h3>
+              {SHAPE_PARAMS[current.kind]!.map((p) => {
+                const v = shapeOf(current, p.id)
+                const set = (value: number) => update({ shape: { ...current.shape, [p.id]: value } })
+                return p.choices ? (
+                  <Chips key={p.id} label={p.label} value={String(Math.round(v))} options={p.choices.map((c, i) => ({ id: String(i), label: c }))} onChange={(id) => set(Number(id))} />
+                ) : (
+                  <label key={p.id} className="field">
+                    <span>
+                      {p.label} <strong>{p.unit === '' ? Math.round(v) : `${Math.round(v * 100)} %`}</strong>
+                    </span>
+                    <input type="range" min={p.min} max={p.max} step={p.step} value={v} onChange={(e) => set(Number(e.target.value))} />
+                  </label>
+                )
+              })}
+              {current.shape && (
+                <button className="link-button" onClick={() => update({ shape: undefined })}>
+                  Volver a la forma de partida
+                </button>
+              )}
+            </div>
           )}
           {current.kind === 'cremallera' && (
             <Chips label="Tirador" value={current.puller ?? 'clasico'} options={PULLER_STYLES} onChange={(puller) => update({ puller: puller as Detail['puller'] })} />

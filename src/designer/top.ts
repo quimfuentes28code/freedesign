@@ -133,6 +133,10 @@ function frame(c: TopCfg) {
 type Frame = ReturnType<typeof frame>
 
 export function drawTop(view: View, c: TopCfg): Shape[] {
+  return stretchCollar(c, drawTopRaw(view, c))
+}
+
+function drawTopRaw(view: View, c: TopCfg): Shape[] {
   const f = frame(c)
   if (view === 'side') return drawSide(c, f)
   const front = view === 'front'
@@ -772,6 +776,32 @@ function both([start, segs]: [Pt, Seg[]]): [Pt, Seg[]][] {
 }
 
 /** Refleja los números de un trazo SVG ya construido (solo comandos M, L, Q con coordenadas absolutas). */
+/** Cambia cada punto (x, y) de un trazado. */
+const mapPath = (d: string, fn: (x: number, y: number) => [number, number]) =>
+  d.replace(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (_, x: string, y: string) => {
+    const [a, b] = fn(Number(x), Number(y))
+    return `${Math.round(a * 10) / 10} ${Math.round(b * 10) / 10}`
+  })
+
+/**
+ * Medidas propias del cuello y la capucha: estira el dibujo ya hecho. El alto del cuello sube su borde (lo que
+ * queda por encima del escote), el largo de las puntas alarga lo que baja sobre el pecho y la capucha crece
+ * desde el escote.
+ */
+function stretchCollar(c: TopCfg, shapes: Shape[]): Shape[] {
+  const k = c.scale
+  if (!k || (k.collarH === 1 && k.collarPoint === 1 && k.hood === 1)) return shapes
+  const P = TOP_PIECES
+  const tall = c.neck === 'alto' || c.neck === 'mao' || c.neck === 'bomber' || !!c.hoodCollar
+  const pointed = c.neck === 'polo' || c.neck === 'camisero' || c.neck === 'cubano' || c.neck === 'solapa'
+  return shapes.map((s) => {
+    if ((s.piece === P.hood || s.piece === P.balaclava) && k.hood !== 1) return { ...s, d: mapPath(s.d, (x, y) => [CX + (x - CX) * k.hood, 124 - (124 - y) * k.hood]) }
+    if ((s.piece === P.collar || s.piece === P.tab) && tall && k.collarH !== 1) return { ...s, d: mapPath(s.d, (x, y) => [x, y < 110 ? 110 - (110 - y) * k.collarH : y]) }
+    if (s.piece === P.collar && pointed && k.collarPoint !== 1) return { ...s, d: mapPath(s.d, (x, y) => [x, y > 100 ? 100 + (y - 100) * k.collarPoint : y]) }
+    return s
+  })
+}
+
 export function mirrorPath(d: string) {
   return d.replace(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (_, x: string, y: string) => `${Math.round((2 * CX - Number(x)) * 10) / 10} ${y}`)
 }

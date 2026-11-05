@@ -21,13 +21,18 @@ export interface DrawScale {
   /** Escote: ancho (de costura a costura del cuello) y caída en el delantero. */
   neckWidth: number
   neckDrop: number
+  /** Cuello: alto (alto, mao, bomber, el de debajo de la capucha) y largo de las puntas (polo, camisero, solapa). */
+  collarH: number
+  collarPoint: number
+  /** Tamaño de la capucha. */
+  hood: number
 }
 
-export const NO_SCALE: DrawScale = { width: 1, length: 1, sleeve: 1, sleeveWidth: 1, cuff: 1, hip: 1, knee: 1, hem: 1, neckWidth: 1, neckDrop: 1 }
+export const NO_SCALE: DrawScale = { width: 1, length: 1, sleeve: 1, sleeveWidth: 1, cuff: 1, hip: 1, knee: 1, hem: 1, neckWidth: 1, neckDrop: 1, collarH: 1, collarPoint: 1, hood: 1 }
 
 /** Qué punto de medida mueve cada parte del dibujo. */
 export const DRIVERS: Record<'top' | 'pants', Partial<Record<keyof DrawScale, string[]>>> = {
-  top: { width: ['pecho'], length: ['largo'], sleeve: ['manga'], sleeveWidth: ['biceps'], cuff: ['puno', 'boca-manga'], neckWidth: ['escote'], neckDrop: ['caida-escote'] },
+  top: { width: ['pecho'], length: ['largo'], sleeve: ['manga'], sleeveWidth: ['biceps'], cuff: ['puno', 'boca-manga'], neckWidth: ['escote'], neckDrop: ['caida-escote'], collarH: ['cuello-alto'], collarPoint: ['punta-cuello'], hood: ['capucha-alto'] },
   pants: { length: ['largo'], hip: ['cadera'], knee: ['rodilla'], hem: ['bajo'] },
 }
 
