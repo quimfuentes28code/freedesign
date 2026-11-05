@@ -4,6 +4,11 @@ import {
   DETAIL_KINDS,
   PULLER_STYLES,
   ZIP_STYLES,
+  SURFACE_KINDS,
+  WASH_KINDS,
+  type ColorBlock,
+  type Surface,
+  type Wash,
   type Callout,
   type Colorway,
   type Design,
@@ -122,6 +127,7 @@ async function readDesign(request: Request, env: Env, uid: string): Promise<Desi
   const tracings = Array.isArray(data.tracings) ? data.tracings.slice(0, 3).map(readTracing).filter((d): d is Tracing => !!d) : []
   const details = Array.isArray(data.details) ? data.details.slice(0, 120).map(readDetail).filter((d): d is Detail => !!d) : []
   const hardware = readHardware(data.hardware)
+  const blocks = Array.isArray(data.blocks) ? data.blocks.slice(0, 60).map(readBlock).filter((b): b is ColorBlock => !!b) : []
   const measures: Record<string, number> = {}
   if (data.measures && typeof data.measures === 'object') {
     for (const [k, v] of Object.entries(data.measures).slice(0, 40)) {
@@ -146,6 +152,7 @@ async function readDesign(request: Request, env: Env, uid: string): Promise<Desi
       ...(data.brandTemplate === true ? { brandTemplate: true } : {}),
       ...(details.length ? { details } : {}),
       ...(hardware ? { hardware } : {}),
+      ...(blocks.length ? { blocks } : {}),
     },
   }
 }
@@ -157,11 +164,15 @@ function readPieces(raw: unknown): DesignData['pieces'] {
     if (!v || typeof v !== 'object') continue
     const s = v as Record<string, unknown>
     const color = text(s.color)
+    const surface = readSurface(s.surface)
+    const wash = readWash(s.wash)
     pieces[k] = {
       color: /^#[0-9a-f]{6}$/i.test(color) ? color : '#cccccc',
       materialId: text(s.materialId) || null,
       ...(text(s.colorName) ? { colorName: text(s.colorName).slice(0, 60) } : {}),
       ...(text(s.colorCode) ? { colorCode: text(s.colorCode).slice(0, 40) } : {}),
+      ...(surface ? { surface } : {}),
+      ...(wash ? { wash } : {}),
     }
   }
   return pieces
@@ -259,6 +270,48 @@ function readTracing(raw: unknown): Tracing | null {
     opacity: Math.min(1, Math.max(0.05, finite(t.opacity, 0.5))),
     ...(t.hidden === true ? { hidden: true } : {}),
     ...(t.locked === true ? { locked: true } : {}),
+  }
+}
+
+function readSurface(raw: unknown): Surface | null {
+  if (!raw || typeof raw !== 'object') return null
+  const s = raw as Record<string, unknown>
+  const kind = oneOf(s.kind, SURFACE_KINDS, 'liso')
+  if (kind === 'liso') return null
+  const art = readArt(s.art)
+  return {
+    kind,
+    color2: hex(s.color2, '#f2efe8'),
+    color3: hex(s.color3, '#1d1d1f'),
+    size: Math.min(200, Math.max(0.3, finite(s.size, 4))),
+    angle: Math.max(-180, Math.min(180, finite(s.angle, 0))),
+    ...(art ? { art } : {}),
+  }
+}
+
+function readWash(raw: unknown): Wash | null {
+  if (!raw || typeof raw !== 'object') return null
+  const w = raw as Record<string, unknown>
+  const kind = oneOf(w.kind, WASH_KINDS, 'ninguno')
+  return kind === 'ninguno' ? null : { kind, amount: Math.min(1, Math.max(0, finite(w.amount, 0.5))) }
+}
+
+function readBlock(raw: unknown): ColorBlock | null {
+  if (!raw || typeof raw !== 'object') return null
+  const b = raw as Record<string, unknown>
+  const piece = text(b.piece).slice(0, 40)
+  if (!piece) return null
+  return {
+    id: text(b.id) || crypto.randomUUID(),
+    view: viewOf(b.view),
+    piece,
+    x1: finite(b.x1, 0),
+    y1: finite(b.y1, 0),
+    x2: finite(b.x2, 1),
+    y2: finite(b.y2, 0),
+    side: b.side === -1 ? -1 : 1,
+    color: hex(b.color, '#f2efe8'),
+    ...(text(b.colorName) ? { colorName: text(b.colorName).slice(0, 60) } : {}),
   }
 }
 

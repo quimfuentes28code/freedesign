@@ -19,7 +19,8 @@ import { defaultAssembly, defaultConstruction } from '../../production/construct
 import { clientBody, garmentPoms, measurementLabel, standardBody } from '../../production/measurements'
 import { TECHNIQUES, type Artwork } from '../../shared/artworks'
 import type { Client } from '../../shared/clients'
-import { BUTTON_STYLES, DETAIL_KINDS, PATCH_SHAPES, PULLER_STYLES, ZIP_STYLES, type Design, type DetailArt, type PieceStyle, type Print } from '../../shared/designs'
+import { surfaceLabel } from '../../designer/surfaces'
+import { BUTTON_STYLES, DETAIL_KINDS, PATCH_SHAPES, PULLER_STYLES, SURFACE_KINDS, WASH_KINDS, ZIP_STYLES, type Design, type DetailArt, type PieceStyle, type Print } from '../../shared/designs'
 import { buttonPrims, detailPrims, PrimsView, zipperPrims, type Prim } from '../../designer/details'
 import { fileUrl, MATERIAL_CATEGORIES, type Material } from '../../shared/library'
 import { EMPTY_TECH_PACK, SIZES, type ConstructionRow, type Size, type SpecColumn, type TechPack, type TechPackData } from '../../shared/production'
@@ -455,6 +456,7 @@ const Row = ({ label, children }: { label: string; children: ReactNode }) => (
 
 function PiecesTable({ template, design, materials }: { template: GarmentTemplate; design: Design; materials: Map<string, Material> }) {
   const active = template.activePieces(design.data.options)
+  const blocks = design.data.blocks ?? []
   return (
     <table className="spec-table">
       <thead>
@@ -487,6 +489,14 @@ function PiecesTable({ template, design, materials }: { template: GarmentTemplat
                 <td>{lib?.weightGsm ? `${lib.weightGsm} g/m²` : r.catalog.weight}</td>
                 <td>
                   <ColorCell style={style ?? { color, materialId: null }} />
+                  {style && surfaceLabel(style, SURFACE_KINDS, WASH_KINDS) && <div className="muted">{surfaceLabel(style, SURFACE_KINDS, WASH_KINDS)}</div>}
+                  {blocks
+                    .filter((b) => b.piece === p.id)
+                    .map((b, i) => (
+                      <div key={b.id} className="muted">
+                        Bloque {i + 1} ({VIEWS.find((v) => v.id === b.view)?.label.toLowerCase()}): <ColorCell style={{ color: b.color, colorName: b.colorName, materialId: null }} />
+                      </div>
+                    ))}
                 </td>
                 <td>{lib?.supplierName ?? '—'}</td>
               </tr>

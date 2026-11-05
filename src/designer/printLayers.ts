@@ -3,6 +3,7 @@ import { fileUrl } from '../shared/library'
 import type { Body } from '../production/measurements'
 import { buttonPrims, detailFiles, detailPrims, drawPrims, zipperPrims, type Prim } from './details'
 import { CX } from './geometry'
+import { blockLine, halfPlane } from './surfaces'
 import { drawScale } from './measures'
 import { loadFont } from './fonts'
 import { printSize, textLayout } from './prints'
@@ -74,9 +75,12 @@ export async function printLayer(t: GarmentTemplate, data: DesignData, view: Vie
   const details = (data.details ?? []).filter((d) => d.view === view && !d.hidden)
   const hw = data.hardware ?? {}
   // Botones y cremallera de la propia prenda, con su estilo
-  const shapes = t.draw(view, data.options, drawScale(t, data, body)).filter((s) => s.role)
+  const all = t.draw(view, data.options, drawScale(t, data, body))
+  const shapes = all.filter((s) => s.role)
+  // Bloques de color del cuerpo (los de mangas o capucha solo se ven en 2D)
+  const blocks = (data.blocks ?? []).filter((b) => b.view === view && BODY_PIECES(t).includes(b.piece))
   const f = bodyFrame(t, data, view, body)
-  if ((!prints.length && !details.length && !shapes.length) || !f) return null
+  if ((!prints.length && !details.length && !shapes.length && !blocks.length) || !f) return null
   const k = HEIGHT / (f.bottom - f.top)
   const make = () => {
     const c = document.createElement('canvas')
@@ -105,6 +109,21 @@ export async function printLayer(t: GarmentTemplate, data: DesignData, view: Vie
     c.scale(k, k)
     paint()
     c.restore()
+  }
+
+  // Bloques de color: recortados a la forma de su pieza, con su costura
+  for (const b of blocks) {
+    const clip = new Path2D()
+    for (const s of all) if (s.kind === 'fill' && s.piece === b.piece) clip.addPath(new Path2D(s.d))
+    ctx.save()
+    ctx.setTransform(k, 0, 0, k, -(CX - f.half) * k, -f.top * k)
+    ctx.clip(clip)
+    ctx.fillStyle = b.color
+    ctx.fill(new Path2D(halfPlane(b)))
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)'
+    ctx.lineWidth = 0.8
+    ctx.stroke(new Path2D(blockLine(b, 0)))
+    ctx.restore()
   }
 
   for (const p of prints) {

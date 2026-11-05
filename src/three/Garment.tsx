@@ -233,7 +233,7 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
 /** Un material de Three.js por zona (en el orden de GARMENT_SLOTS), que solo se rehace si cambia algún color o tela. */
 function useSlotMaterials(design: Design) {
   const styles = GARMENT_SLOTS.map((s) => slotStyle(design, s))
-  const key = JSON.stringify(styles)
+  const key = JSON.stringify([styles, PATTERN_GARMENTS.has(design.garment)])
   const materials = useMemo(
     () =>
       styles.map(({ color, look }, i) => {
@@ -251,6 +251,22 @@ function useSlotMaterials(design: Design) {
           side: THREE.DoubleSide,
         })
         const slot = GARMENT_SLOTS[i]
+        // Superficie y lavado del Diseñador: el azulejo, que ya lleva el color, se repite sobre la tela.
+        // Las UV van en cm del patrón (sudadera) o en tramos de 3 cm (prendas de tubo)
+        const tile = styles[i].tile
+        if (tile) {
+          const t = new THREE.CanvasTexture(tile.canvas)
+          t.colorSpace = THREE.SRGBColorSpace
+          t.anisotropy = 8
+          t.wrapS = THREE.RepeatWrapping
+          t.wrapT = tile.stretch ? THREE.ClampToEdgeWrapping : THREE.RepeatWrapping
+          const perUv = PATTERN_GARMENTS.has(design.garment) ? 1 : 3
+          t.repeat.set(tile.stretch ? 0 : perUv / tile.cm, perUv / tile.cm)
+          t.center.set(0.5, 0.5)
+          t.rotation = (-tile.angle * Math.PI) / 180
+          m.map = t
+          m.color.set('#ffffff')
+        }
         // En la sisa la manga y el cuerpo se tocan: el cuerpo se dibuja por delante para que no asomen trocitos de manga
         if (slot === 'cuerpo') {
           m.polygonOffset = true
@@ -269,7 +285,10 @@ function useSlotMaterials(design: Design) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [key],
   )
-  useEffect(() => () => materials.forEach((m) => m.dispose()), [materials])
+  useEffect(() => () => materials.forEach((m) => {
+    m.map?.dispose()
+    m.dispose()
+  }), [materials])
   return materials
 }
 

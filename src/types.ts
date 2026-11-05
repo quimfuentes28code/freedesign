@@ -25,6 +25,11 @@ export const RIB_SLOTS: GarmentSlot[] = ['cuello', 'punos', 'bajo']
 export interface SlotStyle {
   color: string
   look: FabricLook
+  /**
+   * Superficie y lavado (desde el Diseñador): azulejo que se repite como textura de la tela, con el color ya dentro.
+   * `cm` es el lado del azulejo en cm reales; `stretch`, que no se repite (degradado de arriba abajo).
+   */
+  tile?: { canvas: HTMLCanvasElement; cm: number; key: string; angle: number; stretch: boolean }
 }
 
 export interface Design {

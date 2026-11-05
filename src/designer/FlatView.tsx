@@ -1,5 +1,6 @@
-import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { DesignData, Detail, Print, ZipStyle } from '../shared/designs'
+import { blockLine, halfPlane, onTilesChange, pieceTile, tileUrl, type Tile } from './surfaces'
 import { buttonPrims, DetailGraphic, detailAspect, PrimsView, shade, zipperPrims } from './details'
 import { useFontsVersion } from './fonts'
 import { fileUrl, type Material } from '../shared/library'
@@ -7,7 +8,7 @@ import { VIEW_H, VIEW_W } from './geometry'
 import type { Body } from '../production/measurements'
 import { resolveMaterial, type CatalogMaterial } from './materials'
 import { drawScale } from './measures'
-import { PrintShape, printSize, Transformable } from './prints'
+import { PrintShape, printSize, Transformable, UNITS_PER_CM } from './prints'
 import { GlossGradient, hasWeave, WeavePattern } from './swatches'
 import type { GarmentTemplate, Shape, View } from './types'
 
@@ -75,6 +76,22 @@ export interface FlatContext {
   pieces: Record<string, Box>
 }
 
+/** Caja de un grupo del dibujo sin contar los bloques de color (marcados con data-block). */
+function boxWithoutBlocks(el: SVGGraphicsElement): Box | null {
+  if (el.hasAttribute('data-block')) return null
+  if (!el.querySelector('[data-block]')) {
+    const r = el.getBBox()
+    return r.width || r.height ? { x: r.x, y: r.y, w: r.width, h: r.height } : null
+  }
+  let b: Box | null = null
+  for (const c of el.children) {
+    const r = c instanceof SVGGraphicsElement ? boxWithoutBlocks(c) : null
+    if (!r) continue
+    b = b ? { x: Math.min(b.x, r.x), y: Math.min(b.y, r.y), w: Math.max(b.x + b.w, r.x + r.w) - Math.min(b.x, r.x), h: Math.max(b.y + b.h, r.y + r.h) - Math.min(b.y, r.y) } : r
+  }
+  return b
+}
+
 /** Dibujo técnico (flat) de una prenda en una vista, con los colores y materiales de cada pieza y sus estampados. */
 export function FlatView(props: Props) {
   const { template, data, view, materials, highlight, className, frame = 'ajustado', selectedPrint, onSelectPrint, onChangePrint } = props
@@ -97,13 +114,14 @@ export function FlatView(props: Props) {
       const boxes: Record<string, Box> = {}
       for (const el of group.current.querySelectorAll<SVGGraphicsElement>('[data-piece]')) {
         const id = el.dataset.piece!
-        const b = el.getBBox()
+        const b = boxWithoutBlocks(el)
+        if (!b) continue
         const prev = boxes[id]
-        if (!prev) boxes[id] = { x: b.x, y: b.y, w: b.width, h: b.height }
+        if (!prev) boxes[id] = b
         else {
           const x = Math.min(prev.x, b.x)
           const y = Math.min(prev.y, b.y)
-          boxes[id] = { x, y, w: Math.max(prev.x + prev.w, b.x + b.width) - x, h: Math.max(prev.y + prev.h, b.y + b.height) - y }
+          boxes[id] = { x, y, w: Math.max(prev.x + prev.w, b.x + b.w) - x, h: Math.max(prev.y + prev.h, b.y + b.h) - y }
         }
       }
       setPieceBoxes(boxes)
@@ -112,9 +130,10 @@ export function FlatView(props: Props) {
       setBox({ x: 40, y: 0, w: VIEW_W - 80, h: VIEW_H })
       return
     }
-    const b = group.current?.getBBox()
-    if (!b || !b.width) return
-    setBox({ x: b.x - pad, y: b.y - pad, w: b.width + pad * 2, h: b.height + pad * 2 })
+    // Encuadre del dibujo sin los bloques de color (su semiplano es enorme, aunque se recorte a la pieza)
+    const b = group.current ? boxWithoutBlocks(group.current) : null
+    if (!b || !b.w) return
+    setBox({ x: b.x - pad, y: b.y - pad, w: b.w + pad * 2, h: b.h + pad * 2 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, frame, pad, !!overlay])
 
@@ -143,6 +162,19 @@ export function FlatView(props: Props) {
   }
   const glossOf = (piece?: string) => (piece ? (looks.get(piece)?.gloss ?? 0) : 0)
 
+  // Superficies (rayas, camuflaje…) y lavados: un azulejo por pieza; y bloques de color de esta vista
+  const [, bumpTiles] = useState(0)
+  useEffect(() => onTilesChange(() => bumpTiles((n) => n + 1)), [])
+  const tiles = new Map<string, Tile>()
+  if (!line) {
+    for (const p of template.pieces) {
+      const st = data.pieces[p.id]
+      const t = st ? pieceTile(st) : null
+      if (t) tiles.set(p.id, t)
+    }
+  }
+  const blocks = (data.blocks ?? []).filter((b) => b.view === view)
+
   // Fornituras de la prenda con su estilo (botón de 4 agujeros, cremallera de metal…)
   const hw = data.hardware ?? {}
   const renderRole = (s: Shape, i: number) => {
@@ -168,10 +200,29 @@ export function FlatView(props: Props) {
     const gloss = glossOf(s.piece)
     switch (s.kind) {
       case 'fill':
-      case 'shade':
+      case 'shade': {
+        const surface = s.piece && tiles.has(s.piece) ? `url(#${uid}-s-${s.piece})` : null
+        const myBlocks = s.kind === 'fill' ? blocks.filter((b) => b.piece === s.piece) : []
         return (
           <g key={i} data-piece={s.kind === 'fill' ? s.piece : undefined} {...pick(s.piece)}>
-            <path d={s.d} fill={color} />
+            <path d={s.d} fill={surface ?? color} />
+            {myBlocks.length > 0 && (
+              <>
+                <clipPath id={`${uid}-k${i}`}>
+                  <path d={s.d} />
+                </clipPath>
+                <g clipPath={`url(#${uid}-k${i})`} data-block="">
+                  {myBlocks.map((b) => (
+                    <g key={b.id}>
+                      <path d={halfPlane(b)} fill={line ? '#ffffff' : b.color} />
+                      {/* Costura del bloque y su pespunte, del lado del bloque */}
+                      <path d={blockLine(b, 0)} stroke={isDark(line ? '#ffffff' : b.color) ? '#f4f1ea' : '#1d1c1a'} strokeWidth={1.1} fill="none" />
+                      <path d={blockLine(b, 2.5)} stroke={isDark(line ? '#ffffff' : b.color) ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.55)'} strokeWidth={0.9} strokeDasharray="3.2 2.4" fill="none" />
+                    </g>
+                  ))}
+                </g>
+              </>
+            )}
             {tex && <path d={s.d} fill={`url(#${uid}-${s.piece})`} style={{ mixBlendMode: 'multiply' }} opacity={0.55} />}
             {weave && <path d={s.d} fill={weave} />}
             {gloss > 0.05 && <path d={s.d} fill={`url(#${uid}-gloss)`} opacity={Math.min(0.8, gloss * 0.7)} />}
@@ -180,6 +231,7 @@ export function FlatView(props: Props) {
             <path d={s.d} fill="none" stroke="#1d1c1a" strokeWidth={1.4} strokeLinejoin="round" />
           </g>
         )
+      }
       case 'hardware':
         return (
           <g key={i} data-piece={s.piece} {...pick(s.piece)}>
@@ -245,6 +297,25 @@ export function FlatView(props: Props) {
         {[...looks].map(([piece, m]) => (
           <WeavePattern key={piece} id={`${uid}-w-${piece}`} weave={m.weave} />
         ))}
+        {[...tiles].map(([piece, t]) => {
+          const s = data.pieces[piece]?.surface
+          const angle = s?.angle ?? 0
+          if (t.stretch && s) {
+            // Degradado: de arriba abajo de cada trozo de la pieza (girado según el ángulo)
+            return (
+              <linearGradient key={piece} id={`${uid}-s-${piece}`} x1="0" y1="0" x2="0" y2="1" gradientTransform={`rotate(${angle} 0.5 0.5)`}>
+                <stop offset="0" stopColor={data.pieces[piece]?.color} />
+                <stop offset="1" stopColor={s.color2} />
+              </linearGradient>
+            )
+          }
+          const size = t.cm * UNITS_PER_CM
+          return (
+            <pattern key={piece} id={`${uid}-s-${piece}`} patternUnits="userSpaceOnUse" width={size} height={size} patternTransform={angle ? `rotate(${angle})` : undefined}>
+              <image href={tileUrl(t)} width={size} height={size} preserveAspectRatio="none" />
+            </pattern>
+          )
+        })}
         <GlossGradient id={`${uid}-gloss`} />
         <GlossGradient id={`${uid}-metal`} metal />
         <clipPath id={`${uid}-garment`}>

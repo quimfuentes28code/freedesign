@@ -29,11 +29,11 @@ Se marca cada fase al terminarla.
 - [x] Catálogo grande de tipografías (streetwear, college, gótica, manuscrita, grafiti…)
 - [x] Efectos: en arco, contorno, sombra, vertical y espaciado, en el Diseñador
 
-## 5. Color y superficie
+## 5. Color y superficie ✓
 
-- [ ] Bloques de color: dividir una pieza en varios colores con una línea
-- [ ] Estampado por toda la pieza: cuadros, camuflaje, tie-dye, rayas, logo repetido (también en 3D)
-- [ ] Lavados y efectos: desgastado, vintage, degradados
+- [x] Bloques de color: dividir una pieza en varios colores con una línea (también en 3D, en el cuerpo)
+- [x] Estampado por toda la pieza: rayas, cuadros, lunares, camuflaje, tie-dye, logo repetido y degradado (también en 3D)
+- [x] Lavados: vintage, desgastado, ácido y decolorado, con intensidad
 
 ## 6. Exportar
 

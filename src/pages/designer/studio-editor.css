@@ -781,3 +781,28 @@
       'panel';
   }
 }
+
+/* Superficie, lavado y bloques de color de una pieza */
+.surface-fields {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+.surface-fields input[type='color'],
+.block-row input[type='color'] {
+  width: 2.2rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1px solid var(--border, #d4d4d8);
+  border-radius: 6px;
+  background: none;
+}
+.block-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+.block-row span {
+  flex: 1;
+}

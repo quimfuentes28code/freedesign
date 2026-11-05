@@ -24,7 +24,7 @@ export function Design3D({ template, data, materials, client }: Props) {
   // Estampados: se pintan en una imagen por lado cada vez que cambian (o cambia la forma de la prenda)
   const [layers, setLayers] = useState<Design['prints']>()
   const body = useMemo(() => (client && Object.keys(client.measurements).length ? clientBody(client.measurements).body : undefined), [client])
-  const printKey = JSON.stringify([data.prints ?? [], data.details ?? [], data.hardware ?? {}, data.pieces, data.options, data.measures ?? {}, template.id, !!body])
+  const printKey = JSON.stringify([data.prints ?? [], data.details ?? [], data.hardware ?? {}, data.blocks ?? [], data.pieces, data.options, data.measures ?? {}, template.id, !!body])
   useEffect(() => {
     let alive = true
     Promise.all([printLayer(template, data, 'front', body), printLayer(template, data, 'back', body)]).then(([front, back]) => {

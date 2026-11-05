@@ -1,7 +1,8 @@
 import { chartColor, COLOR_CHART, colorLabel } from '../../designer/colors'
 import type { PieceDef } from '../../designer/types'
 import type { Artwork } from '../../shared/artworks'
-import { BUTTON_STYLES, PULLER_STYLES, ZIP_STYLES, type HardwareStyle, type PieceStyle } from '../../shared/designs'
+import { BUTTON_STYLES, PULLER_STYLES, SURFACE_KINDS, WASH_KINDS, ZIP_STYLES, type ColorBlock, type HardwareStyle, type PieceStyle, type Surface, type SurfaceKind, type WashKind } from '../../shared/designs'
+import { DEFAULT_SIZE } from '../../designer/surfaces'
 import { ArtPicker } from './DetailsPanel'
 import type { Material } from '../../shared/library'
 import { MaterialPicker } from './MaterialPicker'
@@ -22,11 +23,17 @@ interface Props {
   /** La pieza es la cremallera de la prenda. */
   isZip?: boolean
   artworks?: Artwork[]
+  /** Bloques de color de esta pieza (en todas las vistas). */
+  blocks?: ColorBlock[]
+  onBlocks?: (blocks: ColorBlock[]) => void
+  /** La herramienta para dividir la pieza con una línea está activa. */
+  blockTool?: boolean
+  onBlockTool?: (on: boolean) => void
 }
 
 /** Propiedades de la pieza seleccionada: color (con nombre y código), carta de colores y material. */
 export function PieceInspector(props: Props) {
-  const { template, piece, style, used, materials, onChange, onApplyToAll, hardware = {}, onHardware, isZip, artworks = [] } = props
+  const { template, piece, style, used, materials, onChange, onApplyToAll, hardware = {}, onHardware, isZip, artworks = [], blocks = [], onBlocks, blockTool, onBlockTool } = props
   const label = colorLabel(style)
   // Al elegir un color a mano se olvidan el nombre y el código (salvo que sea uno de la carta)
   const setHex = (hex: string) => {
@@ -150,6 +157,34 @@ export function PieceInspector(props: Props) {
         </div>
       )}
 
+      {fabric && <SurfaceControls style={style} artworks={artworks} onChange={onChange} />}
+
+      {fabric && onBlocks && (
+        <div className="inspector-block">
+          <h3>Bloques de color</h3>
+          <p className="muted small">Divide la pieza con una línea y da otro color a una de las partes (color block).</p>
+          {blocks.map((b, i) => (
+            <div key={b.id} className="block-row">
+              <input type="color" value={b.color} onChange={(e) => onBlocks(blocks.map((x) => (x.id === b.id ? { ...x, color: e.target.value, colorName: chartColor(e.target.value)?.name ?? '' } : x)))} aria-label={`Color del bloque ${i + 1}`} />
+              <span className="small">
+                Bloque {i + 1} · {b.view === 'front' ? 'delantero' : b.view === 'back' ? 'espalda' : 'lateral'}
+              </span>
+              <button className="link-button" onClick={() => onBlocks(blocks.map((x) => (x.id === b.id ? { ...x, side: (x.side === 1 ? -1 : 1) as 1 | -1 } : x)))} title="Pasar el color al otro lado de la línea">
+                Invertir
+              </button>
+              <button className="link-button danger" onClick={() => onBlocks(blocks.filter((x) => x.id !== b.id))}>
+                Quitar
+              </button>
+            </div>
+          ))}
+          {onBlockTool && (
+            <button className={blockTool ? 'button primary' : 'button'} onClick={() => onBlockTool(!blockTool)}>
+              {blockTool ? 'Arrastra una línea sobre la pieza… (Esc cancela)' : '+ Dividir con una línea'}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="inspector-block">
         <h3>Material</h3>
         <MaterialPicker
@@ -169,5 +204,86 @@ export function PieceInspector(props: Props) {
         </button>
       )}
     </div>
+  )
+}
+
+/** Superficie por toda la pieza (rayas, cuadros, camuflaje…) y lavado. */
+function SurfaceControls({ style, artworks, onChange }: { style: PieceStyle; artworks: Artwork[]; onChange: (patch: Partial<PieceStyle>) => void }) {
+  const s = style.surface
+  const kind: SurfaceKind = s?.kind ?? 'liso'
+  const setKind = (k: SurfaceKind) => {
+    if (k === 'liso') return onChange({ surface: undefined })
+    const base: Surface = s ?? { kind: k, color2: '#ffffff', color3: '#6b7280', size: 0, angle: 0 }
+    // Al cambiar de tipo se pone el tamaño que le toca
+    onChange({ surface: { ...base, kind: k, size: DEFAULT_SIZE[k] ?? 10 } })
+  }
+  const set = (patch: Partial<Surface>) => s && onChange({ surface: { ...s, ...patch } })
+  const wash = style.wash
+  const setWash = (k: WashKind) => onChange({ wash: k === 'ninguno' ? undefined : { kind: k, amount: wash?.amount ?? 0.6 } })
+  const big = kind === 'camuflaje' || kind === 'tiedye'
+
+  return (
+    <>
+      <div className="inspector-block">
+        <h3>Superficie</h3>
+        <div className="chips">
+          {SURFACE_KINDS.map((k) => (
+            <button key={k.id} className={kind === k.id ? 'chip active' : 'chip'} onClick={() => setKind(k.id)}>
+              {k.label}
+            </button>
+          ))}
+        </div>
+        {s && (
+          <div className="surface-fields">
+            {kind !== 'logo' && (
+              <label className="field">
+                <span>{kind === 'degradado' ? 'Color de abajo' : 'Segundo color'}</span>
+                <input type="color" value={s.color2} onChange={(e) => set({ color2: e.target.value })} />
+              </label>
+            )}
+            {big && (
+              <label className="field">
+                <span>Tercer color</span>
+                <input type="color" value={s.color3} onChange={(e) => set({ color3: e.target.value })} />
+              </label>
+            )}
+            {kind === 'logo' && <ArtPicker art={s.art ?? null} artworks={artworks} onChange={(art) => set({ art })} />}
+            {kind !== 'degradado' && (
+              <label className="field">
+                <span>
+                  Tamaño del dibujo <strong>{s.size.toLocaleString('es-ES')} cm</strong>
+                </span>
+                <input type="range" min={big ? 10 : 0.5} max={big ? 120 : 30} step={0.5} value={s.size} onChange={(e) => set({ size: Number(e.target.value) })} />
+              </label>
+            )}
+            <label className="field">
+              <span>
+                Giro <strong>{Math.round(s.angle)}°</strong>
+              </span>
+              <input type="range" min={-90} max={90} step={1} value={s.angle} onChange={(e) => set({ angle: Number(e.target.value) })} />
+            </label>
+          </div>
+        )}
+      </div>
+
+      <div className="inspector-block">
+        <h3>Lavado</h3>
+        <div className="chips">
+          {WASH_KINDS.map((w) => (
+            <button key={w.id} className={(wash?.kind ?? 'ninguno') === w.id ? 'chip active' : 'chip'} onClick={() => setWash(w.id)}>
+              {w.label}
+            </button>
+          ))}
+        </div>
+        {wash && (
+          <label className="field">
+            <span>
+              Intensidad <strong>{Math.round(wash.amount * 100)} %</strong>
+            </span>
+            <input type="range" min={0.1} max={1} step={0.05} value={wash.amount} onChange={(e) => onChange({ wash: { ...wash, amount: Number(e.target.value) } })} />
+          </label>
+        )}
+      </div>
+    </>
   )
 }

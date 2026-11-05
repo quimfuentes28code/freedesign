@@ -8,7 +8,7 @@ import { FlatView, type FlatContext } from '../../designer/FlatView'
 import { defaultMeasures } from '../../designer/measures'
 import { VIEWS, type GarmentTemplate, type View } from '../../designer/types'
 import { garmentPoms, type Body } from '../../production/measurements'
-import type { Callout, DesignData, Detail, Drawing, Print, Tracing } from '../../shared/designs'
+import type { Callout, ColorBlock, DesignData, Detail, Drawing, Print, Tracing } from '../../shared/designs'
 import type { Material } from '../../shared/library'
 
 export type CanvasView = View | 'all'
@@ -64,6 +64,10 @@ interface Props {
   /** Medidas del cuerpo para las cotas y de dónde salen (talla o cliente). */
   body: Body
   bodyLabel: string
+  /** Pieza que se va a dividir con una línea (bloque de color), o null. */
+  blockPiece?: string | null
+  onAddBlock?: (b: ColorBlock) => void
+  onCancelBlock?: () => void
 }
 
 /**
@@ -76,7 +80,9 @@ export function Canvas(props: Props) {
   const { selectedPiece, onPickPiece, selectedPrint, onSelectPrint, onChangePrint, selectedCallout, onSelectCallout, onCallouts, body, bodyLabel } = props
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
-  const { selectedDrawing, onSelectDrawing, onDrawings, onTracings, selectedDetail, onSelectDetail, onChangeDetail } = props
+  const { selectedDrawing, onSelectDrawing, onDrawings, onTracings, selectedDetail, onSelectDetail, onChangeDetail, blockPiece, onAddBlock, onCancelBlock } = props
+  const cancelBlock = useRef(onCancelBlock)
+  cancelBlock.current = onCancelBlock
   const [adding, setAdding] = useState(false)
   const [tool, setTool] = useState<DrawTool | null>(null)
   const [adjusting, setAdjusting] = useState(false)
@@ -100,6 +106,7 @@ export function Canvas(props: Props) {
       setTool(null)
       setAdding(false)
       setAdjusting(false)
+      cancelBlock.current?.()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -178,10 +185,17 @@ export function Canvas(props: Props) {
         view={v}
         selected={selectedDrawing}
         onSelect={onSelectDrawing}
-        tool={v === current || view === 'all' ? tool : null}
-        brush={settings.brush}
+        tool={blockPiece ? 'line' : v === current || view === 'all' ? tool : null}
+        brush={blockPiece ? { color: '#db2777', width: 0.8, dash: true } : settings.brush}
         snap={settings.grid ? UNITS_PER_CM : null}
-        onAdd={(d) => onDrawings([...drawings, d])}
+        onAdd={(d) => {
+          if (!blockPiece) return onDrawings([...drawings, d])
+          // La línea divide la pieza: toma el otro color la parte donde no está el centro de la pieza (la más pequeña)
+          const [x1, y1, x2, y2] = d.points
+          const c = ctx.pieces[blockPiece]
+          const cross = c ? (x2 - x1) * (c.y + c.h / 2 - y1) - (y2 - y1) * (c.x + c.w / 2 - x1) : -1
+          onAddBlock?.({ id: crypto.randomUUID(), view: v, piece: blockPiece, x1, y1, x2, y2, side: cross > 0 ? -1 : 1, color: '#1f2937' })
+        }}
       />
       {settings.dims && v === 'front' && <Dimensions ctx={ctx} template={template} options={data.options} body={body} measures={measures} />}
       {settings.notes && (
@@ -379,7 +393,9 @@ export function Canvas(props: Props) {
         </div>
       </div>
       <p className="canvas-hint">
-        {settings.dims && poms.length > 0 ? (
+        {blockPiece ? (
+          <strong>Arrastra una línea de lado a lado de la pieza para dividirla · Esc cancela</strong>
+        ) : settings.dims && poms.length > 0 ? (
           <>
             <strong>Cotas ({bodyLabel}):</strong>{' '}
             {poms

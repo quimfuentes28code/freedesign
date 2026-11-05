@@ -88,6 +88,8 @@ export function DesignEditor() {
   const [selectedDrawing, setSelectedDrawing] = useState<string | null>(null)
   const [selectedDetail, setSelectedDetail] = useState<string | null>(null)
   const [comparing, setComparing] = useState(false)
+  // Herramienta para dividir la pieza seleccionada con una línea (bloque de color)
+  const [blockTool, setBlockTool] = useState(false)
   const [mode, setMode] = useState<ViewMode>(() => stored<{ v: ViewMode }>('fd:editor-mode-v2', { v: '2d' }).v)
   const [settings, setSettings] = useState<CanvasSettings>(() => stored('fd:canvas', DEFAULT_SETTINGS))
   const changeMode = (m: ViewMode) => {
@@ -224,6 +226,7 @@ export function DesignEditor() {
 
   const pickPiece = (p: string | null) => {
     setSelectedPiece(p)
+    setBlockTool(false)
     if (p) {
       setSelectedPrint(null)
       setTab('pieza')
@@ -504,6 +507,12 @@ export function DesignEditor() {
                 onChangeDetail={(d) => setDetails(details.map((x) => (x.id === d.id ? d : x)))}
                 body={body}
                 bodyLabel={bodyLabel}
+                blockPiece={blockTool ? selectedPiece : null}
+                onAddBlock={(b) => {
+                  setData({ blocks: [...(design.data.blocks ?? []), b] })
+                  setBlockTool(false)
+                }}
+                onCancelBlock={() => setBlockTool(false)}
               />
             ))}
           {mode !== '2d' && <Design3D template={template} data={design.data} materials={materials} client={client} />}
@@ -532,6 +541,13 @@ export function DesignEditor() {
               onHardware={(hardware) => setData({ hardware })}
               isZip={template.draw('front', design.data.options).some((s) => s.role === 'zip' && s.piece === piece.id)}
               artworks={artworks.data ?? []}
+              blocks={(design.data.blocks ?? []).filter((b) => b.piece === piece.id)}
+              onBlocks={(list) => setData({ blocks: [...(design.data.blocks ?? []).filter((b) => b.piece !== piece.id), ...list] })}
+              blockTool={blockTool}
+              onBlockTool={(on) => {
+                setBlockTool(on)
+                if (on && view === 'all') setView('front')
+              }}
               onApplyToAll={() => {
                 const src = pieceStyle(template, design.data, piece.id)
                 const pieces = { ...design.data.pieces }

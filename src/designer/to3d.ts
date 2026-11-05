@@ -4,6 +4,7 @@ import type { Design, Fit, GarmentSlot, GarmentType, Measurements, SlotStyle } f
 import type { Measurements as ClientMeasurements } from '../shared/clients'
 import type { Body } from '../production/measurements'
 import { resolveMaterial } from './materials'
+import { pieceTile } from './surfaces'
 import { drawScale } from './measures'
 import { isPants, opt, type GarmentTemplate } from './types'
 
@@ -65,7 +66,10 @@ export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<s
     if (!slot || (!active.includes(p.id) && slot !== 'ojales') || pieces[slot]) continue
     const style = data.pieces[p.id]
     const { catalog } = resolveMaterial(t.id, p.id, style?.materialId, library)
-    pieces[slot] = { color: style?.color ?? p.defaultColor, look: catalog.look }
+    const color = style?.color ?? p.defaultColor
+    // Superficie (rayas, camuflaje…) y lavado: el mismo azulejo que en el dibujo, como textura de la tela
+    const tile = style ? pieceTile(style) : null
+    pieces[slot] = { color, look: catalog.look, ...(tile ? { tile: { canvas: tile.canvas, cm: tile.cm, key: tile.key, angle: style?.surface?.angle ?? 0, stretch: tile.stretch } } : {}) }
   }
   // Puños y bajo sin canalé (dobladillo): se ven como el cuerpo o las mangas
   pieces.punos ??= pieces.mangas ?? pieces.cuerpo

@@ -11,6 +11,66 @@ export interface PieceStyle {
   /** Nombre del color (p. ej. «Negro carbón») y su código (de la carta de colores o un Pantone). */
   colorName?: string
   colorCode?: string
+  /** Estampado por toda la pieza (rayas, cuadros, camuflaje…), sobre el color de la pieza. */
+  surface?: Surface
+  /** Lavado o efecto de la tela. */
+  wash?: Wash
+}
+
+export const SURFACE_KINDS = [
+  { id: 'liso', label: 'Liso' },
+  { id: 'rayas', label: 'Rayas' },
+  { id: 'cuadros', label: 'Cuadros' },
+  { id: 'lunares', label: 'Lunares' },
+  { id: 'camuflaje', label: 'Camuflaje' },
+  { id: 'tiedye', label: 'Tie-dye' },
+  { id: 'logo', label: 'Logo repetido' },
+  { id: 'degradado', label: 'Degradado' },
+] as const
+export type SurfaceKind = (typeof SURFACE_KINDS)[number]['id']
+
+/** Estampado por toda la pieza. `size`: tamaño del dibujo que se repite, en cm; `angle` en grados. */
+export interface Surface {
+  kind: SurfaceKind
+  color2: string
+  /** Tercer color (camuflaje, tie-dye). */
+  color3: string
+  size: number
+  angle: number
+  /** Gráfico que se repite (kind = logo). */
+  art?: DetailArt | null
+}
+
+export const WASH_KINDS = [
+  { id: 'ninguno', label: 'Ninguno' },
+  { id: 'vintage', label: 'Vintage' },
+  { id: 'desgastado', label: 'Desgastado' },
+  { id: 'acido', label: 'Ácido' },
+  { id: 'decolorado', label: 'Decolorado' },
+] as const
+export type WashKind = (typeof WASH_KINDS)[number]['id']
+
+export interface Wash {
+  kind: WashKind
+  /** Intensidad, de 0 a 1. */
+  amount: number
+}
+
+/**
+ * Bloque de color: una pieza dividida por una línea recta (de x1, y1 a x2, y2, en unidades del lienzo de esa vista);
+ * el lado `side` (1 o −1) toma otro color.
+ */
+export interface ColorBlock {
+  id: string
+  view: 'front' | 'back' | 'side'
+  piece: string
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+  side: 1 | -1
+  color: string
+  colorName?: string
 }
 
 /** Variante de color (colorway) del mismo diseño: color y material de cada pieza. */
@@ -228,6 +288,8 @@ export interface DesignData {
   details?: Detail[]
   /** Estilo de los botones y la cremallera que trae la prenda base. */
   hardware?: HardwareStyle
+  /** Bloques de color (piezas divididas con una línea). */
+  blocks?: ColorBlock[]
   notes: string
 }
 
