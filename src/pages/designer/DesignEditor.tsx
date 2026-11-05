@@ -21,6 +21,7 @@ import { MeasuresPanel } from './MeasuresPanel'
 import { PieceInspector } from './PieceInspector'
 import { ExportMenu } from './ExportMenu'
 import { PrintsPanel } from './PrintsPanel'
+import { Fold } from './Fold'
 import { useHistory } from './useHistory'
 import './designer.css'
 import './studio-editor.css'
@@ -32,15 +33,10 @@ const VIEW_MODES: { id: ViewMode; label: string; title: string }[] = [
   { id: 'ambas', label: '2D + 3D', title: 'Las dos vistas a la vez' },
 ]
 
-type Tab = 'pieza' | 'prenda' | 'estampados' | 'detalles' | 'notas' | 'datos'
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'pieza', label: 'Pieza' },
-  { id: 'prenda', label: 'Prenda' },
-  { id: 'estampados', label: 'Estampados' },
-  { id: 'detalles', label: 'Detalles' },
-  { id: 'notas', label: 'Notas' },
-  { id: 'datos', label: 'Datos' },
-]
+/** Lo que enseña el inspector: lo seleccionado o, si no hay nada, la prenda. */
+type Tab = 'pieza' | 'prenda' | 'estampados' | 'detalles' | 'notas'
+const PANEL_KIND: Record<Tab, string> = { pieza: 'Pieza', prenda: 'Prenda', estampados: 'Capas', detalles: 'Capas', notas: 'Capas' }
+const PANEL_TITLE: Record<Tab, string> = { pieza: 'Pieza', prenda: 'Prenda', estampados: 'Estampados', detalles: 'Detalles y fornituras', notas: 'Notas' }
 
 const DEFAULT_SETTINGS: CanvasSettings = { mode: 'color', dims: false, grid: false, notes: true, brush: { color: '#1d1c1a', width: 1.2, dash: false } }
 
@@ -82,7 +78,7 @@ export function DesignEditor() {
   const [saving, setSaving] = useState(false)
   const [highlight, setHighlight] = useState<string | null>(null)
   const [view, setView] = useState<CanvasView>('front')
-  const [tab, setTab] = useState<Tab>('pieza')
+  const [tab, setTab] = useState<Tab>('prenda')
   const [selectedPiece, setSelectedPiece] = useState<string | null>(null)
   const [selectedPrint, setSelectedPrint] = useState<string | null>(null)
   const [selectedCallout, setSelectedCallout] = useState<string | null>(null)
@@ -168,6 +164,8 @@ export function DesignEditor() {
         setSelectedPrint(null)
         setSelectedCallout(null)
         setSelectedDrawing(null)
+        setSelectedDetail(null)
+        setTab('prenda')
       }
     }
     window.addEventListener('keydown', onKey)
@@ -261,6 +259,25 @@ export function DesignEditor() {
   const active = template.activePieces(design.data.options)
   const activePieces = template.pieces.filter((p) => active.includes(p.id))
   const piece = activePieces.find((p) => p.id === selectedPiece)
+  // Sin pieza elegida, el inspector enseña la prenda
+  const panel: Tab = tab === 'pieza' && !piece ? 'prenda' : tab
+  /** Abre el panel de añadir estampados o detalles, sin nada seleccionado. */
+  const openPanel = (t: 'estampados' | 'detalles') => {
+    setSelectedPiece(null)
+    setSelectedPrint(null)
+    setSelectedDetail(null)
+    setSelectedCallout(null)
+    setTab(t)
+  }
+  const backToGarment = () => {
+    setSelectedPiece(null)
+    setSelectedPrint(null)
+    setSelectedDetail(null)
+    setSelectedCallout(null)
+    setSelectedDrawing(null)
+    setBlockTool(false)
+    setTab('prenda')
+  }
   const usedColors = [...new Set(activePieces.map((p) => pieceStyle(template, design.data, p.id).color))]
   const client = clients.data?.find((c) => c.id === design.clientId)
   const fromClient = client && Object.keys(client.measurements).length ? clientBody(client.measurements) : null
@@ -312,147 +329,151 @@ export function DesignEditor() {
       {error && <p className="status error editor-error">{error}</p>}
 
       <aside className="editor-layers" aria-label="Capas">
-        <h2>Piezas</h2>
-        <ul className="layer-list">
-          {activePieces.map((p) => {
-            const s = pieceStyle(template, design.data, p.id)
-            const r = resolveMaterial(template.id, p.id, s.materialId, materials)
-            return (
-              <li key={p.id}>
-                <button
-                  className={selectedPiece === p.id ? 'layer active' : 'layer'}
-                  onClick={() => pickPiece(p.id)}
-                  onMouseEnter={() => setHighlight(p.id)}
-                  onMouseLeave={() => setHighlight(null)}
-                >
-                  <span className="layer-swatch" style={{ background: s.color }} />
-                  <span className="layer-text">
-                    <span>{p.label}</span>
-                    <span className="muted">{colorLabel(s).name || s.color.toUpperCase()} · {r.library?.name ?? r.catalog.name}</span>
-                  </span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-
-        <h2>Estampados</h2>
-        {prints.length === 0 ? (
-          <p className="muted small">Ninguno. Añádelos en la pestaña Estampados.</p>
-        ) : (
+        <Fold title="Piezas" open extra={<span className="fold-count">{activePieces.length}</span>}>
           <ul className="layer-list">
-            {[...prints].reverse().map((p) => (
-              <li key={p.id} className={p.hidden ? 'layer-row hidden' : 'layer-row'}>
-                <button
-                  className={selectedPrint === p.id ? 'layer active' : 'layer'}
-                  onClick={() => {
-                    pickPrint(p.id)
-                    if (view !== 'all' && view !== p.view) setView(p.view)
-                  }}
-                >
-                  <span className="layer-swatch thumb">
-                    {p.kind === 'artwork' ? <img src={fileUrl(p.file)} alt="" /> : <b style={{ color: p.color }}>T</b>}
-                  </span>
-                  <span className="layer-text">
-                    <span>{p.kind === 'text' ? `«${p.text}»` : (artworks.data?.find((a) => a.id === p.artworkId)?.name ?? 'Gráfico')}</span>
-                    <span className="muted">{VIEW_LABEL[p.view]}</span>
-                  </span>
-                </button>
-                <LayerToggles hidden={p.hidden} locked={p.locked} onChange={(patch) => patchLayer('prints', p.id, patch)} />
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <h2>Notas</h2>
-        {callouts.length === 0 ? (
-          <p className="muted small">Usa «+ Nota» en el dibujo para señalar detalles.</p>
-        ) : (
-          <ul className="layer-list">
-            {callouts.map((c, i) => (
-              <li key={c.id} className={c.hidden ? 'layer-row hidden' : 'layer-row'}>
-                <button
-                  className={selectedCallout === c.id ? 'layer active' : 'layer'}
-                  onClick={() => {
-                    pickCallout(c.id)
-                    if (view !== 'all' && view !== c.view) setView(c.view)
-                  }}
-                >
-                  <span className="layer-swatch note">{i + 1}</span>
-                  <span className="layer-text">
-                    <span>{c.text || 'Nota sin texto'}</span>
-                  </span>
-                </button>
-                <LayerToggles hidden={c.hidden} lockable={false} onChange={(patch) => patchLayer('callouts', c.id, patch)} />
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <h2>Detalles</h2>
-        {details.length === 0 ? (
-          <p className="muted small">Botones, cremalleras, parches… en la pestaña Detalles.</p>
-        ) : (
-          <ul className="layer-list">
-            {[...details].reverse().map((d) => (
-              <li key={d.id} className={d.hidden ? 'layer-row hidden' : 'layer-row'}>
-                <button
-                  className={selectedDetail === d.id ? 'layer active' : 'layer'}
-                  onClick={() => {
-                    pickDetail(d.id)
-                    if (view !== 'all' && view !== d.view) setView(d.view)
-                  }}
-                >
-                  <span className="layer-swatch">
-                    <DetailIcon d={d} />
-                  </span>
-                  <span className="layer-text">
-                    <span>
-                      {DETAIL_KINDS.find((k) => k.id === d.kind)?.label}
-                      {d.text ? ` «${d.text}»` : ''}
+            {activePieces.map((p) => {
+              const s = pieceStyle(template, design.data, p.id)
+              const r = resolveMaterial(template.id, p.id, s.materialId, materials)
+              return (
+                <li key={p.id}>
+                  <button
+                    className={selectedPiece === p.id ? 'layer active' : 'layer'}
+                    onClick={() => pickPiece(p.id)}
+                    onMouseEnter={() => setHighlight(p.id)}
+                    onMouseLeave={() => setHighlight(null)}
+                  >
+                    <span className="layer-swatch" style={{ background: s.color }} />
+                    <span className="layer-text">
+                      <span>{p.label}</span>
+                      <span className="muted">{colorLabel(s).name || s.color.toUpperCase()} · {r.library?.name ?? r.catalog.name}</span>
                     </span>
-                    <span className="muted">{VIEW_LABEL[d.view]}</span>
-                  </span>
-                </button>
-                <LayerToggles hidden={d.hidden} locked={d.locked} onChange={(patch) => patchLayer('details', d.id, patch)} />
-              </li>
-            ))}
+                  </button>
+                </li>
+              )
+            })}
           </ul>
-        )}
+        </Fold>
 
-        <h2>Dibujos</h2>
-        {drawings.length === 0 ? (
-          <p className="muted small">Usa el lápiz, la línea o las formas de la barra del dibujo.</p>
-        ) : (
-          <ul className="layer-list">
-            {[...drawings].reverse().map((d) => (
-              <li key={d.id} className={d.hidden ? 'layer-row hidden' : 'layer-row'}>
-                <button
-                  className={selectedDrawing === d.id ? 'layer active' : 'layer'}
-                  onClick={() => {
-                    setSelectedDrawing(d.locked ? null : d.id)
-                    if (view !== 'all' && view !== d.view) setView(d.view)
-                  }}
-                >
-                  <span className="layer-swatch">
-                    <svg viewBox="0 0 20 20" width="18" height="18">
-                      <path d="M3 15 C 7 3, 12 18, 17 5" fill="none" stroke={d.color} strokeWidth={Math.min(3, d.width + 0.6)} strokeDasharray={d.dash ? '3 2' : undefined} />
-                    </svg>
-                  </span>
-                  <span className="layer-text">
-                    <span>{DRAW_LABEL[d.kind]}</span>
-                    <span className="muted">{VIEW_LABEL[d.view]}</span>
-                  </span>
-                </button>
-                <LayerToggles hidden={d.hidden} locked={d.locked} onChange={(patch) => patchLayer('drawings', d.id, patch)} />
-              </li>
-            ))}
-          </ul>
-        )}
+        <Fold title="Estampados" open={prints.length > 0} extra={<AddButton label="Añadir estampado" onClick={() => openPanel('estampados')} />}>
+          {prints.length === 0 ? (
+            <p className="muted small">Logos y textos sobre la prenda.</p>
+          ) : (
+            <ul className="layer-list">
+              {[...prints].reverse().map((p) => (
+                <li key={p.id} className={p.hidden ? 'layer-row hidden' : 'layer-row'}>
+                  <button
+                    className={selectedPrint === p.id ? 'layer active' : 'layer'}
+                    onClick={() => {
+                      pickPrint(p.id)
+                      if (view !== 'all' && view !== p.view) setView(p.view)
+                    }}
+                  >
+                    <span className="layer-swatch thumb">
+                      {p.kind === 'artwork' ? <img src={fileUrl(p.file)} alt="" /> : <b style={{ color: p.color }}>T</b>}
+                    </span>
+                    <span className="layer-text">
+                      <span>{p.kind === 'text' ? `«${p.text}»` : (artworks.data?.find((a) => a.id === p.artworkId)?.name ?? 'Gráfico')}</span>
+                      <span className="muted">{VIEW_LABEL[p.view]}</span>
+                    </span>
+                  </button>
+                  <LayerToggles hidden={p.hidden} locked={p.locked} onChange={(patch) => patchLayer('prints', p.id, patch)} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Fold>
+
+        <Fold title="Detalles" open={details.length > 0} extra={<AddButton label="Añadir detalle" onClick={() => openPanel('detalles')} />}>
+          {details.length === 0 ? (
+            <p className="muted small">Botones, cremalleras, etiquetas, parches…</p>
+          ) : (
+            <ul className="layer-list">
+              {[...details].reverse().map((d) => (
+                <li key={d.id} className={d.hidden ? 'layer-row hidden' : 'layer-row'}>
+                  <button
+                    className={selectedDetail === d.id ? 'layer active' : 'layer'}
+                    onClick={() => {
+                      pickDetail(d.id)
+                      if (view !== 'all' && view !== d.view) setView(d.view)
+                    }}
+                  >
+                    <span className="layer-swatch">
+                      <DetailIcon d={d} />
+                    </span>
+                    <span className="layer-text">
+                      <span>
+                        {DETAIL_KINDS.find((k) => k.id === d.kind)?.label}
+                        {d.text ? ` «${d.text}»` : ''}
+                      </span>
+                      <span className="muted">{VIEW_LABEL[d.view]}</span>
+                    </span>
+                  </button>
+                  <LayerToggles hidden={d.hidden} locked={d.locked} onChange={(patch) => patchLayer('details', d.id, patch)} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Fold>
+
+        <Fold title="Notas" open={callouts.length > 0} extra={callouts.length > 0 ? <span className="fold-count">{callouts.length}</span> : undefined}>
+          {callouts.length === 0 ? (
+            <p className="muted small">Con la herramienta Nota (a la izquierda del dibujo) señalas costuras, acabados…</p>
+          ) : (
+            <ul className="layer-list">
+              {callouts.map((c, i) => (
+                <li key={c.id} className={c.hidden ? 'layer-row hidden' : 'layer-row'}>
+                  <button
+                    className={selectedCallout === c.id ? 'layer active' : 'layer'}
+                    onClick={() => {
+                      pickCallout(c.id)
+                      if (view !== 'all' && view !== c.view) setView(c.view)
+                    }}
+                  >
+                    <span className="layer-swatch note">{i + 1}</span>
+                    <span className="layer-text">
+                      <span>{c.text || 'Nota sin texto'}</span>
+                    </span>
+                  </button>
+                  <LayerToggles hidden={c.hidden} lockable={false} onChange={(patch) => patchLayer('callouts', c.id, patch)} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Fold>
+
+        <Fold title="Trazos" open={drawings.length > 0} extra={drawings.length > 0 ? <span className="fold-count">{drawings.length}</span> : undefined}>
+          {drawings.length === 0 ? (
+            <p className="muted small">Lo que dibujes con el lápiz, la línea o las formas.</p>
+          ) : (
+            <ul className="layer-list">
+              {[...drawings].reverse().map((d) => (
+                <li key={d.id} className={d.hidden ? 'layer-row hidden' : 'layer-row'}>
+                  <button
+                    className={selectedDrawing === d.id ? 'layer active' : 'layer'}
+                    onClick={() => {
+                      setSelectedDrawing(d.locked ? null : d.id)
+                      if (view !== 'all' && view !== d.view) setView(d.view)
+                    }}
+                  >
+                    <span className="layer-swatch">
+                      <svg viewBox="0 0 20 20" width="18" height="18">
+                        <path d="M3 15 C 7 3, 12 18, 17 5" fill="none" stroke={d.color} strokeWidth={Math.min(3, d.width + 0.6)} strokeDasharray={d.dash ? '3 2' : undefined} />
+                      </svg>
+                    </span>
+                    <span className="layer-text">
+                      <span>{DRAW_LABEL[d.kind]}</span>
+                      <span className="muted">{VIEW_LABEL[d.view]}</span>
+                    </span>
+                  </button>
+                  <LayerToggles hidden={d.hidden} locked={d.locked} onChange={(patch) => patchLayer('drawings', d.id, patch)} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Fold>
 
         {tracings.length > 0 && (
-          <>
-            <h2>Calco</h2>
+          <Fold title="Calco" open>
             <ul className="layer-list">
               {tracings.map((t) => (
                 <li key={t.id} className={t.hidden ? 'layer-row hidden' : 'layer-row'}>
@@ -469,7 +490,7 @@ export function DesignEditor() {
                 </li>
               ))}
             </ul>
-          </>
+          </Fold>
         )}
       </aside>
 
@@ -526,6 +547,12 @@ export function DesignEditor() {
                   setBlockTool(false)
                 }}
                 onCancelBlock={() => setBlockTool(false)}
+                onBlockTool={() => {
+                  if (!piece || !piece.materials.includes('tejido')) return false
+                  setBlockTool(true)
+                  if (view === 'all') setView('front')
+                  return true
+                }}
               />
             ))}
           {mode !== '2d' && <Design3D template={template} data={design.data} materials={materials} client={client} />}
@@ -533,89 +560,128 @@ export function DesignEditor() {
       </div>
 
       <aside className="editor-panel">
-        <nav className="inspector-tabs" role="tablist">
-          {TABS.map((t) => (
-            <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>
-              {t.label}
+        <div className="inspector-head">
+          {panel !== 'prenda' && (
+            <button className="inspector-back" onClick={backToGarment} title="Volver a la prenda (Esc)" aria-label="Volver a la prenda">
+              ←
             </button>
-          ))}
-        </nav>
+          )}
+          <div>
+            <span className="muted small">{PANEL_KIND[panel]}</span>
+            <h2>{panel === 'pieza' && piece ? piece.label : panel === 'prenda' ? template.name : PANEL_TITLE[panel]}</h2>
+          </div>
+        </div>
 
-        {tab === 'pieza' &&
-          (piece ? (
-            <PieceInspector
-              template={template.id}
-              piece={piece}
-              style={pieceStyle(template, design.data, piece.id)}
-              used={usedColors}
-              materials={library.data ?? []}
-              onChange={(patch) => setPiece(piece.id, patch)}
-              hardware={design.data.hardware}
-              onHardware={(hardware) => setData({ hardware })}
-              isZip={template.draw('front', design.data.options).some((s) => s.role === 'zip' && s.piece === piece.id)}
-              artworks={artworks.data ?? []}
-              blocks={(design.data.blocks ?? []).filter((b) => b.piece === piece.id)}
-              onBlocks={(list) => setData({ blocks: [...(design.data.blocks ?? []).filter((b) => b.piece !== piece.id), ...list] })}
-              blockTool={blockTool}
-              onBlockTool={(on) => {
-                setBlockTool(on)
-                if (on && view === 'all') setView('front')
-              }}
-              onApplyToAll={() => {
-                const src = pieceStyle(template, design.data, piece.id)
-                const pieces = { ...design.data.pieces }
-                for (const p of template.pieces) if (p.materials.includes('tejido')) pieces[p.id] = { ...src }
-                setData({ pieces })
-              }}
-            />
-          ) : (
-            <section>
-              <p className="muted small">Haz clic en una pieza del dibujo (o en la lista de la izquierda) para cambiar su color y su material.</p>
-              <div className="piece-picker">
-                {activePieces.map((p) => (
-                  <button key={p.id} className="chip" onClick={() => pickPiece(p.id)}>
-                    <span className="chip-dot" style={{ background: pieceStyle(template, design.data, p.id).color }} />
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </section>
-          ))}
-
-        {tab === 'prenda' && (
-          <MeasuresPanel template={template} data={design.data} body={body} bodyLabel={bodyLabel} onChange={(measures) => setData({ measures })} />
+        {panel === 'pieza' && piece && (
+          <PieceInspector
+            template={template.id}
+            piece={piece}
+            style={pieceStyle(template, design.data, piece.id)}
+            used={usedColors}
+            materials={library.data ?? []}
+            onChange={(patch) => setPiece(piece.id, patch)}
+            hardware={design.data.hardware}
+            onHardware={(hardware) => setData({ hardware })}
+            isZip={template.draw('front', design.data.options).some((s) => s.role === 'zip' && s.piece === piece.id)}
+            artworks={artworks.data ?? []}
+            blocks={(design.data.blocks ?? []).filter((b) => b.piece === piece.id)}
+            onBlocks={(list) => setData({ blocks: [...(design.data.blocks ?? []).filter((b) => b.piece !== piece.id), ...list] })}
+            blockTool={blockTool}
+            onBlockTool={(on) => {
+              setBlockTool(on)
+              if (on && view === 'all') setView('front')
+            }}
+            onApplyToAll={() => {
+              const src = pieceStyle(template, design.data, piece.id)
+              const pieces = { ...design.data.pieces }
+              for (const p of template.pieces) if (p.materials.includes('tejido')) pieces[p.id] = { ...src }
+              setData({ pieces })
+            }}
+          />
         )}
-        {tab === 'prenda' &&
-          OPTION_GROUPS.map((g) => {
-            const options = template.options.filter((o) => o.group === g.id)
-            if (!options.length) return null
-            return (
-              <section key={g.id}>
-                <h2>{g.label}</h2>
-                {options.map((o) =>
-                  o.type === 'toggle' ? (
-                    <label key={o.id} className="toggle-row">
-                      <span>{o.label}</span>
-                      <input type="checkbox" checked={opt<boolean>(template, design.data.options, o.id)} onChange={(e) => setOption(o.id, e.target.checked)} />
-                    </label>
-                  ) : (
-                    <div key={o.id} className="option-row">
-                      <span>{o.label}</span>
-                      <div className="chips">
-                        {o.choices.map((ch) => (
-                          <button key={ch.id} className={opt(template, design.data.options, o.id) === ch.id ? 'chip active' : 'chip'} onClick={() => setOption(o.id, ch.id)}>
-                            {ch.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ),
-                )}
-              </section>
-            )
-          })}
 
-        {tab === 'estampados' && (
+        {panel === 'prenda' && (
+          <div className="inspector-prenda">
+            <p className="muted small">Haz clic en una pieza del dibujo para cambiar su color, superficie y material.</p>
+            {OPTION_GROUPS.map((g, gi) => {
+                const options = template.options.filter((o) => o.group === g.id)
+                if (!options.length) return null
+                return (
+                  <Fold key={g.id} title={g.label} open={gi === 0}>
+                    {options.map((o) =>
+                      o.type === 'toggle' ? (
+                        <label key={o.id} className="toggle-row">
+                          <span>{o.label}</span>
+                          <input type="checkbox" checked={opt<boolean>(template, design.data.options, o.id)} onChange={(e) => setOption(o.id, e.target.checked)} />
+                        </label>
+                      ) : (
+                        <div key={o.id} className="option-row">
+                          <span>{o.label}</span>
+                          <div className="chips">
+                            {o.choices.map((ch) => (
+                              <button key={ch.id} className={opt(template, design.data.options, o.id) === ch.id ? 'chip active' : 'chip'} onClick={() => setOption(o.id, ch.id)}>
+                                {ch.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ),
+                    )}
+                  </Fold>
+                )
+              })}
+            <Fold title="Medidas">
+              <MeasuresPanel template={template} data={design.data} body={body} bodyLabel={bodyLabel} onChange={(measures) => setData({ measures })} />
+            </Fold>
+            <Fold title="Datos del diseño">
+              <Field label="Cliente">
+                <select value={design.clientId ?? ''} onChange={(e) => setDesign({ ...design, clientId: e.target.value || null })}>
+                  <option value="">Sin cliente (marca propia)</option>
+                  {clients.data?.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Proyecto">
+                <select value={design.projectId ?? ''} onChange={(e) => setDesign({ ...design, projectId: e.target.value || null })}>
+                  <option value="">Sin proyecto</option>
+                  {projects.data?.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {design.projectId && (
+                <p className="inline-links">
+                  <Link to={`/proyectos/${design.projectId}`} className="link">
+                    Ir al proyecto
+                  </Link>
+                  <Link to={`/produccion/ficha/${design.projectId}`} className="link">
+                    Ficha técnica
+                  </Link>
+                </p>
+              )}
+              <Field label="Notas">
+                <textarea rows={4} value={design.data.notes} onChange={(e) => setData({ notes: e.target.value })} placeholder="Ideas, referencias, cambios pedidos por el cliente…" />
+              </Field>
+              <label className="toggle-row spaced-top">
+                <span>
+                  Plantilla de la marca
+                  <span className="muted small block">Sale al crear un diseño nuevo, para empezar desde aquí (con sus colores, medidas y estampados).</span>
+                </span>
+                <input type="checkbox" checked={!!design.data.brandTemplate} onChange={(e) => setData({ brandTemplate: e.target.checked || undefined })} />
+              </label>
+              <button className="button danger spaced-top" onClick={remove}>
+                Eliminar diseño
+              </button>
+            </Fold>
+          </div>
+        )}
+
+        {panel === 'estampados' && (
           <PrintsPanel
             template={template}
             prints={prints}
@@ -629,7 +695,7 @@ export function DesignEditor() {
           />
         )}
 
-        {tab === 'detalles' && (
+        {panel === 'detalles' && (
           <DetailsPanel
             details={details}
             onChange={setDetails}
@@ -640,13 +706,9 @@ export function DesignEditor() {
           />
         )}
 
-        {tab === 'notas' && (
+        {panel === 'notas' && (
           <section>
-            <h2>Notas del dibujo</h2>
-            <p className="muted small">
-              Pulsa «+ Nota» en la barra del dibujo y haz clic donde quieras señalar algo (una costura, un detalle, un acabado). Arrastra el punto o el texto para
-              colocarlos. Salen también en la ficha técnica.
-            </p>
+            <p className="muted small">Arrastra el punto o el texto en el dibujo para colocarlos. Salen también en la ficha técnica.</p>
             {callouts.map((c, i) => (
               <div key={c.id} className={selectedCallout === c.id ? 'note-row active' : 'note-row'} onClick={() => setSelectedCallout(c.id)}>
                 <span className="layer-swatch note">{i + 1}</span>
@@ -663,57 +725,17 @@ export function DesignEditor() {
             ))}
           </section>
         )}
-
-        {tab === 'datos' && (
-          <section>
-            <h2>Datos del diseño</h2>
-            <Field label="Cliente">
-              <select value={design.clientId ?? ''} onChange={(e) => setDesign({ ...design, clientId: e.target.value || null })}>
-                <option value="">Sin cliente (marca propia)</option>
-                {clients.data?.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Proyecto">
-              <select value={design.projectId ?? ''} onChange={(e) => setDesign({ ...design, projectId: e.target.value || null })}>
-                <option value="">Sin proyecto</option>
-                {projects.data?.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            {design.projectId && (
-              <p className="inline-links">
-                <Link to={`/proyectos/${design.projectId}`} className="link">
-                  Ir al proyecto
-                </Link>
-                <Link to={`/produccion/ficha/${design.projectId}`} className="link">
-                  Ficha técnica
-                </Link>
-              </p>
-            )}
-            <Field label="Notas">
-              <textarea rows={4} value={design.data.notes} onChange={(e) => setData({ notes: e.target.value })} placeholder="Ideas, referencias, cambios pedidos por el cliente…" />
-            </Field>
-            <label className="toggle-row spaced-top">
-              <span>
-                Plantilla de la marca
-                <span className="muted small block">Sale al crear un diseño nuevo, para empezar desde aquí (con sus colores, medidas y estampados).</span>
-              </span>
-              <input type="checkbox" checked={!!design.data.brandTemplate} onChange={(e) => setData({ brandTemplate: e.target.checked || undefined })} />
-            </label>
-            <button className="button danger spaced-top" onClick={remove}>
-              Eliminar diseño
-            </button>
-          </section>
-        )}
       </aside>
     </div>
+  )
+}
+
+/** Botón «+» de la cabecera de un grupo de capas. */
+function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button className="fold-add" onClick={onClick} title={label} aria-label={label}>
+      +
+    </button>
   )
 }
 

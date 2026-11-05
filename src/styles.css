@@ -1021,3 +1021,34 @@ input:disabled {
 .font-option.active {
   background: color-mix(in srgb, #2563eb 10%, var(--panel));
 }
+
+/* Menú recogido (solo iconos) en el editor de diseños, para dejar más sitio al dibujo */
+.app.compact {
+  grid-template-columns: 60px 1fr;
+}
+.app.compact .sidebar {
+  padding: 16px 8px;
+  align-items: center;
+}
+.app.compact .brand {
+  padding: 0;
+  font-size: 15px;
+}
+.app.compact .nav-link {
+  justify-content: center;
+  padding: 10px;
+}
+.app.compact .nav-link span,
+.app.compact .account-text,
+.app.compact .account-logout {
+  display: none;
+}
+.app.compact .account {
+  padding: 0;
+  border: none;
+}
+@media (max-width: 760px) {
+  .app.compact {
+    grid-template-columns: 1fr;
+  }
+}

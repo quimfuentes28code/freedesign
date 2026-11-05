@@ -29,13 +29,36 @@ const WIDTHS = [
   { v: 2.4, label: 'Grueso' },
   { v: 4, label: 'Muy grueso' },
 ]
-const TOOLS: { id: DrawTool | null; label: string; title: string }[] = [
-  { id: null, label: 'Seleccionar', title: 'Seleccionar y mover (Esc)' },
-  { id: 'free', label: 'Lápiz', title: 'Dibujo a mano alzada' },
-  { id: 'line', label: 'Línea', title: 'Línea recta' },
-  { id: 'rect', label: 'Rectángulo', title: 'Rectángulo' },
-  { id: 'ellipse', label: 'Elipse', title: 'Elipse o círculo' },
+const TOOLS: { id: DrawTool | null; label: string; title: string; icon: RailIcon }[] = [
+  { id: null, label: 'Seleccionar', title: 'Seleccionar y mover (Esc)', icon: 'select' },
+  { id: 'free', label: 'Lápiz', title: 'Lápiz: dibujo a mano alzada', icon: 'free' },
+  { id: 'line', label: 'Línea', title: 'Línea recta', icon: 'line' },
+  { id: 'rect', label: 'Rectángulo', title: 'Rectángulo', icon: 'rect' },
+  { id: 'ellipse', label: 'Elipse', title: 'Elipse o círculo', icon: 'ellipse' },
 ]
+
+/** Iconos de la columna de herramientas (20×20, trazo con el color del texto). */
+const RAIL_ICONS = {
+  select: 'M5 3l11 6.5-4.8 1.3L9 15.5z',
+  free: 'M4 16l1.2-4.2L13 4l3 3-7.8 7.8zM11.5 5.5l3 3',
+  line: 'M4 16L16 4',
+  rect: 'M4 5.5h12v9H4z',
+  ellipse: 'M3 10a7 5 0 1 0 14 0a7 5 0 1 0-14 0',
+  note: 'M4 4h12v9H9.5L6 16v-3H4z',
+  block: 'M4 4h12v12H4zM4 16L16 4',
+  trace: 'M3 5h14v10H3zM3 13l4-4 3 3 2-2 5 5',
+} as const
+type RailIcon = keyof typeof RAIL_ICONS
+
+function RailButton({ icon, label, active, onClick }: { icon: RailIcon; label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button className={active ? 'rail-button active' : 'rail-button'} onClick={onClick} title={label} aria-label={label} aria-pressed={active}>
+      <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" aria-hidden>
+        <path d={RAIL_ICONS[icon]} />
+      </svg>
+    </button>
+  )
+}
 
 interface Props {
   template: GarmentTemplate
@@ -68,6 +91,8 @@ interface Props {
   blockPiece?: string | null
   onAddBlock?: (b: ColorBlock) => void
   onCancelBlock?: () => void
+  /** Activa la herramienta de dividir la pieza seleccionada; devuelve false si no hay una pieza de tela elegida. */
+  onBlockTool?: () => boolean
 }
 
 /**
@@ -80,12 +105,20 @@ export function Canvas(props: Props) {
   const { selectedPiece, onPickPiece, selectedPrint, onSelectPrint, onChangePrint, selectedCallout, onSelectCallout, onCallouts, body, bodyLabel } = props
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
-  const { selectedDrawing, onSelectDrawing, onDrawings, onTracings, selectedDetail, onSelectDetail, onChangeDetail, blockPiece, onAddBlock, onCancelBlock } = props
+  const { selectedDrawing, onSelectDrawing, onDrawings, onTracings, selectedDetail, onSelectDetail, onChangeDetail, blockPiece, onAddBlock, onCancelBlock, onBlockTool } = props
   const cancelBlock = useRef(onCancelBlock)
   cancelBlock.current = onCancelBlock
   const [adding, setAdding] = useState(false)
   const [tool, setTool] = useState<DrawTool | null>(null)
   const [adjusting, setAdjusting] = useState(false)
+  const [calco, setCalco] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  // Los avisos se van solos al rato
+  useEffect(() => {
+    if (!notice) return
+    const t = setTimeout(() => setNotice(null), 4500)
+    return () => clearTimeout(t)
+  }, [notice])
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -106,6 +139,8 @@ export function Canvas(props: Props) {
       setTool(null)
       setAdding(false)
       setAdjusting(false)
+      setCalco(false)
+      setNotice(null)
       cancelBlock.current?.()
     }
     window.addEventListener('keydown', onKey)
@@ -252,18 +287,8 @@ export function Canvas(props: Props) {
           <button className={settings.grid ? 'tool active' : 'tool'} onClick={() => toggle('grid')} aria-pressed={settings.grid} title="Cuadrícula de 5 cm">
             Cuadrícula
           </button>
-          <button className={settings.notes ? 'tool active' : 'tool'} onClick={() => toggle('notes')} aria-pressed={settings.notes} title="Mostrar las notas">
+          <button className={settings.notes ? 'tool active' : 'tool'} onClick={() => toggle('notes')} aria-pressed={settings.notes} title="Ver u ocultar las notas">
             Notas
-          </button>
-          <button
-            className={adding ? 'tool adding' : 'tool'}
-            onClick={() => {
-              if (!settings.notes) onSettings({ ...settings, notes: true })
-              setAdding((a) => !a)
-            }}
-            title="Haz clic en el dibujo donde quieras la nota"
-          >
-            {adding ? 'Haz clic en el dibujo…' : '+ Nota'}
           </button>
         </div>
         <div className="zoom">
@@ -278,75 +303,124 @@ export function Canvas(props: Props) {
           </button>
         </div>
       </div>
-      <div className="canvas-subbar">
-        <div className="segmented" role="group" aria-label="Herramienta de dibujo">
+      <div className="canvas-body">
+        <div className="tool-rail" role="toolbar" aria-orientation="vertical" aria-label="Herramientas">
           {TOOLS.map((t) => (
-            <button
+            <RailButton
               key={t.label}
-              className={tool === t.id ? 'active' : ''}
-              title={t.title}
+              icon={t.icon}
+              label={t.title}
+              active={tool === t.id && !adding && !blockPiece && !(t.id === null && calco)}
               onClick={() => {
                 setTool(t.id)
                 setAdding(false)
                 setAdjusting(false)
+                setCalco(false)
+                setNotice(null)
+                onCancelBlock?.()
                 if (t.id) onSelectDrawing(null)
               }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <label className="brush-color" title="Color del trazo">
-          <input type="color" value={selectedDraw?.color ?? settings.brush.color} onChange={(e) => setBrush({ color: e.target.value })} />
-          <span style={{ background: selectedDraw?.color ?? settings.brush.color }} />
-        </label>
-        <select value={selectedDraw?.width ?? settings.brush.width} onChange={(e) => setBrush({ width: Number(e.target.value) })} aria-label="Grosor del trazo">
-          {WIDTHS.map((w) => (
-            <option key={w.v} value={w.v}>
-              {w.label}
-            </option>
-          ))}
-        </select>
-        <label className="toggle small-toggle" title="Trazo discontinuo, como un pespunte">
-          <input type="checkbox" checked={selectedDraw?.dash ?? settings.brush.dash} onChange={(e) => setBrush({ dash: e.target.checked })} />
-          Pespunte
-        </label>
-        {selectedDraw && (
-          <button className="tool" onClick={() => onDrawings(drawings.filter((d) => d.id !== selectedDraw.id))} title="Borrar el trazo (Supr)">
-            Borrar trazo
-          </button>
-        )}
-        <span className="subbar-sep" />
-        <span className="muted small">Calco</span>
-        {!current ? (
-          <span className="muted small">elige una vista</span>
-        ) : !tracing ? (
-          <button className="tool" onClick={() => fileInput.current?.click()} disabled={uploading} title="Sube la foto de un dibujo a mano para calcarlo">
-            {uploading ? 'Subiendo…' : 'Subir boceto'}
-          </button>
-        ) : (
-          <>
-            <button className={adjusting ? 'tool active' : 'tool'} onClick={() => setAdjusting((a) => !a)} disabled={tracing.locked} title="Mover y escalar el boceto">
-              {adjusting ? 'Listo' : 'Ajustar'}
-            </button>
-            <input
-              type="range"
-              min={0.1}
-              max={1}
-              step={0.05}
-              value={tracing.opacity}
-              onChange={(e) => setTracing({ opacity: Number(e.target.value) })}
-              aria-label="Transparencia del boceto"
-              title="Transparencia"
             />
-            <button className="tool" onClick={() => onTracings(tracings.filter((t) => t.id !== tracing.id))} title="Quitar el boceto">
-              Quitar
-            </button>
-          </>
-        )}
-        <input ref={fileInput} type="file" accept="image/*" hidden onChange={(e) => uploadTracing(e.target.files?.[0]).finally(() => (e.target.value = ''))} />
-        {uploadError && <span className="status error small">{uploadError}</span>}
-      </div>
+          ))}
+          <span className="rail-sep" />
+          <RailButton
+            icon="note"
+            label="Nota: haz clic en el dibujo donde quieras señalar algo"
+            active={adding}
+            onClick={() => {
+              if (!settings.notes) onSettings({ ...settings, notes: true })
+              setTool(null)
+              setCalco(false)
+              setNotice(null)
+              setAdding((a) => !a)
+            }}
+          />
+          <RailButton
+            icon="block"
+            label="Dividir color: parte la pieza seleccionada con una línea"
+            active={!!blockPiece}
+            onClick={() => {
+              setTool(null)
+              setAdding(false)
+              setCalco(false)
+              if (blockPiece) return onCancelBlock?.()
+              if (!onBlockTool?.()) setNotice('Elige primero una pieza de tela (un clic en el dibujo) y luego esta herramienta.')
+            }}
+          />
+          <RailButton
+            icon="trace"
+            label="Calco: sube la foto de un boceto a mano para dibujar encima"
+            active={calco}
+            onClick={() => {
+              setTool(null)
+              setAdding(false)
+              setNotice(null)
+              setCalco((c) => !c)
+            }}
+          />
+        </div>
+        <div className="canvas-area">
+          {(tool || selectedDraw) && (
+            <div className="canvas-context">
+              <span className="muted small">{selectedDraw && !tool ? 'Trazo seleccionado' : 'Pincel'}</span>
+              <label className="brush-color" title="Color del trazo">
+                <input type="color" value={selectedDraw?.color ?? settings.brush.color} onChange={(e) => setBrush({ color: e.target.value })} />
+                <span style={{ background: selectedDraw?.color ?? settings.brush.color }} />
+              </label>
+              <select value={selectedDraw?.width ?? settings.brush.width} onChange={(e) => setBrush({ width: Number(e.target.value) })} aria-label="Grosor del trazo">
+                {WIDTHS.map((w) => (
+                  <option key={w.v} value={w.v}>
+                    {w.label}
+                  </option>
+                ))}
+              </select>
+              <label className="toggle small-toggle" title="Trazo discontinuo, como un pespunte">
+                <input type="checkbox" checked={selectedDraw?.dash ?? settings.brush.dash} onChange={(e) => setBrush({ dash: e.target.checked })} />
+                Pespunte
+              </label>
+              {selectedDraw && (
+                <button className="tool" onClick={() => onDrawings(drawings.filter((d) => d.id !== selectedDraw.id))} title="Borrar el trazo (Supr)">
+                  Borrar trazo
+                </button>
+              )}
+            </div>
+          )}
+          {calco && (
+            <div className="canvas-context">
+              <span className="muted small">Calco</span>
+              {!current ? (
+                <span className="muted small">Elige una sola vista (delantero, espalda o lateral)</span>
+              ) : !tracing ? (
+                <button className="tool" onClick={() => fileInput.current?.click()} disabled={uploading} title="Sube la foto de un dibujo a mano para calcarlo">
+                  {uploading ? 'Subiendo…' : 'Subir boceto'}
+                </button>
+              ) : (
+                <>
+                  <button className={adjusting ? 'tool active' : 'tool'} onClick={() => setAdjusting((a) => !a)} disabled={tracing.locked} title="Mover y escalar el boceto">
+                    {adjusting ? 'Listo' : 'Mover y escalar'}
+                  </button>
+                  <label className="small-toggle small">
+                    Transparencia
+                    <input type="range" min={0.1} max={1} step={0.05} value={tracing.opacity} onChange={(e) => setTracing({ opacity: Number(e.target.value) })} />
+                  </label>
+                  <button className="tool" onClick={() => onTracings(tracings.filter((t) => t.id !== tracing.id))} title="Quitar el boceto">
+                    Quitar
+                  </button>
+                </>
+              )}
+              {uploadError && <span className="status error small">{uploadError}</span>}
+            </div>
+          )}
+          {(adding || blockPiece || notice) && (
+            <div className="canvas-context hint">
+              {adding
+                ? 'Haz clic en el dibujo donde quieras la nota · Esc cancela'
+                : blockPiece
+                  ? 'Arrastra una línea de lado a lado de la pieza para dividirla · Esc cancela'
+                  : notice}
+            </div>
+          )}
+          <input ref={fileInput} type="file" accept="image/*" hidden onChange={(e) => uploadTracing(e.target.files?.[0]).finally(() => (e.target.value = ''))} />
       <div
         className={`canvas-stage${zoom > 1 ? ' zoomed' : ''}${settings.mode === 'linea' ? ' line-mode' : ''}`}
         onWheel={onWheel}
@@ -392,10 +466,10 @@ export function Canvas(props: Props) {
           ))}
         </div>
       </div>
+        </div>
+      </div>
       <p className="canvas-hint">
-        {blockPiece ? (
-          <strong>Arrastra una línea de lado a lado de la pieza para dividirla · Esc cancela</strong>
-        ) : settings.dims && poms.length > 0 ? (
+        {settings.dims && poms.length > 0 ? (
           <>
             <strong>Cotas ({bodyLabel}):</strong>{' '}
             {poms

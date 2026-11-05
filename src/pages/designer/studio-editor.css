@@ -841,3 +841,247 @@
 .export-panel p {
   margin: 0;
 }
+
+/* --- Lienzo: columna de herramientas a la izquierda y opciones flotantes de la herramienta en uso --- */
+.canvas-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.tool-rail {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+}
+.rail-button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.rail-button:hover {
+  background: var(--soft);
+  color: var(--text);
+}
+.rail-button.active {
+  background: color-mix(in srgb, #2563eb 10%, var(--panel));
+  border-color: color-mix(in srgb, #2563eb 45%, transparent);
+  color: #1d4ed8;
+}
+.rail-sep {
+  width: 22px;
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border);
+}
+.canvas-area {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.canvas-context {
+  position: absolute;
+  z-index: 3;
+  left: 10px;
+  top: 10px;
+  max-width: calc(100% - 20px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.08);
+}
+.canvas-context + .canvas-context {
+  top: 56px;
+}
+.canvas-context.hint {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #9a3412;
+}
+.canvas-context select {
+  width: auto;
+  font-size: 13px;
+  padding: 4px 8px;
+}
+.canvas-context input[type='range'] {
+  width: 90px;
+}
+.canvas-toolbar .canvas-tools {
+  margin-left: auto;
+}
+
+/* --- Apartados plegables (capas e inspector) --- */
+.fold {
+  border-bottom: 1px solid var(--border);
+}
+.fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 2px;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+.fold-arrow {
+  flex: none;
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+.fold[open] > summary .fold-arrow {
+  transform: rotate(90deg);
+}
+.fold-title {
+  flex: 1;
+  min-width: 0;
+}
+.fold-extra {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.fold-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.fold-add {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.fold-add:hover {
+  border-color: var(--muted);
+}
+.fold-body {
+  padding: 0 2px 14px;
+}
+.fold-body > p:first-child {
+  margin-top: 0;
+}
+.fold .palette {
+  grid-template-columns: repeat(9, 1fr);
+  gap: 5px;
+}
+.fold-body > section {
+  padding-top: 0;
+}
+.fold-body > section > h2:first-child {
+  display: none;
+}
+.inspector-sub + .inspector-sub {
+  margin-top: 14px;
+}
+.inspector-sub h3 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+.editor-layers .fold > summary {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  padding: 9px 4px;
+}
+.editor-layers .fold-body {
+  padding: 0 0 10px;
+}
+.editor-layers .fold-body > p {
+  margin: 0 6px;
+}
+
+/* --- Cabecera del inspector: qué se está editando --- */
+.inspector-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 -16px;
+  padding: 12px 16px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.inspector-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.inspector-head .muted {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.inspector-back {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+}
+.inspector-back:hover {
+  border-color: var(--muted);
+}
+.inspector-prenda > p:first-child {
+  margin: 12px 0 4px;
+}
+.inspector-piece .fold:first-of-type {
+  border-top: 1px solid var(--border);
+}
+.editor-panel .inspector-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+}
+
+/* Con 2D y 3D a la vez, el dibujo (con sus barras) se lleva más ancho que el maniquí */
+.studio-editor .editor-views.mode-ambas {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}

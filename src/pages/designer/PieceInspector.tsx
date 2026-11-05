@@ -6,6 +6,7 @@ import { DEFAULT_SIZE } from '../../designer/surfaces'
 import { ArtPicker } from './DetailsPanel'
 import type { Material } from '../../shared/library'
 import { MaterialPicker } from './MaterialPicker'
+import { Fold } from './Fold'
 
 interface Props {
   template: string
@@ -58,6 +59,7 @@ export function PieceInspector(props: Props) {
         </div>
       </div>
 
+      <Fold title="Color y código" open>
       <div className="inspector-fields">
         <label>
           <span>Hex</span>
@@ -100,9 +102,9 @@ export function PieceInspector(props: Props) {
           </div>
         </div>
       )}
+      </Fold>
 
-      <div className="inspector-block">
-        <h3>Carta de colores</h3>
+      <Fold title="Carta de colores">
         {COLOR_CHART.map((g) => (
           <div key={g.name} className="chart-group">
             <span className="muted small">{g.name}</span>
@@ -120,11 +122,10 @@ export function PieceInspector(props: Props) {
             </div>
           </div>
         ))}
-      </div>
+      </Fold>
 
       {onHardware && piece.id === 'botones' && (
-        <div className="inspector-block">
-          <h3>Tipo de botón</h3>
+        <Fold title="Tipo de botón" open>
           <div className="chips">
             {BUTTON_STYLES.map((b) => (
               <button key={b.id} className={(hardware.buttons ?? '4') === b.id ? 'chip active' : 'chip'} onClick={() => onHardware({ ...hardware, buttons: b.id })}>
@@ -133,10 +134,10 @@ export function PieceInspector(props: Props) {
             ))}
           </div>
           {hardware.buttons === 'logo' && <ArtPicker art={hardware.buttonArt ?? null} artworks={artworks} onChange={(buttonArt) => onHardware({ ...hardware, buttonArt })} />}
-        </div>
+        </Fold>
       )}
       {onHardware && isZip && (
-        <div className="inspector-block">
+        <Fold title="Cremallera y tirador" open>
           <h3>Cremallera</h3>
           <div className="chips">
             {ZIP_STYLES.map((z) => (
@@ -154,14 +155,17 @@ export function PieceInspector(props: Props) {
             ))}
           </div>
           {hardware.puller === 'logo' && <ArtPicker art={hardware.pullerArt ?? null} artworks={artworks} onChange={(pullerArt) => onHardware({ ...hardware, pullerArt })} />}
-        </div>
+        </Fold>
       )}
 
-      {fabric && <SurfaceControls style={style} artworks={artworks} onChange={onChange} />}
+      {fabric && (
+        <Fold title="Superficie y lavado" open={!!(style.surface || style.wash)}>
+          <SurfaceControls style={style} artworks={artworks} onChange={onChange} />
+        </Fold>
+      )}
 
       {fabric && onBlocks && (
-        <div className="inspector-block">
-          <h3>Bloques de color</h3>
+        <Fold title="Bloques de color" open={blocks.length > 0 || !!blockTool}>
           <p className="muted small">Divide la pieza con una línea y da otro color a una de las partes (color block).</p>
           {blocks.map((b, i) => (
             <div key={b.id} className="block-row">
@@ -182,11 +186,10 @@ export function PieceInspector(props: Props) {
               {blockTool ? 'Arrastra una línea sobre la pieza… (Esc cancela)' : '+ Dividir con una línea'}
             </button>
           )}
-        </div>
+        </Fold>
       )}
 
-      <div className="inspector-block">
-        <h3>Material</h3>
+      <Fold title="Material" open>
         <MaterialPicker
           template={template}
           piece={piece}
@@ -196,7 +199,7 @@ export function PieceInspector(props: Props) {
           // Los metales tienen su propio color: al elegirlos, la pieza lo toma
           onChange={(materialId, m) => onChange(m?.tint ? { materialId, color: m.tint, colorName: m.name, colorCode: '' } : { materialId })}
         />
-      </div>
+      </Fold>
 
       {fabric && (
         <button className="link-button" onClick={onApplyToAll}>
@@ -224,7 +227,7 @@ function SurfaceControls({ style, artworks, onChange }: { style: PieceStyle; art
 
   return (
     <>
-      <div className="inspector-block">
+      <div className="inspector-sub">
         <h3>Superficie</h3>
         <div className="chips">
           {SURFACE_KINDS.map((k) => (
@@ -266,7 +269,7 @@ function SurfaceControls({ style, artworks, onChange }: { style: PieceStyle; art
         )}
       </div>
 
-      <div className="inspector-block">
+      <div className="inspector-sub">
         <h3>Lavado</h3>
         <div className="chips">
           {WASH_KINDS.map((w) => (

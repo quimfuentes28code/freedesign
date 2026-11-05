@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet } from 'react-router'
+import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
 import { ACCOUNT_TYPES, displayName } from '../shared/users'
 import { Icon, type IconName } from './icons'
@@ -18,13 +18,16 @@ export const SECTIONS: { to: string; label: string; icon: IconName }[] = [
 export function AppLayout() {
   const { user, logout } = useAuth()
   const name = user ? displayName(user) : ''
+  // En el editor de un diseño el menú se recoge a iconos
+  const { pathname } = useLocation()
+  const compact = /^\/disenador\/(?!nuevo$|3d$)[^/]+$/.test(pathname)
   return (
-    <div className="app">
+    <div className={compact ? 'app compact' : 'app'}>
       <aside className="sidebar">
-        <div className="brand">FreeDesign</div>
+        <div className="brand">{compact ? 'FD' : 'FreeDesign'}</div>
         <nav className="nav" aria-label="Apartados">
           {SECTIONS.map((s) => (
-            <NavLink key={s.to} to={s.to} end={s.to === '/'} className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+            <NavLink key={s.to} to={s.to} title={compact ? s.label : undefined} end={s.to === '/'} className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
               <Icon name={s.icon} />
               <span>{s.label}</span>
             </NavLink>
