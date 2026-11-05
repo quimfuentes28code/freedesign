@@ -2,6 +2,7 @@ import { embeddedFontCss, toDataUrl } from '../../designer/fonts'
 import { measureText } from '../../designer/prints'
 import type { ArtLayer } from '../../shared/artworks'
 import { fileUrl } from '../../shared/library'
+import { FillDefs, fillValue, nodesBox, nodesPath, shapePath } from './artShapes'
 
 /** Lienzo del creador de estampados (cuadrado). */
 export const ART_SIZE = 600
@@ -112,6 +113,12 @@ export function layoutText(l: TextLayer) {
 export function layerSize(l: ArtLayer) {
   if (l.type === 'image') return { w: l.w, h: l.w * l.aspect }
   if (l.type === 'shape') return { w: l.w, h: l.h }
+  if (l.type === 'path') {
+    // El trazo está centrado en (x, y): la caja es simétrica alrededor del centro
+    const b = nodesBox(l.nodes)
+    const pad = l.stroke ? l.strokeWidth / 2 : 0
+    return { w: Math.max(4, 2 * Math.max(Math.abs(b.x0), Math.abs(b.x1)) + pad * 2), h: Math.max(4, 2 * Math.max(Math.abs(b.y0), Math.abs(b.y1)) + pad * 2) }
+  }
   const { w, h } = layoutText(l)
   return { w: Math.max(4, w), h: Math.max(4, h) }
 }
@@ -136,6 +143,11 @@ function TextView({ l }: { l: TextLayer }) {
       </text>
     ))
   const gid = `grad-${l.id}`
+  const iid = `img-${l.id}`
+  // Relleno con imagen: la foto cubre toda la caja del texto
+  const img = l.fillImage
+  const iw = img ? Math.max(w, h / img.aspect) : 0
+  const ih = img ? iw * img.aspect : 0
   const fid = `shadow-${l.id}`
   const angle = ((l.gradientAngle ?? 90) * Math.PI) / 180
   const dx = (Math.cos(angle) * w) / 2
@@ -144,7 +156,12 @@ function TextView({ l }: { l: TextLayer }) {
   return (
     <>
       <defs>
-        {l.gradient && (
+        {img && (
+          <pattern id={iid} patternUnits="userSpaceOnUse" x={-iw / 2} y={-ih / 2} width={iw} height={ih}>
+            <image href={fileUrl(img.file)} width={iw} height={ih} preserveAspectRatio="xMidYMid slice" />
+          </pattern>
+        )}
+        {l.gradient && !img && (
           <linearGradient id={gid} gradientUnits="userSpaceOnUse" x1={-dx} y1={-dy} x2={dx} y2={dy}>
             <stop offset="0" stopColor={l.color} />
             <stop offset="1" stopColor={l.gradient} />
@@ -162,7 +179,7 @@ function TextView({ l }: { l: TextLayer }) {
         </g>
       )}
       {l.stroke2 && letters({ fill: l.stroke2, stroke: l.stroke2, strokeWidth: outer })}
-      {letters({ fill: l.gradient ? `url(#${gid})` : l.color, stroke: l.stroke || undefined, strokeWidth: l.stroke ? l.strokeWidth : undefined })}
+      {letters({ fill: img ? `url(#${iid})` : l.gradient ? `url(#${gid})` : l.color, stroke: l.stroke || undefined, strokeWidth: l.stroke ? l.strokeWidth : undefined })}
     </>
   )
 }
@@ -178,13 +195,23 @@ export function ArtLayerView({ layer: l }: { layer: ArtLayer }) {
       </g>
     )
   }
-  if (l.type === 'shape') {
-    const common = { fill: l.fill, stroke: l.stroke || 'none', strokeWidth: l.stroke ? l.strokeWidth : 0 }
+  if (l.type === 'shape' || l.type === 'path') {
+    const { w, h } = layerSize(l)
+    const fid = `fill-${l.id}`
+    const d = l.type === 'shape' ? shapePath(l.shape, l.w, l.h, l) : nodesPath(l.nodes, l.closed)
     return (
       <g transform={t}>
-        {l.shape === 'rect' && <rect x={-l.w / 2} y={-l.h / 2} width={l.w} height={l.h} {...common} />}
-        {l.shape === 'circle' && <ellipse rx={l.w / 2} ry={l.h / 2} {...common} />}
-        {l.shape === 'star' && <path d={starPath(l.w / 2, l.h / 2)} {...common} />}
+        <defs>
+          <FillDefs id={fid} color={l.fill} style={l} w={w} h={h} />
+        </defs>
+        <path
+          d={d}
+          fill={l.type === 'path' && !l.closed ? 'none' : fillValue(fid, l.fill, l)}
+          stroke={l.stroke || 'none'}
+          strokeWidth={l.stroke ? l.strokeWidth : 0}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </g>
     )
   }
@@ -193,17 +220,6 @@ export function ArtLayerView({ layer: l }: { layer: ArtLayer }) {
       <TextView l={l} />
     </g>
   )
-}
-
-/** Estrella de cinco puntas inscrita en una elipse de radios rx, ry. */
-function starPath(rx: number, ry: number) {
-  const pts: string[] = []
-  for (let i = 0; i < 10; i++) {
-    const a = -Math.PI / 2 + (i * Math.PI) / 5
-    const k = i % 2 === 0 ? 1 : 0.45
-    pts.push(`${(Math.cos(a) * rx * k).toFixed(1)} ${(Math.sin(a) * ry * k).toFixed(1)}`)
-  }
-  return `M ${pts.join(' L ')} Z`
 }
 
 /** Fuentes de Google que usan los textos, dentro del SVG (ver embeddedFontCss). */

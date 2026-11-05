@@ -60,6 +60,8 @@ export type ArtLayer = ArtLayerMeta & (
       shadowX?: number
       shadowY?: number
       shadowBlur?: number
+      /** Relleno con una imagen (máscara): el texto se ve como una ventana a la foto. */
+      fillImage?: { file: string; aspect: number } | null
       x: number
       y: number
       rotation: number
@@ -78,7 +80,7 @@ export type ArtLayer = ArtLayerMeta & (
   | {
       id: string
       type: 'shape'
-      shape: 'rect' | 'circle' | 'star'
+      shape: ShapeKind
       fill: string
       stroke: string
       strokeWidth: number
@@ -87,8 +89,62 @@ export type ArtLayer = ArtLayerMeta & (
       w: number
       h: number
       rotation: number
-    }
+      /** Puntas de la estrella o lados del polígono. */
+      points?: number
+      /** Estrella: lo hundidas que van las puntas (0,2–0,9 del radio). */
+      inner?: number
+      /** Esquinas redondeadas del rectángulo (0–1). */
+      radius?: number
+    } & FillStyle
+  | ({
+      id: string
+      /** Trazo hecho con la pluma o el lápiz: puntos (relativos al centro) con sus asas de curva. */
+      type: 'path'
+      nodes: PathNode[]
+      closed: boolean
+      /** Relleno (vacío = sin relleno) y trazo. */
+      fill: string
+      stroke: string
+      strokeWidth: number
+      x: number
+      y: number
+      rotation: number
+    } & FillStyle)
 )
+
+/** Formas del creador. */
+export const SHAPE_KINDS = [
+  { id: 'rect', label: 'Rectángulo' },
+  { id: 'circle', label: 'Círculo' },
+  { id: 'star', label: 'Estrella' },
+  { id: 'polygon', label: 'Polígono' },
+  { id: 'line', label: 'Línea' },
+  { id: 'arrow', label: 'Flecha' },
+  { id: 'heart', label: 'Corazón' },
+  { id: 'shield', label: 'Escudo' },
+  { id: 'ribbon', label: 'Banderola' },
+  { id: 'badge', label: 'Sello' },
+  { id: 'burst', label: 'Estallido' },
+  { id: 'laurel', label: 'Laurel' },
+] as const
+export type ShapeKind = (typeof SHAPE_KINDS)[number]['id']
+
+/** Punto de un trazo; (hx, hy) es su asa de curva (la del otro lado es la simétrica). */
+export interface PathNode {
+  x: number
+  y: number
+  hx?: number
+  hy?: number
+}
+
+/** Relleno de formas y trazos: liso, en degradado (hasta `fill2`) o con textura (rayas, puntos, cuadros). */
+export interface FillStyle {
+  fill2?: string
+  fillAngle?: number
+  pattern?: 'rayas' | 'puntos' | 'cuadros'
+  patternColor?: string
+  patternSize?: number
+}
 
 export interface ArtworkData {
   layers: ArtLayer[]

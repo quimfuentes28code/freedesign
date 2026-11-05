@@ -208,3 +208,48 @@
   color: var(--border);
   cursor: default;
 }
+
+/* --- Menú de formas y herramientas de dibujo --- */
+.shape-menu {
+  position: relative;
+}
+.shape-menu-panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 84px);
+  gap: 4px;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.12);
+}
+.shape-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: #c4643a;
+  font: inherit;
+  cursor: pointer;
+}
+.shape-pick span {
+  font-size: 11px;
+  color: var(--text);
+}
+.shape-pick:hover {
+  border-color: var(--border);
+  background: var(--soft);
+}
+.creator-tools .button.active {
+  background: color-mix(in srgb, #2563eb 10%, var(--panel));
+  border-color: color-mix(in srgb, #2563eb 45%, transparent);
+  color: #1d4ed8;
+}
