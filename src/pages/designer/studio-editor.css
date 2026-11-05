@@ -66,7 +66,7 @@
 .tool.active {
   background: color-mix(in srgb, #2563eb 10%, var(--panel));
   border-color: color-mix(in srgb, #2563eb 45%, transparent);
-  color: #1d4ed8;
+  color: #9fbcff;
 }
 
 .tool.adding {
@@ -615,7 +615,7 @@
 
 .measure-letter {
   font-weight: 700;
-  color: #2563eb;
+  color: #9fbcff;
 }
 
 .measure-name {
@@ -625,7 +625,7 @@
 .measure-name .moves {
   font-style: normal;
   font-size: 9px;
-  color: #2563eb;
+  color: #9fbcff;
 }
 
 .measure-row input {
@@ -820,7 +820,7 @@
   display: grid;
   gap: 0.45rem;
   padding: 0.9rem;
-  background: var(--surface, #fff);
+  background: var(--panel);
   border: 1px solid var(--border, #e7e5e4);
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
@@ -877,7 +877,7 @@
 .rail-button.active {
   background: color-mix(in srgb, #2563eb 10%, var(--panel));
   border-color: color-mix(in srgb, #2563eb 45%, transparent);
-  color: #1d4ed8;
+  color: #9fbcff;
 }
 .rail-sep {
   width: 22px;
@@ -913,9 +913,9 @@
   top: 56px;
 }
 .canvas-context.hint {
-  background: #fff7ed;
-  border-color: #fdba74;
-  color: #9a3412;
+  background: rgb(220 150 60 / 0.14);
+  border-color: rgb(220 150 60 / 0.4);
+  color: #f3c27e;
 }
 .canvas-context select {
   width: auto;
@@ -1096,7 +1096,7 @@
 
 /* Aviso de la herramienta en uso, en la barra de abajo del lienzo (no tapa el dibujo) */
 .canvas-hint.active {
-  background: #fff7ed;
-  color: #9a3412;
+  background: rgb(220 150 60 / 0.14);
+  color: #f3c27e;
   font-weight: 500;
 }
