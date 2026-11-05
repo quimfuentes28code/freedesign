@@ -13,6 +13,8 @@ import { nodesBox, nodesPath, shapePath, smoothNodes } from './artShapes'
 import { useAuth } from '../../auth/AuthContext'
 import type { BrandColor } from '../../shared/users'
 import { COLOR_CHART } from '../../designer/colors'
+import { ProductionPanel } from './ProductionPanel'
+import { removeBackground } from './artProduction'
 import { buildTemplate, LOGO_TEMPLATES, templatePalette, type LogoTemplate } from './artTemplates'
 import './creator.css'
 
@@ -871,6 +873,7 @@ export function ArtworkCreator() {
                 <Range label="Proporción (alto)" value={Math.round((current.h / current.w) * 100)} min={2} max={300} onChange={(v) => update({ h: (current.w * v) / 100 })} />
               </>
             )}
+            {current.type === 'image' && <BackgroundRemover layer={current} onChange={update} onError={setError} />}
             {current.type === 'path' && (
               <>
                 <label className="toggle-row">
@@ -899,6 +902,8 @@ export function ArtworkCreator() {
             </div>
           </section>
         )}
+
+        <ProductionPanel layers={layers} exportRef={exportRef} brand={brand} name={name} />
 
         {!isNew && (
           <section>
@@ -994,6 +999,39 @@ function Range({ label, value, min, max, onChange }: { label: string; value: num
       </span>
       <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(Number(e.target.value))} />
     </label>
+  )
+}
+
+/** Quitar el fondo liso de una foto o un logo (se sube como una imagen nueva; Ctrl+Z vuelve a la anterior). */
+function BackgroundRemover({ layer, onChange, onError }: { layer: Extract<ArtLayer, { type: 'image' }>; onChange: (p: Partial<ArtLayer>) => void; onError: (e: string) => void }) {
+  const [tolerance, setTolerance] = useState(30)
+  const [everywhere, setEverywhere] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const run = async () => {
+    setBusy(true)
+    try {
+      const png = await removeBackground(fileUrl(layer.file), tolerance, everywhere)
+      const { key } = await api.uploadImage(new File([png], 'sin-fondo.png', { type: 'image/png' }))
+      onChange({ file: key })
+    } catch (e) {
+      onError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <>
+      <h3 className="form-sub">Quitar fondo</h3>
+      <Range label="Tolerancia" value={tolerance} min={0} max={100} onChange={setTolerance} />
+      <label className="toggle-row">
+        <span>También dentro del dibujo (huecos de letras…)</span>
+        <input type="checkbox" checked={everywhere} onChange={(e) => setEverywhere(e.target.checked)} />
+      </label>
+      <button className="button" onClick={run} disabled={busy}>
+        {busy ? 'Quitando fondo…' : 'Quitar fondo'}
+      </button>
+      <p className="muted small">Borra el color del borde de la imagen (un fondo liso). Ctrl+Z la deja como estaba.</p>
+    </>
   )
 }
 

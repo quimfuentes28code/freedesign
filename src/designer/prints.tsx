@@ -109,7 +109,7 @@ export function PrintShape({ p }: { p: Print }) {
   return (
     <g transform={`translate(${p.x} ${p.y}) rotate(${p.rotation})`}>
       {p.kind === 'artwork' ? (
-        <image href={fileUrl(p.file)} x={-w / 2} y={-h / 2} width={w} height={h} preserveAspectRatio="none" />
+        <image href={p.file.includes(':') ? p.file : fileUrl(p.file)} x={-w / 2} y={-h / 2} width={w} height={h} preserveAspectRatio="none" />
       ) : (
         <PrintText p={p} />
       )}
