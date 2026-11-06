@@ -251,7 +251,7 @@
 .creator-tools .button.active {
   background: color-mix(in srgb, #2563eb 10%, var(--panel));
   border-color: color-mix(in srgb, #2563eb 45%, transparent);
-  color: #9fbcff;
+  color: #1d4ed8;
 }
 
 /* Colores de la marca y carta de colores */
@@ -377,8 +377,8 @@
   margin: 6px 0;
   padding: 8px 10px;
   border-radius: 8px;
-  background: rgb(220 150 60 / 0.14);
-  color: #f3c27e;
+  background: #fdf3e3;
+  color: #6b4a12;
 }
 
 .mockup {

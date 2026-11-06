@@ -101,7 +101,7 @@ button.design-card {
 }
 
 .save-state.dirty {
-  color: #e8b75c;
+  color: #9a6700;
 }
 
 .editor-panel {
@@ -747,32 +747,4 @@ button.design-card {
 /* Para quién es el diseño, en «Nuevo diseño» */
 .gender-pick {
   margin: 4px 0 6px;
-}
-
-/* --- Estilo de estudio: los dibujos se ven sobre el fondo blanco del plató, con su luz cálida --- */
-.design-thumb,
-.mini-thumb,
-.probador-item svg,
-.mockup-flat,
-.compare-card,
-.template-pick svg {
-  background: var(--stage);
-  color: var(--paper-text);
-}
-
-.canvas-stage {
-  background:
-    radial-gradient(circle, rgb(60 40 20 / 0.08) 1px, transparent 1px) 0 0 / 16px 16px,
-    var(--stage);
-  color: var(--paper-text);
-}
-
-.design-3d.studio {
-  background: #14100c;
-}
-
-.design-3d-bar {
-  background: rgb(20 16 12 / 0.7);
-  color: var(--text);
-  backdrop-filter: blur(12px);
 }

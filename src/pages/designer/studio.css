@@ -237,3 +237,28 @@
 .studio .panel select {
   width: 100%;
 }
+
+/* --- Probador y vista 3D: el panel flota a la derecha, sobre la escena --- */
+.studio:not(.home-stage) {
+  gap: 12px;
+  padding: 12px;
+  height: 100dvh;
+}
+
+.studio:not(.home-stage) .viewport {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgb(40 30 20 / 0.1);
+}
+
+.studio:not(.home-stage) .panel {
+  border: 1px solid rgb(40 30 20 / 0.07);
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgb(40 30 20 / 0.09), 0 1px 3px rgb(40 30 20 / 0.05);
+}
+
+@media (max-width: 760px) {
+  .studio:not(.home-stage) {
+    height: auto;
+  }
+}

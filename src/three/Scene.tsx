@@ -77,8 +77,8 @@ export function Scene({ measurements, design, outfit, autoRotate, animate, showB
           </>
         ) : (
           <>
-        <color attach="background" args={['#1b1612']} />
-        <fog attach="fog" args={['#1b1612', 6, 14]} />
+        <color attach="background" args={['#e4dfd6']} />
+        <fog attach="fog" args={['#e4dfd6', 6, 14]} />
 
         <hemisphereLight args={['#ffffff', '#b7ae9f', 0.7]} />
         <directionalLight

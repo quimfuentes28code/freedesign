@@ -66,7 +66,7 @@
 .tool.active {
   background: color-mix(in srgb, #2563eb 10%, var(--panel));
   border-color: color-mix(in srgb, #2563eb 45%, transparent);
-  color: #9fbcff;
+  color: #1d4ed8;
 }
 
 .tool.adding {
@@ -615,7 +615,7 @@
 
 .measure-letter {
   font-weight: 700;
-  color: #9fbcff;
+  color: #2563eb;
 }
 
 .measure-name {
@@ -625,7 +625,7 @@
 .measure-name .moves {
   font-style: normal;
   font-size: 9px;
-  color: #9fbcff;
+  color: #2563eb;
 }
 
 .measure-row input {
@@ -827,7 +827,7 @@
   display: grid;
   gap: 0.45rem;
   padding: 0.9rem;
-  background: var(--panel);
+  background: var(--surface, #fff);
   border: 1px solid var(--border, #e7e5e4);
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
@@ -884,7 +884,7 @@
 .rail-button.active {
   background: color-mix(in srgb, #2563eb 10%, var(--panel));
   border-color: color-mix(in srgb, #2563eb 45%, transparent);
-  color: #9fbcff;
+  color: #1d4ed8;
 }
 .rail-sep {
   width: 22px;
@@ -920,9 +920,9 @@
   top: 56px;
 }
 .canvas-context.hint {
-  background: rgb(220 150 60 / 0.14);
-  border-color: rgb(220 150 60 / 0.4);
-  color: #f3c27e;
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #9a3412;
 }
 .canvas-context select {
   width: auto;
@@ -1103,8 +1103,8 @@
 
 /* Aviso de la herramienta en uso, en la barra de abajo del lienzo (no tapa el dibujo) */
 .canvas-hint.active {
-  background: rgb(220 150 60 / 0.14);
-  color: #f3c27e;
+  background: #fff7ed;
+  color: #9a3412;
   font-weight: 500;
 }
 
@@ -1117,4 +1117,24 @@
 
 .quick-add .button {
   justify-content: flex-start;
+}
+
+/* --- Editor con los paneles flotando: barra de arriba, capas, lienzo e inspector como tarjetas --- */
+.editor.studio-editor {
+  gap: 12px;
+  padding: 12px 12px 12px 12px;
+  height: 100dvh;
+}
+
+.editor.studio-editor .editor-header,
+.editor.studio-editor .editor-layers,
+.editor.studio-editor .editor-panel,
+.editor.studio-editor .editor-main {
+  background: rgb(255 255 255 / 0.86);
+  border: 1px solid rgb(40 30 20 / 0.07);
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgb(40 30 20 / 0.09), 0 1px 3px rgb(40 30 20 / 0.05);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  min-height: 0;
 }

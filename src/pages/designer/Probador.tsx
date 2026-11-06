@@ -58,7 +58,7 @@ export function Probador() {
     <div className="studio probador">
       <main className="viewport">
         {shown ? (
-          <Scene stage="studio" measurements={measurements} design={shown} outfit={worn!.outfit} autoRotate={autoRotate} animate={animate} shoes={shoes} />
+          <Scene measurements={measurements} design={shown} outfit={worn!.outfit} autoRotate={autoRotate} animate={animate} shoes={shoes} />
         ) : (
           <div className="probador-empty">
             <p>Elige una prenda de arriba y un pantalón para vestir al maniquí.</p>

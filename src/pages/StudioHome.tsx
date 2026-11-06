@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { api, useApi } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import { loadFont } from '../designer/fonts'
 import { randomOutfit } from '../designer/randomOutfit'
 import { getTemplate } from '../designer/templates'
 import { mannequinMeasurements } from '../designer/to3d'
@@ -67,6 +68,11 @@ export function StudioHome() {
       own: false,
     }
   }
+
+  // Letra del título y del menú de la portada
+  useEffect(() => {
+    loadFont("'Cormorant Garamond', serif")
+  }, [])
 
   const [look, setLook] = useState<Look | null>(null)
   // Se elige al llegar los diseños
