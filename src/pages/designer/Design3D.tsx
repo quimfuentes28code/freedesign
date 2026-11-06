@@ -42,7 +42,8 @@ export const bodyOf = (client?: Client, kind: BodyKind = 'hombre') => (client &&
 export function outfitOf(main: Design, other: Design | null, mainIsPants: boolean): { design: Design; outfit: Design[] } {
   if (!other) return { design: main, outfit: [] }
   // Lo de fuera es siempre la prenda de arriba
-  return mainIsPants ? { design: other, outfit: [{ ...main, under: true }] } : { design: main, outfit: [{ ...other, under: true }] }
+  const [outer, inner] = mainIsPants ? [other, main] : [main, other]
+  return { design: outer, outfit: [{ ...inner, under: true, coveredBy: outer.garment === 'pantalon' ? undefined : outer.bodyLength }] }
 }
 
 interface Props {

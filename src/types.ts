@@ -4,6 +4,18 @@ import type { FabricId, FabricLook } from './data/fabrics'
 /** Calzado del maniquí (ver three/Shoes.tsx). */
 export type ShoeStyle = 'baloncesto' | 'bota' | 'skate'
 
+/** Acabados de una prenda de arriba con patrón (ver three/cloth/hoodie.ts). */
+export interface TopShape {
+  /** Bajo: canalé, dobladillo o pretina (banda de la misma tela). */
+  hem: 'canale' | 'dobladillo' | 'pretina'
+  /** Final de la manga: canalé, dobladillo o puño de camisa. */
+  cuff: 'canale' | 'dobladillo' | 'puno'
+  /** Cuello cuando no lleva capucha: tira de canalé, cuello alto (cisne, chaqueta) o de camisa (de momento, una tira recta). */
+  neck: 'canale' | 'alto' | 'camisa'
+  /** Acolchada (puffer): más separada del cuerpo, con más cuerpo y el cuello más alto. */
+  padded?: boolean
+}
+
 export interface Measurements {
   height: number
   chest: number
@@ -55,6 +67,11 @@ export interface Design {
   cords?: boolean
   /** Capucha puesta sobre la cabeza (si no, bajada sobre la espalda). */
   hoodUp?: boolean
+  /**
+   * Prendas de arriba con patrón (sudadera, camiseta, polo, camisa, chaquetas): cómo acaban mangas, bajo y cuello.
+   * Sin ella, las de una sudadera (canalé en puños, bajo y cuello).
+   */
+  top?: TopShape
   /** Largo total del cuerpo, del hombro al bajo, en cm. */
   bodyLength: number
   /** Largo de manga, de la costura del hombro al final del puño, en cm. */
@@ -65,6 +82,11 @@ export interface Design {
   legLength?: number
   /** Va debajo de otra prenda (el pantalón con una sudadera o camiseta): se ciñe a la cintura para no atravesarla. */
   under?: boolean
+  /**
+   * Largo (cm, del hombro al bajo) de la prenda que va encima. Lo que esa prenda tapa no se construye: la tela de
+   * arriba se asienta contra el cuerpo y no contra esta, y la de debajo asomaba a manchas.
+   */
+  coveredBy?: number
   /**
    * Color y material de cada zona (desde el Diseñador). Las que falten usan `color` y `fabric`
    * (y las de canalé, canalé del mismo color).

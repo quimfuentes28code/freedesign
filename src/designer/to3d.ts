@@ -1,6 +1,6 @@
 import type { DesignData } from '../shared/designs'
 import type { Material } from '../shared/library'
-import type { Design, Fit, GarmentSlot, GarmentType, Measurements, SlotStyle } from '../types'
+import type { Design, Fit, GarmentSlot, GarmentType, Measurements, SlotStyle, TopShape } from '../types'
 import type { Measurements as ClientMeasurements } from '../shared/clients'
 import type { Body } from '../production/measurements'
 import { resolveMaterial } from './materials'
@@ -25,8 +25,41 @@ function garmentOf(t: GarmentTemplate, data: DesignData): GarmentType {
   return opt(t, data.options, 'manga') === 'corta' ? 'camiseta' : 'manga-larga'
 }
 
+/**
+ * Acabados en 3D de cada prenda de arriba con mangas (se cosen con patrón, como la sudadera): bajo, puños y cuello.
+ * Los cuellos de camisa, las tapetas y el volumen del acolchado aún son aproximados.
+ */
+function topShapeOf(t: GarmentTemplate, o: DesignData['options']): TopShape | undefined {
+  const v = (id: string) => String(opt(t, o, id) ?? '')
+  const ribbed = v('punos') === 'canale'
+  switch (t.id) {
+    case 'sudadera':
+      return { hem: ribbed ? 'canale' : 'dobladillo', cuff: ribbed ? 'canale' : 'dobladillo', neck: v('cuelloSin') === 'alto' ? 'alto' : v('cuelloSin') === 'polo' ? 'camisa' : 'canale' }
+    case 'camiseta':
+      return { hem: 'dobladillo', cuff: 'dobladillo', neck: v('cuello') === 'alto' ? 'alto' : 'canale' }
+    case 'polo':
+      return { hem: 'dobladillo', cuff: ribbed ? 'canale' : 'dobladillo', neck: 'camisa' }
+    case 'camisa':
+      return { hem: 'dobladillo', cuff: v('manga') === 'corta' ? 'dobladillo' : 'puno', neck: 'camisa' }
+    case 'bomber':
+      return { hem: 'canale', cuff: 'canale', neck: v('cuello') === 'solapa' ? 'camisa' : v('cuello') === 'alto' ? 'alto' : 'canale' }
+    // El «ribete elástico» recoge la muñeca y el bajo, como un puño y una pretina finos
+    case 'puffer':
+      return { hem: ribbed ? 'canale' : 'pretina', cuff: ribbed ? 'canale' : 'puno', neck: 'alto', padded: true }
+    case 'cazadora':
+      return { hem: v('bajo') === 'pretina' ? 'pretina' : 'dobladillo', cuff: 'puno', neck: 'camisa' }
+    case 'cortavientos':
+      return { hem: ribbed ? 'canale' : 'pretina', cuff: ribbed ? 'canale' : 'puno', neck: 'alto' }
+  }
+  return undefined
+}
+
+/** Capucha en 3D: la sudadera con capucha y las chaquetas con el cuello «capucha». */
+const hasHood = (t: GarmentTemplate, o: DesignData['options']) =>
+  t.id === 'sudadera' ? !!opt<boolean>(t, o, 'capucha') : ['bomber', 'puffer', 'cortavientos'].includes(t.id) && opt(t, o, 'cuello') === 'capucha'
+
 /** Prendas base que en 3D se ven con una forma aproximada (sin su cuello, tapeta, acolchado…). */
-export const hasOwn3D = (t: GarmentTemplate) => t.id === 'sudadera' || t.id === 'camiseta' || t.id === 'pantalon'
+export const hasOwn3D = (t: GarmentTemplate) => ['sudadera', 'camiseta', 'polo', 'camisa', 'bomber', 'puffer', 'cazadora', 'cortavientos', 'pantalon'].includes(t.id)
 
 /** Parte de la pierna que cubre el pantalón (de la entrepierna al tobillo). */
 const LEG_LENGTH: Record<string, number> = { mini: 0.2, corto: 0.32, bermuda: 0.55, tobillero: 0.93 }
@@ -78,18 +111,22 @@ export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<s
   pieces.bajo ??= pieces.cuerpo
   pieces.cuello ??= pieces.cuerpo
 
-  const hood = t.id === 'sudadera' && opt<boolean>(t, data.options, 'capucha')
+  const hood = hasHood(t, data.options)
+  const top = t.family === 'top' ? topShapeOf(t, data.options) : undefined
+  // Manga corta: del hombro a medio bíceps
+  const short = top && t.id !== 'sudadera' && ['puffer', 'bomber', 'cazadora', 'cortavientos'].every((id) => id !== t.id) && opt(t, data.options, 'manga') !== 'larga'
   return {
     garment: garmentOf(t, data),
     fit: FIT[String(opt(t, data.options, 'corte'))] ?? 'normal',
     fabric: 'felpa',
     color: pieces.cuerpo?.color ?? '#cccccc',
     hood,
-    pocket: t.id === 'sudadera' && opt(t, data.options, 'bolsillo') === 'canguro',
-    cords: hood && opt<boolean>(t, data.options, 'cordones'),
+    pocket: ['sudadera', 'cortavientos'].includes(t.id) && opt(t, data.options, 'bolsillo') === 'canguro',
+    cords: hood && opt<boolean>(t, data.options, 'cordones') !== false,
+    top,
     // Top: largo desde la axila (crop, a la cintura o a la cadera); el resto, del hombro al bajo
     bodyLength: (t.id === 'top' ? ({ crop: 16, cintura: 26, cadera: 40 }[String(opt(t, data.options, 'largo'))] ?? 16) : (BODY_LENGTH[String(opt(t, data.options, 'largo'))] ?? 70)) * s.length,
-    sleeveLength: 64 * s.sleeve,
+    sleeveLength: (short ? 24 : 64) * s.sleeve,
     chestScale: isPants(t) ? s.hip : s.width,
     legLength: isPants(t) ? (LEG_LENGTH[String(opt(t, data.options, 'largo'))] ?? 1) * s.length : undefined,
     pieces,

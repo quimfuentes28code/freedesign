@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { Design, GarmentSlot, Measurements } from '../../types'
+import type { Design, GarmentSlot, Measurements, TopShape } from '../../types'
 import type { ModelInfo } from '../body'
 import { Part } from '../pose'
 import { Cloth, type EdgeKind, type Panel } from './Cloth'
@@ -83,24 +83,33 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     return panel
   }
 
+  // Acabados: los de una sudadera si la prenda no dice otros
+  const shape: TopShape = design.top ?? { hem: 'canale', cuff: 'canale', neck: 'canale' }
+  const hasBand = shape.hem !== 'dobladillo'
+  const hasCuff = shape.cuff !== 'dobladillo'
   // --- Medidas del patrón (cm) ---
-  const ease = EASE[design.fit]
+  // El relleno de una acolchada la separa del cuerpo como una holgura más
+  const ease = EASE[design.fit] + (shape.padded ? 9 : 0)
+  // La tela acolchada es gruesa y rígida: mantiene el volumen en vez de colgar
+  const panelBend = shape.padded ? 7 : 1
   const bodyC = (m.chest + ease) * (design.chestScale ?? 1)
   const W = bodyC / 2 // ancho de delantero y espalda
-  const L = design.bodyLength - 7 // largo del cuerpo sin el bajo de canalé
+  const L = design.bodyLength - (hasBand ? 7 : 1) // largo del cuerpo sin el bajo (canalé o pretina) o el dobladillo
   const neckW = 19 * s
   const frontDrop = 8.5 * s
   const backDrop = 2.5 * s
   const slope = 4 * s
   const armhole = 22 * s + ease * 0.25
   const sleeveTop = armhole * 2
-  const sleeveEnd = 25 * s + ease * 0.4
-  const sleeveLen = design.sleeveLength - 6
-  const cuffC = 19 * s
+  const sleeveLen = design.sleeveLength - (hasCuff ? 6 : 1)
+  // La manga se estrecha hacia la muñeca; la corta acaba ancha, a la altura del bíceps
+  const sleeveEnd = THREE.MathUtils.lerp(sleeveTop, 25 * s + ease * 0.4, THREE.MathUtils.clamp(sleeveLen / 58, 0, 1))
+  // Puño de canalé ceñido a la muñeca; el de camisa, algo más suelto
+  const cuffC = (shape.cuff === 'puno' ? 23 : 19) * s + (shape.padded ? 4 * s : 0)
   const ribH = 7 * s
   // El bajo de canalé recoge el cuerpo y se ajusta a la cadera (como mucho la cadera más 10 cm); el cuerpo se
   // ahueca encima. Si fuera casi tan ancho como el cuerpo, colgaría abierto como una falda
-  const bandC = Math.min(bodyC * 0.88, m.hips + 10)
+  const bandC = shape.hem === 'canale' ? Math.min(bodyC * 0.88, m.hips + 10) : Math.min(bodyC * 0.95, m.hips + 18)
 
   // --- Referencias del cuerpo (unidades del modelo, postura en T) ---
   const topY = info.neckY + 1.5 * unit
@@ -160,6 +169,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     return cloth.addPanel({
       nu,
       nv,
+      bend: panelBend,
       edges: { u0: side, u1: side, v0: 'recubierta', v1: 'pespunte' },
       flat: (u, v, out) => {
         const x = (u - 0.5) * W
@@ -226,6 +236,9 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
       cloth.addPanel({
         nu: ns,
         nv: nl,
+        bend: panelBend,
+        // Sin puño, la manga acaba en un dobladillo con pespunte de recubrir
+        ...(hasCuff ? {} : { edges: { v1: 'recubierta' as EdgeKind } }),
         flat: (u, v, out) => out.set((u - 0.5) * circ(v), -v * sleeveLen),
         place: (u, v, out) => {
           const c = start.clone().addScaledVector(ax.dir, v * sleeveLen * unit)
@@ -243,16 +256,23 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     cloth.sew(backEdge, top.slice(mid))
     cloth.sew(sleeve.col(0), sleeve.col(ns - 1)) // costura bajo el brazo
 
+    if (!hasCuff) {
+      // Dobladillo: el borde de la manga lleva el grosor de la tela doblada
+      rims.push({ verts: sleeve.row(nl - 1), slot: 'mangas', radius: 0.25 * s })
+      continue
+    }
     const end = start.clone().addScaledVector(ax.dir, sleeveLen * unit)
     const nc = grid(cuffC, 1.6)
+    const ribCuff = shape.cuff === 'canale'
     const cuff = add(
       cloth.addPanel({
         nu: nc,
         nv: RIB_ROWS,
-        material: 1,
-        bend: RIB_BEND,
-        // La costura se marca del lado de la manga; el canalé arranca limpio (si no, sus costillas salían como rayas)
-        edges: { v0: 'ninguno', v1: 'doblez', u0: 'ninguno', u1: 'ninguno' },
+        material: ribCuff ? 1 : 0,
+        bend: ribCuff ? RIB_BEND : 4,
+        // La costura se marca del lado de la manga; el canalé arranca limpio (si no, sus costillas salían como rayas).
+        // El puño de camisa es de la misma tela, con su pespunte
+        edges: ribCuff ? { v0: 'ninguno', v1: 'doblez', u0: 'ninguno', u1: 'ninguno' } : { v0: 'pespunte', v1: 'doblez', u0: 'plana', u1: 'plana' },
         flat: (u, v, out) => out.set((u - 0.5) * cuffC, -v * ribH),
         place: (u, v, out) => {
           const c = end.clone().addScaledVector(ax.dir, v * ribH * unit)
@@ -268,8 +288,13 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     rims.push({ verts: cuff.row(RIB_ROWS - 1), slot: 'punos', radius: 0.3 * s })
   }
 
-  // --- Bajo de canalé ---
+  // --- Bajo: canalé, pretina o dobladillo ---
   const hemLoop = [...front.row(0), ...back.row(0).reverse()]
+  let bandPanel: Panel | null = null
+  if (!hasBand) {
+    // Dobladillo: el borde del cuerpo lleva el grosor de la tela doblada
+    rims.push({ verts: hemLoop, slot: 'cuerpo', radius: 0.3 * s })
+  } else {
   // El bajo nace alrededor de la cadera real (centrado en ella y con su forma, más ancho que ella), no en una elipse
   // centrada en el pecho: así, al ser más estrecho que el cuerpo, no empieza metido en los glúteos
   const bandY = hemY - (ribH / 2) * unit
@@ -284,12 +309,13 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     return out.set(cx + bandA * Math.sin(th), 0, hipZ + (isFront ? 1 : -1) * bandA * hipRatio * Math.cos(th))
   }
   const nb = grid(bandC, 1.6)
+  const ribBand = shape.hem === 'canale'
   const band = add(
     cloth.addPanel({
       nu: nb,
       nv: RIB_ROWS,
-      material: 1,
-      bend: RIB_BEND,
+      material: ribBand ? 1 : 0,
+      bend: ribBand ? RIB_BEND : 4,
       // La costura se marca del lado del cuerpo (con su doble pespunte); el canalé arranca limpio
       edges: { v0: 'doblez', v1: 'ninguno', u0: 'ninguno', u1: 'ninguno' },
       flat: (u, v, out) => out.set(u * bandC, v * ribH),
@@ -304,6 +330,8 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   cloth.sew(band.row(RIB_ROWS - 1), hemLoop)
   cloth.sew(band.col(0), band.col(nb - 1))
   rims.push({ verts: band.row(0), slot: 'bajo', radius: 0.3 * s })
+  bandPanel = band
+  }
 
   // --- Cuello: capucha o canalé ---
   const neckIdx = topF.map((_, i) => i).filter((i) => Math.abs(xOf(i)) <= neckW / 2 + 0.01)
@@ -410,20 +438,27 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   } else {
     const loop = [...halfNeck(1).slice(0, -1), ...halfNeck(-1).reverse().slice(0, -1)]
     const nn = grid(neckLen, 1.6)
+    // Alto del cuello: tira de canalé (3 cm), de camisa (4 cm) o alto (cisne o cuello de chaqueta; más en la acolchada)
+    const collarH = (shape.neck === 'alto' ? (shape.padded ? 9 : 7) : shape.neck === 'camisa' ? 4 : 2.2) * s
+    const nr = Math.max(3, grid(collarH, 1.6))
+    const ribCollar = shape.neck === 'canale' || (shape.neck === 'alto' && !shape.padded)
     const pts = loop.map((n) => new THREE.Vector3(cloth.pos[n * 3], cloth.pos[n * 3 + 1], cloth.pos[n * 3 + 2]))
     const collar = add(
       cloth.addPanel({
         nu: nn,
-        nv: 3,
-        material: 1,
-        bend: 2,
+        nv: nr,
+        material: ribCollar ? 1 : 0,
+        bend: shape.neck === 'canale' ? 2 : 4,
         edges: { v1: 'doblez' },
-        flat: (u, v, out) => out.set(u * neckLen * 0.9, v * 3),
+        flat: (u, v, out) => out.set(u * neckLen * 0.9, v * collarH),
         place: (u, v, out) => {
           const k = u * pts.length
           const i = Math.floor(k) % pts.length
           const p = pts[i].clone().lerp(pts[(i + 1) % pts.length], k - Math.floor(k))
-          out.set(p.x * 0.95, p.y + v * 3 * unit, cz + (p.z - cz) * 0.95)
+          // Sube recto y, si es alto, se cierra un poco hacia el cuello al subir
+          // (la tira de canalé de un cuello redondo, al contrario, se abre un poco y queda tumbada sobre el escote)
+          const k2 = shape.neck === 'alto' ? 0.95 - 0.12 * v : shape.neck === 'canale' ? 0.97 + 0.05 * v : 0.95
+          out.set(p.x * k2, p.y + v * collarH * unit, cz + (p.z - cz) * k2)
         },
       }),
       [Part.Torso, Part.Neck],
@@ -431,7 +466,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     )
     cloth.sew(collar.row(0), [...loop, loop[0]])
     cloth.sew(collar.col(0), collar.col(nn - 1))
-    rims.push({ verts: collar.row(2), slot: 'cuello', radius: 0.3 * s })
+    rims.push({ verts: collar.row(nr - 1), slot: 'cuello', radius: 0.3 * s })
   }
 
   // --- Bolsillo canguro (trapecio en el delantero, con las aberturas inclinadas a los lados) ---
@@ -481,7 +516,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   // El bajo y la parte baja del cuerpo están a la altura de las manos: solo chocan con el tronco y las piernas
   // (si chocaran con la mano que cuelga al lado, el canalé se retorcería)
   const hemRows = Math.ceil((10 * s) / (L / (nv - 1)))
-  const bodyOnly = [...all(band), ...torsoAll.filter((_, k) => Math.floor((k % (nu * nv)) / nu) < hemRows)]
+  const bodyOnly = [...(bandPanel ? all(bandPanel) : []), ...torsoAll.filter((_, k) => Math.floor((k % (nu * nv)) / nu) < hemRows)]
   // Capucha bajada: la zona de la abertura junto al cuello (cuello vuelto) se sujeta con suavidad a su sitio
   const collarPins = design.hoodUp
     ? []

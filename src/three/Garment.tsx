@@ -233,7 +233,7 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
 /** Un material de Three.js por zona (en el orden de GARMENT_SLOTS), que solo se rehace si cambia algún color o tela. */
 function useSlotMaterials(design: Design) {
   const styles = GARMENT_SLOTS.map((s) => slotStyle(design, s))
-  const key = JSON.stringify([styles, PATTERN_GARMENTS.has(design.garment)])
+  const key = JSON.stringify([styles, isPattern(design)])
   const materials = useMemo(
     () =>
       styles.map(({ color, look }, i) => {
@@ -260,7 +260,7 @@ function useSlotMaterials(design: Design) {
           t.anisotropy = 8
           t.wrapS = THREE.RepeatWrapping
           t.wrapT = tile.stretch ? THREE.ClampToEdgeWrapping : THREE.RepeatWrapping
-          const perUv = PATTERN_GARMENTS.has(design.garment) ? 1 : 3
+          const perUv = isPattern(design) ? 1 : 3
           t.repeat.set(tile.stretch ? 0 : perUv / tile.cm, perUv / tile.cm)
           t.center.set(0.5, 0.5)
           t.rotation = (-tile.angle * Math.PI) / 180
@@ -301,8 +301,12 @@ interface Props {
   design: Design
 }
 
-/** Prendas que se construyen con patrón de costura (piezas cosidas y asentadas sobre el cuerpo). */
+/**
+ * Prendas que se construyen con patrón de costura (piezas cosidas y asentadas sobre el cuerpo): la sudadera y todas
+ * las de arriba con mangas que traen sus acabados (`design.top`: camiseta, polo, camisa, chaquetas).
+ */
 const PATTERN_GARMENTS = new Set<Design['garment']>(['sudadera'])
+const isPattern = (d: Design) => PATTERN_GARMENTS.has(d.garment) || (!!d.top && (d.garment === 'camiseta' || d.garment === 'manga-larga'))
 
 /**
  * Prenda puesta sobre el maniquí. Usa el mismo esqueleto que el maniquí, así se mueve con la animación.
@@ -319,7 +323,8 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
     [bodyLook.stiffness, bodyLook.sheenRoughness],
   )
   const pose = useMemo(() => referencePose(model, cloud), [model, cloud])
-  const pattern = PATTERN_GARMENTS.has(design.garment)
+  const pattern = isPattern(design)
+  const topKey = JSON.stringify(design.top ?? null)
 
   // Prendas de patrón: se calculan en segundo plano y se muestran al terminar (la anterior sigue visible mientras)
   const [patternGeom, setPatternGeom] = useState<THREE.BufferGeometry | null>(null)
@@ -355,7 +360,7 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.hoodUp, design.pocket, design.cords, design.bodyLength, design.sleeveLength, design.chestScale, fabric])
+  }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.hoodUp, design.pocket, design.cords, design.bodyLength, design.sleeveLength, design.chestScale, topKey, fabric])
   useEffect(() => () => patternGeom?.dispose(), [patternGeom])
 
   // Resto de prendas: tubos que envuelven el cuerpo (cálculo rápido, al momento)
@@ -364,7 +369,7 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
     const grid = new CloudGrid(pose.points)
     return buildGarment(model, cloud, pose, grid, fit, design, fabric)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, cloud, pose, fit, pattern, design.garment, design.fit, design.legLength, design.under, design.bodyLength, fabric])
+  }, [model, cloud, pose, fit, pattern, design.garment, design.fit, design.legLength, design.under, design.coveredBy, design.bodyLength, fabric])
   useEffect(() => () => wrapGeoms.forEach(({ g }) => g.dispose()), [wrapGeoms])
 
   // Estampados: una textura por lado, que se proyecta sobre el cuerpo de la prenda (ver PRINT_GLSL)
@@ -594,6 +599,12 @@ function buildGarment(
     )
   }
 
+  // Altura hasta la que tapa la prenda de encima (con 7 cm de margen: en 3D la prenda queda algo más corta que su largo; lo de más arriba no se construye, ver Design.coveredBy)
+  const covered = design.coveredBy ? neckTop - 1 - toModel((design.coveredBy - 7) / 100, fit) : Infinity
+  // Las perneras empiezan en la entrepierna o, si la prenda de encima baja más, justo por debajo de su borde
+  const legTop = Math.min(crotchY + 1, covered)
+  // Holgura de lo que va por dentro de otra prenda (cintura, cadera y arranque de las perneras)
+  const underEase = Math.min(ease, toModel(0.004, fit) + 0.3)
   const leg = (side: 1 | -1) => {
     const name = side > 0 ? 'Left' : 'Right'
     const hip = pose.joint(`${name}UpLeg`)
@@ -606,10 +617,12 @@ function buildGarment(
         origin: hip,
         axis,
         ref: perpendicular(axis, FRONT),
-        from: along(crotchY + 1),
+        from: along(legTop),
         to: along(crotchY + 1) + (along(ankleY + 3) - along(crotchY + 1)) * Math.min(1, Math.max(0.2, design.legLength ?? 1)),
-        ease,
-        flare: (t) => loose * 0.35 * t * t,
+        // Debajo de otra prenda, la pernera arranca ceñida (si no, el muslo de un pantalón ancho atravesaba el bajo de
+        // la sudadera) y se abre hasta su holgura más abajo
+        ease: design.under ? underEase : ease,
+        flare: (t) => (design.under ? (ease - underEase) * THREE.MathUtils.smoothstep(t, 0.22, 0.5) : 0) + loose * 0.35 * t * t,
         folds: { count: 7, amp: loose * 0.1, t0: 0.6, t1: 1 },
         accept: (i, r) => parts[i] === part && r < 18,
       },
@@ -663,12 +676,15 @@ function buildGarment(
       pieces.push({ g, allow: torsoAndLegs, smoothing: 12, slot: 'cuerpo' })
       break
     }
-    case 'pantalon':
-      // Debajo de otra prenda, la cintura y la cadera se ciñen al cuerpo para quedar por dentro
-      pieces.push({ g: torso(crotchY + 1, waistY + 3, design.under ? { ease: Math.min(ease, toModel(0.004, fit) + 0.3) } : undefined), allow: torsoAndLegs, smoothing: 4, slot: 'cuerpo' })
+    case 'pantalon': {
+      // Debajo de otra prenda, la cintura y la cadera se ciñen al cuerpo para quedar por dentro, y lo que tapa la prenda
+      // de arriba no se construye
+      const waistTop = Math.min(waistY + 3, covered)
+      if (waistTop > crotchY + 2) pieces.push({ g: torso(crotchY + 1, waistTop, design.under ? { ease: underEase } : undefined), allow: torsoAndLegs, smoothing: 4, slot: 'cuerpo' })
       pieces.push({ g: leg(1), allow: only(Part.LegL, Part.Torso), smoothing: 3, slot: 'cuerpo' })
       pieces.push({ g: leg(-1), allow: only(Part.LegR, Part.Torso), smoothing: 3, slot: 'cuerpo' })
       break
+    }
   }
 
   return pieces.map(({ g, allow, smoothing, slot }) => {
