@@ -113,7 +113,9 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const ribH = 7 * s
   // El bajo de canalé recoge el cuerpo y se ajusta a la cadera (como mucho la cadera más 10 cm); el cuerpo se
   // ahueca encima. Si fuera casi tan ancho como el cuerpo, colgaría abierto como una falda
-  const bandC = shape.hem === 'canale' ? Math.min(bodyC * 0.88, m.hips + 10) : Math.min(bodyC * 0.95, m.hips + 18)
+  // Con un pantalón debajo, el bajo rodea la cadera con el pantalón puesto (lo que abulta, `overBulk`)
+  const bulk = design.overBulk ?? 0
+  const bandC = Math.max(shape.hem === 'canale' ? Math.min(bodyC * 0.88, m.hips + 10) : Math.min(bodyC * 0.95, m.hips + 18), bulk ? m.hips + bulk + 8 : 0)
 
   // --- Referencias del cuerpo (unidades del modelo, postura en T) ---
   const topY = info.neckY + 1.5 * unit
@@ -132,7 +134,8 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const low = zExtent(points, hemY - 10 * unit, hemY + 14 * unit, a * 0.7)
   const clampLow = (p: THREE.Vector3) => {
     if (p.y > hemY + 16 * unit) return p
-    p.z = p.z >= cz ? Math.max(p.z, low.max + 2 * unit) : Math.min(p.z, low.min - 2 * unit)
+    const gap = (2 + bulk / (2 * Math.PI)) * unit
+    p.z = p.z >= cz ? Math.max(p.z, low.max + gap) : Math.min(p.z, low.min - gap)
     return p
   }
   // Eje de cada brazo (se mide una vez)

@@ -6,6 +6,7 @@ import { Part, skinPoints, unskinPoints, type PoseData } from '../pose'
 import { CloudGrid } from '../wrap'
 import { EDGE_CODES } from './Cloth'
 import { buildHoodie, type PocketShape } from './hoodie'
+import { buildPants } from './pants'
 import { relax, SpatialHash } from './relax'
 import { skinCloth } from './skinCloth'
 
@@ -23,6 +24,17 @@ export interface DressInput {
   fabric: FabricLook
   /** Solo para depurar: segundos de simulación (0 = ver la prenda sin asentar). */
   seconds?: number
+  /**
+   * Prenda que va debajo, ya asentada (puntos y normales hacia fuera, en la pose de reposo): esta se asienta encima de
+   * ella como si fuera parte del cuerpo (la sudadera sobre el pantalón, sin atravesarlo).
+   */
+  underlay?: Underlay
+}
+
+/** Superficie de una prenda asentada, para que otra se asiente encima. */
+export interface Underlay {
+  points: Float32Array
+  normals: Float32Array
 }
 
 /** Malla de la prenda lista para crear una BufferGeometry (en la postura base del esqueleto). */
@@ -41,6 +53,8 @@ export interface DressOutput {
   pocket: PocketShape | null
   /** Tiempo de cada fase, en ms (para vigilar el rendimiento). */
   timings: Record<string, number>
+  /** Su superficie asentada, para que la prenda de encima se apoye en ella. */
+  surface: Underlay
 }
 
 /**
@@ -59,7 +73,10 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     timings[name] = Math.round(now - t0)
     t0 = now
   }
-  const { cloth, follows, slots, pocket, layers, cordExits, rims } = buildHoodie({ info, points: cloud.pos, unit }, measurements, design)
+  const isPants = design.garment === 'pantalon'
+  const pants = isPants ? pantsGarment({ info, points: cloud.pos, unit }, measurements, design) : null
+  const garment = pants ?? buildHoodie({ info, points: cloud.pos, unit }, measurements, design)
+  const { cloth, follows, slots, pocket, layers, cordExits, rims } = garment
 
   // La rigidez a la flexión depende de la tela
   for (const l of cloth.links) if (l.k < 0.5) l.k = Math.min(1, l.k * fabric.stiffness)
@@ -68,7 +85,19 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   const { skinIndex, skinWeight } = skinCloth(cloth, cloud, new CloudGrid(cloud.pos), pose.parts, follows)
   lap('pesos')
   cloth.pos = Array.from(skinPoints(pose, cloth.pos, skinIndex, skinWeight))
-  const relaxed = relax(cloth, pose, {
+  const relaxed = isPants
+    ? relax(cloth, withShoes(pose, unit), {
+        // Un poco más de tiempo: la tela de más del bajo tiene que caer y apilarse sobre las zapatillas
+        seconds: input.seconds ?? 1.6,
+        thickness: 0.9 * unit,
+        gravity: 980 * unit,
+        cell: 2.2 * unit,
+        // Una pernera no atraviesa la otra
+        layers: pants ? [{ mode: 'apart', outer: pants.legs[0], inner: pants.legs[1], gap: 1.4 * unit }] : [],
+        floor: 0.3 * unit,
+        pins: pants?.pins,
+      })
+    : relax(cloth, input.underlay ? withUnderlay(pose, input.underlay) : pose, {
     seconds: input.seconds ?? 1.2,
     thickness: 0.9 * unit,
     gravity: 980 * unit,
@@ -165,6 +194,10 @@ export function dressPatternGarment(input: DressInput): DressOutput {
 
   // Rebordes con grosor (después de orientar: son tubos y ya tienen sus caras hacia fuera)
   const normalOf = fabricNormals(relaxed, [...cloth.tris[0], ...cloth.tris[1]], pose, unit)
+  // Superficie de esta prenda (para la que vaya encima): sus puntos asentados, un poco hacia fuera, con su normal
+  const surfaceNormals = new Float32Array(relaxed.length)
+  for (let v = 0; v < relaxed.length / 3; v++) surfaceNormals.set(normalOf(v).toArray(), v * 3)
+  const surface: Underlay = { points: Float32Array.from(relaxed), normals: surfaceNormals }
   for (const rim of rims) {
     const path = rim.verts.map((v) => new THREE.Vector3().fromArray(relaxed, v * 3))
     const ups = rim.verts.map((v) => normalOf(v))
@@ -214,7 +247,66 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     groups,
     pocket: pocket?.shape ?? null,
     timings,
+    surface,
   }
+}
+
+/** El pantalón con el mismo formato que la sudadera (sin capucha, bolsillo ni cordones). */
+function pantsGarment(body: Parameters<typeof buildPants>[0], m: Measurements, design: Design) {
+  const p = buildPants(body, m, design)
+  const none: number[] = []
+  return {
+    ...p,
+    pocket: null,
+    cordExits: none,
+    layers: { hood: none, hoodAll: none, torso: none, sleevesLow: none, torsoLow: none, sleeveCap: none, torsoArmhole: none, bodyOnly: none, collarPins: none },
+  }
+}
+
+/** El cuerpo con la prenda de debajo encima (sus puntos cuentan como piel del tronco). */
+function withUnderlay(pose: PoseData, under: Underlay): PoseData {
+  const n = pose.points.length / 3
+  const m = under.points.length / 3
+  const points = new Float32Array(pose.points.length + under.points.length)
+  points.set(pose.points)
+  points.set(under.points, pose.points.length)
+  const normals = new Float32Array(points.length)
+  normals.set(pose.normals)
+  normals.set(under.normals, pose.normals.length)
+  const parts = new Uint8Array(n + m)
+  parts.set(pose.parts)
+  parts.fill(Part.Torso, n)
+  return { ...pose, points, normals, parts }
+}
+
+/**
+ * El cuerpo con zapatillas: los pies, hinchados unos cm hacia fuera (lo que abulta una zapatilla), para que el bajo
+ * del pantalón caiga y se apile encima de ellas en vez de pegarse al pie.
+ */
+function withShoes(pose: PoseData, unit: number): PoseData {
+  const extra: number[] = []
+  const extraN: number[] = []
+  const extraP: number[] = []
+  const n = pose.points.length / 3
+  for (let i = 0; i < n; i++) {
+    const part = pose.parts[i]
+    if (part !== Part.FootL && part !== Part.FootR) continue
+    for (let c = 0; c < 3; c++) {
+      extra.push(pose.points[i * 3 + c] + pose.normals[i * 3 + c] * 2 * unit)
+      extraN.push(pose.normals[i * 3 + c])
+    }
+    extraP.push(part)
+  }
+  const points = new Float32Array(pose.points.length + extra.length)
+  points.set(pose.points)
+  points.set(extra, pose.points.length)
+  const normals = new Float32Array(points.length)
+  normals.set(pose.normals)
+  normals.set(extraN, pose.normals.length)
+  const parts = new Uint8Array(n + extraP.length)
+  parts.set(pose.parts)
+  parts.set(extraP, n)
+  return { ...pose, points, normals, parts }
 }
 
 /**

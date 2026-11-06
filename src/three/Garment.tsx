@@ -4,7 +4,7 @@ import { FABRICS, type FabricLook } from '../data/fabrics'
 import { GARMENT_SLOTS, RIB_SLOTS, slotIndex, type Design, type GarmentSlot, type Measurements, type SlotStyle } from '../types'
 import type { Model } from './Avatar'
 import { FIT_EASE, jointPosition, type BodyFit } from './body'
-import { dressInWorker } from './cloth/dressClient'
+import { dressInWorker, setUnderlay, useUnderlay } from './cloth/dressClient'
 import { knitNormalMap } from './cloth/textures'
 import { Part, referencePose, type ReferencePose } from './pose'
 import { CloudGrid, computeTubeNormals, skinFromCloud, wrapTube, type Cloud, type TubeSpec } from './wrap'
@@ -306,7 +306,8 @@ interface Props {
  * las de arriba con mangas que traen sus acabados (`design.top`: camiseta, polo, camisa, chaquetas).
  */
 const PATTERN_GARMENTS = new Set<Design['garment']>(['sudadera'])
-const isPattern = (d: Design) => PATTERN_GARMENTS.has(d.garment) || (!!d.top && (d.garment === 'camiseta' || d.garment === 'manga-larga'))
+const isPattern = (d: Design) =>
+  PATTERN_GARMENTS.has(d.garment) || (!!d.top && (d.garment === 'camiseta' || d.garment === 'manga-larga')) || (!!d.pants && d.garment === 'pantalon')
 
 /**
  * Prenda puesta sobre el maniquí. Usa el mismo esqueleto que el maniquí, así se mueve con la animación.
@@ -324,7 +325,11 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
   )
   const pose = useMemo(() => referencePose(model, cloud), [model, cloud])
   const pattern = isPattern(design)
-  const topKey = JSON.stringify(design.top ?? null)
+  // La prenda de encima se asienta sobre la de debajo (si esta es de patrón, espera a que termine)
+  const under = useUnderlay()
+  const waitsFor = !design.under && design.overBulk !== undefined
+  const underlay = waitsFor ? under : null
+  const topKey = JSON.stringify([design.top ?? null, design.pants ?? null, design.legLength ?? null, design.coveredBy ?? null])
 
   // Prendas de patrón: se calculan en segundo plano y se muestran al terminar (la anterior sigue visible mientras)
   const [patternGeom, setPatternGeom] = useState<THREE.BufferGeometry | null>(null)
@@ -347,9 +352,15 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
       // Al worker solo le hace falta la forma de la prenda (los colores y materiales se aplican aquí)
       design: { ...design, pieces: undefined, prints: undefined },
       fabric,
-    })
+      underlay: underlay ?? undefined,
+      },
+      // Cada prenda puesta tiene su propio turno de cálculo (la de arriba y la de debajo van a la vez)
+      design.under ? 'debajo' : 'encima',
+    )
       .then((g) => {
         if (!alive || !g) return
+        // La de debajo deja su superficie para que la de encima se asiente sobre ella
+        if (design.under) setUnderlay(g.userData.surface)
         setPatternGeom((prev) => {
           prev?.dispose()
           return g
@@ -360,8 +371,10 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.hoodUp, design.pocket, design.cords, design.bodyLength, design.sleeveLength, design.chestScale, topKey, fabric])
+  }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.hoodUp, design.pocket, design.cords, design.bodyLength, design.sleeveLength, design.chestScale, design.overBulk, topKey, underlay, fabric])
   useEffect(() => () => patternGeom?.dispose(), [patternGeom])
+  // Al quitarse la prenda de debajo, la de encima vuelve a asentarse solo sobre el cuerpo
+  useEffect(() => (design.under ? () => setUnderlay(null) : undefined), [design.under])
 
   // Resto de prendas: tubos que envuelven el cuerpo (cálculo rápido, al momento)
   const wrapGeoms = useMemo(() => {

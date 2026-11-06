@@ -97,6 +97,8 @@ export interface RelaxOptions {
    * que si no se iría hacia atrás arrastrado por el peso de la capucha).
    */
   pins?: number[]
+  /** Suelo (altura mínima de la tela): el bajo de un pantalón largo se apoya en él. */
+  floor?: number
 }
 
 export interface Layer {
@@ -330,9 +332,14 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
   /** Saca la tela de la piel (con rozamiento, para que se quede apoyada en hombros y pecho). */
   function collideBody() {
     for (let i = 0; i < n; i++) {
+      const p = i * 3
+      // Suelo: la tela se queda apoyada, sin resbalar
+      if (opts.floor !== undefined && pos[p + 1] < opts.floor) {
+        pos[p + 1] = opts.floor
+        for (let c = 0; c < 3; c++) prev[p + c] += (pos[p + c] - prev[p + c]) * 0.8
+      }
       const k = nearest[i]
       if (k < 0) continue
-      const p = i * 3
       const nx = body.normals[k * 3]
       const ny = body.normals[k * 3 + 1]
       const nz = body.normals[k * 3 + 2]

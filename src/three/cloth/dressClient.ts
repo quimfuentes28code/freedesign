@@ -1,34 +1,36 @@
 import { useSyncExternalStore } from 'react'
 import * as THREE from 'three'
-import type { DressInput, DressOutput } from './dress'
+import type { DressInput, DressOutput, Underlay } from './dress'
 
 let worker: Worker | null = null
 let nextId = 0
-let latest = 0
-let busy = false
+/** Último encargo de cada prenda (por su clave): los anteriores de la misma prenda se descartan. */
+const latest = new Map<string, number>()
+/** Encargos en marcha (para el aviso «Ajustando prenda…»). */
+const pending = new Set<number>()
 const listeners = new Set<() => void>()
-const setBusy = (v: boolean) => {
-  busy = v
-  listeners.forEach((l) => l())
-}
+const notify = () => listeners.forEach((l) => l())
 
 /**
- * Calcula la prenda en un Web Worker y devuelve su geometría. Si llega una petición nueva antes de terminar,
- * la anterior se descarta (solo importa la última).
+ * Calcula la prenda en un Web Worker y devuelve su geometría. Cada prenda puesta (`key`: la de arriba, el pantalón…)
+ * tiene su propio turno: si llega una petición nueva de la misma prenda antes de terminar, la anterior se descarta;
+ * las de otras prendas siguen su curso (con la sudadera y el pantalón cosidos a la vez se calculan los dos).
  */
-export function dressInWorker(input: DressInput): Promise<THREE.BufferGeometry | null> {
+export function dressInWorker(input: DressInput, key = 'prenda'): Promise<THREE.BufferGeometry | null> {
   worker ??= new Worker(new URL('./dress.worker.ts', import.meta.url), { type: 'module' })
   const id = ++nextId
-  latest = id
-  setBusy(true)
+  latest.set(key, id)
+  pending.add(id)
+  notify()
   return new Promise((resolve, reject) => {
     const onMessage = (e: MessageEvent<{ id: number; out?: DressOutput; error?: string }>) => {
       if (e.data.id !== id) return
       worker!.removeEventListener('message', onMessage)
-      if (id === latest) setBusy(false)
+      pending.delete(id)
+      notify()
       if (e.data.error) return reject(new Error(e.data.error))
       if (import.meta.env.DEV) console.info('Prenda calculada (ms):', e.data.out?.timings)
-      resolve(id === latest ? toGeometry(e.data.out!) : null)
+      resolve(latest.get(key) === id ? toGeometry(e.data.out!) : null)
     }
     worker!.addEventListener('message', onMessage)
     // Depuración: en la consola, window.__dressSeconds = 0 muestra la prenda sin asentar
@@ -48,16 +50,38 @@ function toGeometry(out: DressOutput) {
   g.setIndex(new THREE.BufferAttribute(out.index, 1))
   for (const [start, count, material] of out.groups) g.addGroup(start, count, material)
   g.userData.pocket = out.pocket
+  g.userData.surface = out.surface
   return g
 }
 
-/** `true` mientras se está calculando una prenda (para mostrar "Ajustando prenda…"). */
+// --- Prenda de debajo asentada: la de encima se calcula sobre ella ---
+let underlay: Underlay | null = null
+const underListeners = new Set<() => void>()
+
+/** La prenda de debajo avisa de su superficie al terminar (o null al quitarse). */
+export function setUnderlay(u: Underlay | null) {
+  underlay = u
+  underListeners.forEach((l) => l())
+}
+
+/** Superficie de la prenda de debajo, para la de encima (cambia cuando se recalcula). */
+export function useUnderlay() {
+  return useSyncExternalStore(
+    (cb) => {
+      underListeners.add(cb)
+      return () => underListeners.delete(cb)
+    },
+    () => underlay,
+  )
+}
+
+/** `true` mientras se está calculando alguna prenda (para mostrar "Ajustando prenda…"). */
 export function useDressing() {
   return useSyncExternalStore(
     (cb) => {
       listeners.add(cb)
       return () => listeners.delete(cb)
     },
-    () => busy,
+    () => pending.size > 0,
   )
 }

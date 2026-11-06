@@ -1,6 +1,6 @@
 import type { DesignData } from '../shared/designs'
 import type { Material } from '../shared/library'
-import type { Design, Fit, GarmentSlot, GarmentType, Measurements, SlotStyle, TopShape } from '../types'
+import type { Design, Fit, GarmentSlot, GarmentType, Measurements, SlotStyle, TopShape, PantsShape } from '../types'
 import type { Measurements as ClientMeasurements } from '../shared/clients'
 import type { Body } from '../production/measurements'
 import { resolveMaterial } from './materials'
@@ -52,6 +52,16 @@ function topShapeOf(t: GarmentTemplate, o: DesignData['options']): TopShape | un
       return { hem: ribbed ? 'canale' : 'pretina', cuff: ribbed ? 'canale' : 'puno', neck: 'alto' }
   }
   return undefined
+}
+
+/** Corte y acabados en 3D de un pantalón (se cose con patrón; ver three/cloth/pants.ts). */
+function pantsShapeOf(t: GarmentTemplate, o: DesignData['options']): PantsShape {
+  const v = (id: string) => String(opt(t, o, id) ?? '')
+  const cut = v('corte')
+  const leg: PantsShape['leg'] = cut === 'slim' ? 'slim' : cut === 'baggy' ? 'baggy' : cut === 'ancho' || t.id !== 'pantalon' ? (cut === 'regular' ? 'regular' : 'ancho') : 'regular'
+  const cuff: PantsShape['cuff'] = v('bajo') === 'puno' ? 'puno' : v('bajo') === 'vuelto' ? 'vuelto' : 'recto'
+  const waist: PantsShape['waist'] = v('cintura') === 'trabillas' ? 'trabillas' : 'elastica'
+  return { leg, cuff, waist }
 }
 
 /** Capucha en 3D: la sudadera con capucha y las chaquetas con el cuello «capucha». */
@@ -124,6 +134,7 @@ export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<s
     pocket: ['sudadera', 'cortavientos'].includes(t.id) && opt(t, data.options, 'bolsillo') === 'canguro',
     cords: hood && opt<boolean>(t, data.options, 'cordones') !== false,
     top,
+    pants: isPants(t) ? pantsShapeOf(t, data.options) : undefined,
     // Top: largo desde la axila (crop, a la cintura o a la cadera); el resto, del hombro al bajo
     bodyLength: (t.id === 'top' ? ({ crop: 16, cintura: 26, cadera: 40 }[String(opt(t, data.options, 'largo'))] ?? 16) : (BODY_LENGTH[String(opt(t, data.options, 'largo'))] ?? 70)) * s.length,
     sleeveLength: (short ? 24 : 64) * s.sleeve,

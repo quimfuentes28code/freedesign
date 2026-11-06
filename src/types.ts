@@ -16,6 +16,16 @@ export interface TopShape {
   padded?: boolean
 }
 
+/** Corte y acabados de un pantalón con patrón. */
+export interface PantsShape {
+  /** Corte de la pierna: de ceñido a muy ancho. */
+  leg: 'slim' | 'regular' | 'ancho' | 'baggy'
+  /** Bajo: recto, vuelto o con puño de canalé (jogger). */
+  cuff: 'recto' | 'vuelto' | 'puno'
+  /** Cinturilla elástica o de la misma tela (con trabillas). */
+  waist: 'elastica' | 'trabillas'
+}
+
 export interface Measurements {
   height: number
   chest: number
@@ -72,6 +82,8 @@ export interface Design {
    * Sin ella, las de una sudadera (canalé en puños, bajo y cuello).
    */
   top?: TopShape
+  /** Pantalones con patrón: corte de la pierna, bajo y cintura (ver three/cloth/pants.ts). */
+  pants?: PantsShape
   /** Largo total del cuerpo, del hombro al bajo, en cm. */
   bodyLength: number
   /** Largo de manga, de la costura del hombro al final del puño, en cm. */
@@ -87,6 +99,13 @@ export interface Design {
    * arriba se asienta contra el cuerpo y no contra esta, y la de debajo asomaba a manchas.
    */
   coveredBy?: number
+  /** La prenda de encima es de patrón y se asienta sobre esta: no hace falta recortar lo que tapa. */
+  overPattern?: boolean
+  /**
+   * Lo que abulta (cm de contorno en la cadera) la prenda que va debajo: el bajo de esta se hace a la medida de la cadera
+   * con el pantalón puesto, como en la realidad (si se ciñera a la cadera, el pantalón ancho asomaría a través de él).
+   */
+  overBulk?: number
   /**
    * Color y material de cada zona (desde el Diseñador). Las que falten usan `color` y `fabric`
    * (y las de canalé, canalé del mismo color).

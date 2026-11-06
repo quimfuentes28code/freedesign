@@ -43,7 +43,12 @@ export function outfitOf(main: Design, other: Design | null, mainIsPants: boolea
   if (!other) return { design: main, outfit: [] }
   // Lo de fuera es siempre la prenda de arriba
   const [outer, inner] = mainIsPants ? [other, main] : [main, other]
-  return { design: outer, outfit: [{ ...inner, under: true, coveredBy: outer.garment === 'pantalon' ? undefined : outer.bodyLength }] }
+  // Lo que abulta el pantalón en la cadera según su corte (la prenda de arriba se apoya encima)
+  const bulk = inner.pants ? { slim: 4, regular: 8, ancho: 16, baggy: 24 }[inner.pants.leg] : 6
+  return {
+    design: { ...outer, overBulk: bulk },
+    outfit: [{ ...inner, under: true, coveredBy: outer.garment === 'pantalon' ? undefined : outer.bodyLength, overPattern: !!(outer.top || outer.garment === 'sudadera') }],
+  }
 }
 
 interface Props {
