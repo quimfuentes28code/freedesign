@@ -11,7 +11,7 @@ import type { Material } from '../../shared/library'
 import { Scene } from '../../three/Scene'
 import { SHOE_STYLES } from '../../three/Shoes'
 import type { ShoeStyle } from '../../types'
-import { bodyOf, outfitOf, useDesign3D } from './Design3D'
+import { basicTee, bodyOf, outfitOf, useDesign3D, type TeeChoice } from './Design3D'
 import './studio.css'
 
 /**
@@ -29,6 +29,9 @@ export function Probador() {
   const [topId, setTopId] = useState<string | null>(null)
   const [bottomId, setBottomId] = useState<string | null>(null)
   const [hoodUp, setHoodUp] = useState(false)
+  // Prenda de arriba abierta y camiseta básica debajo
+  const [open, setOpen] = useState(false)
+  const [teeColor, setTeeColor] = useState<TeeChoice>('')
   const [shoes, setShoes] = useState<ShoeStyle | null>('baloncesto')
   const [autoRotate, setAutoRotate] = useState(false)
   const [animate, setAnimate] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
@@ -48,11 +51,13 @@ export function Probador() {
   const top3d = useDesign3D(top ? getTemplate(top.template) : null, top?.data, materials, body)
   const bottom3d = useDesign3D(bottom ? getTemplate(bottom.template) : null, bottom?.data, materials, body)
   // La prenda de arriba va por fuera; el pantalón, debajo
+  const canOpen = !!top3d?.top?.closure?.full
+  const tee = useMemo(() => (canOpen && teeColor ? basicTee(teeColor, kind === 'mujer') : null), [canOpen, teeColor, kind])
   const worn = useMemo(() => {
     const main = top3d ?? bottom3d
-    return main ? outfitOf(main, top3d && bottom3d ? bottom3d : null, false) : null
-  }, [top3d, bottom3d])
-  const shown = useMemo(() => (worn ? { ...worn.design, hoodUp } : null), [worn, hoodUp])
+    return main ? outfitOf(main, top3d && bottom3d ? bottom3d : null, false, tee) : null
+  }, [top3d, bottom3d, tee])
+  const shown = useMemo(() => (worn ? { ...worn.design, hoodUp, open: canOpen && open } : null), [worn, hoodUp, canOpen, open])
 
   return (
     <div className="studio probador">
@@ -121,6 +126,22 @@ export function Probador() {
               <span>Capucha puesta</span>
               <input type="checkbox" checked={hoodUp} onChange={(e) => setHoodUp(e.target.checked)} />
             </label>
+          )}
+          {canOpen && (
+            <>
+              <label className="toggle-row">
+                <span>Abierta</span>
+                <input type="checkbox" checked={open} onChange={(e) => setOpen(e.target.checked)} />
+              </label>
+              <label className="toggle-row">
+                <span>Debajo</span>
+                <select value={teeColor} onChange={(e) => setTeeColor(e.target.value as TeeChoice)} aria-label="Camiseta debajo">
+                  <option value="">Nada</option>
+                  <option value="blanca">Camiseta blanca</option>
+                  <option value="negra">Camiseta negra</option>
+                </select>
+              </label>
+            </>
           )}
           <label className="toggle-row">
             <span>Animación</span>

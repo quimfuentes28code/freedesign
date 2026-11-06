@@ -118,7 +118,7 @@ export function Mannequin({ measurements, design, outfit = [], animate, showBody
     <group scale={fit.scale}>
       <primitive object={model.root} />
       {outfit.map((d, i) => (
-        <Garment key={i} model={model} fit={fit} cloud={cloud} measurements={measurements} design={d} />
+        <Garment key={d.layer ?? i} model={model} fit={fit} cloud={cloud} measurements={measurements} design={d} />
       ))}
       <Garment model={model} fit={fit} cloud={cloud} measurements={measurements} design={design} />
       {shoes && showBody && <Shoes model={model} cloud={cloud} style={shoes} />}

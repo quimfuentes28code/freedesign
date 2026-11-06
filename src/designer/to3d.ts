@@ -1,6 +1,6 @@
 import type { DesignData } from '../shared/designs'
 import type { Material } from '../shared/library'
-import type { Design, Fit, GarmentSlot, GarmentType, Measurements, SlotStyle, TopShape, PantsShape, FemTopShape } from '../types'
+import type { Design, Fit, GarmentSlot, GarmentType, Measurements, SlotStyle, TopShape, TopClosure, PantsShape, FemTopShape } from '../types'
 import type { Measurements as ClientMeasurements } from '../shared/clients'
 import type { Body } from '../production/measurements'
 import { resolveMaterial } from './materials'
@@ -37,21 +37,57 @@ function topShapeOf(t: GarmentTemplate, o: DesignData['options']): TopShape | un
   const fit = { neckFit: (v('ajusteCuello') || 'holgado') as 'cenido' | 'holgado' }
   switch (t.id) {
     case 'sudadera':
-      return { ...fit, hem: ribbed ? 'canale' : 'dobladillo', cuff: ribbed ? 'canale' : 'dobladillo', neck: v('cuelloSin') === 'alto' ? 'alto' : v('cuelloSin') === 'polo' ? 'camisa' : 'canale' }
+      return {
+        ...fit,
+        hem: ribbed ? 'canale' : 'dobladillo',
+        cuff: ribbed ? 'canale' : 'dobladillo',
+        neck: v('cuelloSin') === 'alto' ? 'alto' : v('cuelloSin') === 'polo' ? 'camisa' : 'canale',
+        closure: zip(v('cremallera'), 22),
+      }
     case 'camiseta':
       return { ...fit, hem: 'dobladillo', cuff: 'dobladillo', neck: v('cuello') === 'alto' ? 'alto' : 'canale' }
-    case 'polo':
-      return { hem: 'dobladillo', cuff: ribbed ? 'canale' : 'dobladillo', ...mao(v('cuello')) }
+    case 'polo': {
+      // Tapeta corta: unos 4 cm por botón
+      const n = Number(v('botones')) || 3
+      return {
+        hem: 'dobladillo',
+        cuff: ribbed ? 'canale' : 'dobladillo',
+        ...mao(v('cuello')),
+        closure: { kind: 'botones', full: false, length: 5 + n * 3.6, buttons: n, buttonSize: 1.1, placket: true },
+        chestPocket: opt<boolean>(t, o, 'bolsillo') ? 'uno' : undefined,
+      }
+    }
     case 'camisa':
-      return { hem: 'dobladillo', cuff: v('manga') === 'corta' ? 'dobladillo' : 'puno', ...mao(v('cuello')) }
+      return {
+        hem: 'dobladillo',
+        cuff: v('manga') === 'corta' ? 'dobladillo' : 'puno',
+        ...mao(v('cuello')),
+        closure: { kind: 'botones', full: true, buttons: 7, buttonSize: 1.05, placket: true },
+        chestPocket: opt<boolean>(t, o, 'bolsillo') ? 'uno' : undefined,
+      }
     case 'bomber':
       // El canalé de la bomber es un cuello bajo (unos 4,5 cm); el «alto», uno de chaqueta
-      return { ...fit, hem: 'canale', cuff: 'canale', neck: v('cuello') === 'solapa' ? 'camisa' : 'alto', ...(v('cuello') === 'canale' ? { neckHeight: 4.5 } : {}) }
+      return {
+        ...fit,
+        hem: 'canale',
+        cuff: 'canale',
+        neck: v('cuello') === 'solapa' ? 'camisa' : 'alto',
+        ...(v('cuello') === 'canale' ? { neckHeight: 4.5 } : {}),
+        closure: jacket(v('cierre')),
+      }
     // El «ribete elástico» recoge la muñeca y el bajo, como un puño y una pretina finos
     case 'puffer':
-      return { ...fit, hem: ribbed ? 'canale' : 'pretina', cuff: ribbed ? 'canale' : 'puno', neck: 'alto', padded: true, quilt: quiltOf(o, t) }
+      return { ...fit, hem: ribbed ? 'canale' : 'pretina', cuff: ribbed ? 'canale' : 'puno', neck: 'alto', padded: true, quilt: quiltOf(o, t), closure: zip('completa') }
     case 'cazadora':
-      return { hem: v('bajo') === 'pretina' ? 'pretina' : 'dobladillo', cuff: 'puno', ...mao(v('cuello')) }
+      return {
+        hem: v('bajo') === 'pretina' ? 'pretina' : 'dobladillo',
+        flatBand: v('bajo') === 'pretina',
+        // Puño con botón o sin puño (la manga acaba en un dobladillo)
+        cuff: v('punos') === 'sin' ? 'dobladillo' : 'puno',
+        ...mao(v('cuello')),
+        closure: { kind: 'botones', full: true, buttons: 6, buttonSize: 1.6, placket: true },
+        chestPocket: v('bolsillos') === 'pecho-tapeta' ? 'dos' : undefined,
+      }
     case 'chaleco': {
       const neck = v('cuello')
       return {
@@ -60,14 +96,23 @@ function topShapeOf(t: GarmentTemplate, o: DesignData['options']): TopShape | un
         cuff: 'dobladillo',
         neck: neck === 'alto' ? 'alto' : 'canale',
         sleeveless: true,
+        closure: jacket(v('cierre')),
         ...(v('tipo') === 'acolchado' ? { padded: true, quilt: quiltOf(o, t) } : {}),
       }
     }
     case 'cortavientos':
-      return { ...fit, hem: ribbed ? 'canale' : 'pretina', cuff: ribbed ? 'canale' : 'puno', neck: 'alto' }
+      return { ...fit, hem: ribbed ? 'canale' : 'pretina', cuff: ribbed ? 'canale' : 'puno', neck: 'alto', closure: zip(v('cremallera'), 25) }
   }
   return undefined
 }
+
+/** Cremallera entera, media (los cm del escote hacia abajo) o ninguna. */
+const zip = (kind: string, half = 22): TopClosure | undefined =>
+  kind === 'completa' ? { kind: 'cremallera', full: true } : kind === 'media' ? { kind: 'cremallera', full: false, length: half } : undefined
+
+/** Cierre de chaqueta: cremallera entera o botones grandes con tapeta. */
+const jacket = (cierre: string): TopClosure =>
+  cierre === 'botones' ? { kind: 'botones', full: true, buttons: 5, buttonSize: 1.5, placket: true } : { kind: 'cremallera', full: true }
 
 /** Cuello mao (una tira recta de pie, algo separada del cuello) o de camisa (con su pala). */
 const mao = (cuello: string): Pick<TopShape, 'neck' | 'neckFit' | 'neckHeight'> =>
@@ -127,6 +172,7 @@ const SLOT_OF: Record<string, GarmentSlot> = {
   bajo: 'bajo',
   cordones: 'cordones',
   fornituras: 'ojales',
+  botones: 'botones',
 }
 
 export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<string, Material>, body?: Body): Design {

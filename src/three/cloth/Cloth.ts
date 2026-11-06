@@ -25,15 +25,32 @@ export class Cloth {
 
   /** Crea una pieza de rejilla `nu` × `nv`. `flat(u, v)` da su forma plana; `place(u, v)` su posición inicial. */
   addPanel(spec: PanelSpec): Panel {
-    const { nu, nv, flat, place, material = 0, bend = 1 } = spec
+    const { nu, nv, flat, place, material = 0, bend = 1, split } = spec
     const id = this.panels.length
     const start = this.pos.length / 3
     const at = (i: number, j: number) => start + j * nu + i
+    // Pieza abierta por una columna (delantero con botones o cremallera): desde la fila `split.from`, esa columna tiene
+    // dos puntos, uno para cada lado de la abertura (el de la derecha va después de la rejilla)
+    const cut = (i: number, j: number) => !!split && i === split.col && j >= split.from
+    const dupStart = start + nu * nv
+    const right = (i: number, j: number) => (cut(i, j) ? dupStart + (j - split!.from) : at(i, j))
     const f = new THREE.Vector2()
     const p = new THREE.Vector3()
     for (let j = 0; j < nv; j++) {
       for (let i = 0; i < nu; i++) {
         const u = i / (nu - 1)
+        const v = j / (nv - 1)
+        flat(u, v, f)
+        place(u, v, p)
+        this.pos.push(p.x, p.y, p.z)
+        this.flat.push(f.x, f.y)
+        this.panelOf.push(id)
+      }
+    }
+    if (split) {
+      // El punto de la derecha de la abertura se coloca justo a la derecha de la columna (así sabe de qué lado está)
+      for (let j = split.from; j < nv; j++) {
+        const u = split.col / (nu - 1) + 1e-6
         const v = j / (nv - 1)
         flat(u, v, f)
         place(u, v, p)
@@ -50,26 +67,37 @@ export class Cloth {
     for (let j = 0; j < nv; j++) {
       for (let i = 0; i < nu; i++) {
         const a = at(i, j)
+        // Lo que queda a la derecha de una abertura usa el punto de la derecha
+        const r = (ii: number, jj: number) => (i === split?.col ? right(ii, jj) : at(ii, jj))
+        const ra = r(i, j)
         // Estructura (tela) y diagonales (cizalla)
-        if (i + 1 < nu) link(a, at(i + 1, j), 1)
-        if (j + 1 < nv) link(a, at(i, j + 1), 1)
-        if (i + 1 < nu && j + 1 < nv) {
-          link(a, at(i + 1, j + 1), 0.5)
-          link(at(i + 1, j), at(i, j + 1), 0.5)
-          this.tris[material].push(a, at(i + 1, j), at(i, j + 1), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1))
+        if (i + 1 < nu) link(ra, at(i + 1, j), 1)
+        if (j + 1 < nv) {
+          link(a, at(i, j + 1), 1)
+          if (cut(i, j + 1)) link(right(i, j), right(i, j + 1), 1)
         }
-        // Rigidez a la flexión: puntos a dos pasos
-        if (i + 2 < nu) link(a, at(i + 2, j), 0.15 * bend)
-        if (j + 2 < nv) link(a, at(i, j + 2), 0.15 * bend)
+        if (i + 1 < nu && j + 1 < nv) {
+          link(ra, at(i + 1, j + 1), 0.5)
+          link(at(i + 1, j), r(i, j + 1), 0.5)
+          this.tris[material].push(ra, at(i + 1, j), r(i, j + 1), at(i + 1, j), at(i + 1, j + 1), r(i, j + 1))
+        }
+        // Rigidez a la flexión: puntos a dos pasos (no a través de la abertura)
+        if (i + 2 < nu && !cut(i + 1, j)) link(ra, at(i + 2, j), 0.15 * bend)
+        if (j + 2 < nv) {
+          link(a, at(i, j + 2), 0.15 * bend)
+          if (cut(i, j + 2)) link(right(i, j), right(i, j + 2), 0.15 * bend)
+        }
       }
     }
     const panel: Panel = {
       id,
       nu,
       nv,
+      split,
       index: at,
       row: (j) => Array.from({ length: nu }, (_, i) => at(i, j)),
       col: (i) => Array.from({ length: nv }, (_, j) => at(i, j)),
+      right,
       edges: { u0: 'plana', u1: 'plana', v0: 'plana', v1: 'plana', ...spec.edges },
     }
     this.panels.push(panel)
@@ -87,9 +115,10 @@ export class Cloth {
     const kindAt = (k: PanelEdges[keyof PanelEdges], t: number) => EDGE_CODES[typeof k === 'function' ? k(t) : k]
     for (const p of this.panels) {
       const { nu, nv, index: at, edges } = p
+      const dupStart = p.index(nu - 1, nv - 1) + 1
+      const ids = (i: number, j: number) => (p.split && i === p.split.col && j >= p.split.from ? [at(i, j), dupStart + j - p.split.from] : [at(i, j)])
       for (let j = 0; j < nv; j++) {
-        for (let i = 0; i < nu; i++) {
-          const v = at(i, j)
+        for (let i = 0; i < nu; i++) for (const v of ids(i, j)) {
           // Candidatos: los cuatro bordes de la pieza (distancia, posición a lo largo, acabado)
           const cands: [number, number, number][] = [
             [dist(v, at(0, j)), f[at(0, j) * 2 + 1], kindAt(edges.u0, j)],
@@ -97,6 +126,11 @@ export class Cloth {
             [dist(v, at(i, 0)), f[at(i, 0) * 2], kindAt(edges.v0, i)],
             [dist(v, at(i, nv - 1)), f[at(i, nv - 1) * 2], kindAt(edges.v1, i)],
           ]
+          // Abertura del delantero: un borde más (el de la tapeta o la cremallera)
+          if (p.split && j >= p.split.from) {
+            const c = at(p.split.col, j)
+            cands.push([Math.abs(f[v * 2] - f[c * 2]), f[c * 2 + 1], EDGE_CODES[p.split.edge]])
+          }
           let best: [number, number, number] = [99, 0, EDGE_CODES.ninguno]
           for (const c of cands) if (c[2] !== EDGE_CODES.ninguno && c[0] < best[0]) best = c
           out.set(best, v * 3)
@@ -155,10 +189,11 @@ export class Cloth {
  * - recubierta: costura con doble pespunte (recubridora), como encima de puños y bajo
  * - doblez: borde doblado y redondeado (bajo de canalé, final del puño)
  * - jareta: borde doblado con el pespunte del canal del cordón (abertura de la capucha)
+ * - tapeta: borde doblado de una tapeta de botones, con su pespunte a 6 mm y el de la tapeta a 3 cm
  * - ninguno: sin marca
  */
-export type EdgeKind = 'plana' | 'pespunte' | 'recubierta' | 'doblez' | 'jareta' | 'ninguno'
-export const EDGE_CODES: Record<EdgeKind, number> = { plana: 0, pespunte: 1, recubierta: 2, doblez: 3, jareta: 4, ninguno: 9 }
+export type EdgeKind = 'plana' | 'pespunte' | 'recubierta' | 'doblez' | 'jareta' | 'tapeta' | 'ninguno'
+export const EDGE_CODES: Record<EdgeKind, number> = { plana: 0, pespunte: 1, recubierta: 2, doblez: 3, jareta: 4, tapeta: 6, ninguno: 9 }
 
 /** Acabado de cada borde: columna 0, última columna, fila 0 y última fila (o una función del índice a lo largo del borde). */
 export interface PanelEdges {
@@ -179,6 +214,14 @@ export interface PanelSpec {
   bend?: number
   /** Acabado de sus bordes (por defecto, costuras planas). */
   edges?: Partial<PanelEdges>
+  /** Abertura a lo largo de una columna, desde una fila hasta arriba, con el acabado de sus bordes. */
+  split?: PanelSplit
+}
+
+export interface PanelSplit {
+  col: number
+  from: number
+  edge: EdgeKind
 }
 
 export interface Panel {
@@ -188,5 +231,8 @@ export interface Panel {
   index: (i: number, j: number) => number
   row: (j: number) => number[]
   col: (i: number) => number[]
+  /** Como `index`, pero en la columna de una abertura da el punto del lado derecho. */
+  right: (i: number, j: number) => number
+  split?: PanelSplit
   edges: PanelEdges
 }

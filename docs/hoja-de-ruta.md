@@ -84,7 +84,7 @@ Lo que falta, por fases (pedido el 6/11/2026):
 2. ✓ **Capuchas**: la bajada cae por la espalda como una bolsa con volumen; cuello alto cosido por dentro de la
    capucha y capucha cruzada también en 3D (sudadera, bomber, puffer, chaleco y cortavientos); cordones opcionales en
    todas («Cordones de la capucha» en las chaquetas) y separados de la tela.
-3. **Prendas abiertas por delante**: dos delanteros de verdad unidos por botones o cremallera; botones pequeños y
+3. ✓ **Prendas abiertas por delante** (hecho: delantero en dos piezas, botones y cremalleras con volumen, «Abierta» con camiseta básica debajo, polo con tapeta corta y puño estrecho, camisa con tapeta, botones y bolsillo, cazadora con puños con botón o sin puño y pretina recta): dos delanteros de verdad unidos por botones o cremallera; botones pequeños y
    cosidos; cremalleras finas y realistas; poder llevarlas abiertas con una camiseta básica blanca o negra debajo.
    Polo con su tapeta y puños de canalé o lisos; camisa con tapeta, todos los botones y bolsillo; cazadora con puños de
    botón o sin puño, pretina bien hecha y sus botones.

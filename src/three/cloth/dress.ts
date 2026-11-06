@@ -5,7 +5,7 @@ import type { ModelInfo } from '../body'
 import { Part, skinPoints, unskinPoints, type PoseData } from '../pose'
 import { CloudGrid } from '../wrap'
 import { EDGE_CODES } from './Cloth'
-import { buildHoodie, type PocketShape } from './hoodie'
+import { buildHoodie, type HoodieResult, type PocketShape } from './hoodie'
 import { buildPants } from './pants'
 import { buildFemTop } from './femtop'
 import { relax, SpatialHash } from './relax'
@@ -78,7 +78,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   const pants = isPants ? pantsGarment({ info, points: cloud.pos, unit }, measurements, design) : null
   const femTop = !isPants && design.garment === 'top' ? femTopGarment({ info, points: cloud.pos, unit }, measurements, design) : null
   const garment = pants ?? femTop ?? buildHoodie({ info, points: cloud.pos, unit }, measurements, design)
-  const { cloth, follows, slots, pocket, layers, cordExits, rims } = garment
+  const { cloth, follows, slots, pocket, layers, cordExits, rims, closure, cuffButtons } = garment
 
   // La rigidez a la flexión depende de la tela
   for (const l of cloth.links) if (l.k < 0.5) l.k = Math.min(1, l.k * fabric.stiffness)
@@ -225,6 +225,10 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     )
   }
 
+  // Botones y cremallera de verdad (con volumen), sobre la tela ya asentada
+  if (closure || cuffButtons.length)
+    addClosure({ positions, uvs, edges, idx, wts, bySlot }, relaxed, closure, cuffButtons, normalOf, unit, skinIndex, skinWeight)
+
   const position = new Float32Array(positions)
   const skinIdx = new Uint16Array(idx)
   const skinWts = new Float32Array(wts)
@@ -270,6 +274,8 @@ function femTopGarment(body: Parameters<typeof buildFemTop>[0], m: Measurements,
     ...p,
     pocket: null,
     cordExits: none,
+    closure: null,
+    cuffButtons: none,
     layers: { hood: none, hoodAll: none, torso: none, sleevesLow: none, torsoLow: none, sleeveCap: none, torsoArmhole: none, bodyOnly: none, collarPins: none },
   }
 }
@@ -282,8 +288,204 @@ function pantsGarment(body: Parameters<typeof buildPants>[0], m: Measurements, d
     ...p,
     pocket: null,
     cordExits: none,
+    closure: null,
+    cuffButtons: none,
     layers: { hood: none, hoodAll: none, torso: none, sleevesLow: none, torsoLow: none, sleeveCap: none, torsoArmhole: none, bodyOnly: none, collarPins: none },
   }
+}
+
+/** Recorrido de un borde de tela: posición, normal de la tela y punto de tela más cercano a cada distancia (cm). */
+function edgePath(relaxed: Float32Array, verts: number[], normalOf: (v: number) => THREE.Vector3, cm: number) {
+  const pts = verts.map((v) => new THREE.Vector3().fromArray(relaxed, v * 3))
+  const acc = [0]
+  for (let i = 1; i < pts.length; i++) acc.push(acc[i - 1] + pts[i].distanceTo(pts[i - 1]) / cm)
+  const length = acc[acc.length - 1]
+  const at = (d: number) => {
+    const dd = THREE.MathUtils.clamp(d, 0, length)
+    let i = 1
+    while (i < pts.length - 1 && acc[i] < dd) i++
+    const f = (dd - acc[i - 1]) / Math.max(1e-6, acc[i] - acc[i - 1])
+    const p = pts[i - 1].clone().lerp(pts[i], f)
+    const t = pts[i].clone().sub(pts[i - 1]).normalize()
+    const near = f < 0.5 ? verts[i - 1] : verts[i]
+    const n = normalOf(verts[i - 1]).lerp(normalOf(verts[i]), f).normalize()
+    // Tangente perpendicular a la normal
+    t.addScaledVector(n, -t.dot(n)).normalize()
+    return { p, t, n, b: t.clone().cross(n).normalize(), anchor: near }
+  }
+  return { length, at }
+}
+
+/** Caja orientada (dientes de la cremallera, cursor, tirador). `size` = ancho (b), largo (t) y grueso (n). */
+function box(
+  out: MeshBuffers,
+  center: THREE.Vector3,
+  t: THREE.Vector3,
+  b: THREE.Vector3,
+  n: THREE.Vector3,
+  size: [number, number, number],
+  slot: GarmentSlot,
+  anchor: number,
+  skinIndex: Uint16Array,
+  skinWeight: Float32Array,
+) {
+  const base = out.positions.length / 3
+  const tris = out.bySlot[slotIndex(slot)]
+  // Seis caras con sus propios vértices (aristas vivas)
+  // Ejes de la caja con su medio tamaño: 0 = b (ancho), 1 = t (largo), 2 = n (grueso)
+  const ax = [b, t, n]
+  const hs = size.map((x) => x / 2)
+  const faces: [number, number, number, number][] = [
+    [2, 1, 0, 1],
+    [2, -1, 1, 0],
+    [0, 1, 1, 2],
+    [0, -1, 2, 1],
+    [1, 1, 2, 0],
+    [1, -1, 0, 2],
+  ]
+  faces.forEach(([ai, sign, ui, vi], f) => {
+    const axis = ax[ai].clone().multiplyScalar(sign)
+    const u = ax[ui]
+    const v = ax[vi]
+    const c = center.clone().addScaledVector(axis, hs[ai])
+    const hu = hs[ui]
+    const hv = hs[vi]
+    for (const [su, sv] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      const q = c.clone().addScaledVector(u, su * hu).addScaledVector(v, sv * hv)
+      out.positions.push(q.x, q.y, q.z)
+      out.uvs.push(0, 0)
+      out.edges.push(99, 0, EDGE_CODES.ninguno)
+      pushSkin(out, anchor, skinIndex, skinWeight)
+    }
+    const k = base + f * 4
+    // Cara hacia fuera según el eje
+    const nrm = u.clone().cross(v)
+    if (nrm.dot(axis) > 0) tris.push(k, k + 1, k + 2, k, k + 2, k + 3)
+    else tris.push(k, k + 2, k + 1, k, k + 3, k + 2)
+  })
+}
+
+/**
+ * Botón de cuatro agujeros (o abombado, el de metal de las cazadoras) apoyado en la tela: un perfil que gira alrededor
+ * de la normal. `r` = radio (unidades del modelo).
+ */
+function button(
+  out: MeshBuffers,
+  center: THREE.Vector3,
+  n: THREE.Vector3,
+  t: THREE.Vector3,
+  r: number,
+  domed: boolean,
+  anchor: number,
+  skinIndex: Uint16Array,
+  skinWeight: Float32Array,
+) {
+  const h = r * (domed ? 0.55 : 0.32)
+  // Perfil (radio, alto) del centro al canto y de vuelta por debajo
+  const profile: [number, number][] = domed
+    ? [[0, h], [0.4, h * 0.95], [0.7, h * 0.78], [0.9, h * 0.5], [1, h * 0.2], [0.96, 0], [0, 0]]
+    : [[0, h * 0.6], [0.5, h * 0.62], [0.68, h * 0.95], [0.86, h], [1, h * 0.7], [1, h * 0.2], [0.94, 0], [0, 0]]
+  const seg = 22
+  const base = out.positions.length / 3
+  const tris = out.bySlot[slotIndex('botones')]
+  const b = t.clone().cross(n).normalize()
+  for (let i = 0; i < seg; i++) {
+    const a = (i / seg) * Math.PI * 2
+    const dir = t.clone().multiplyScalar(Math.cos(a)).addScaledVector(b, Math.sin(a))
+    for (const [pr, ph] of profile) {
+      const q = center.clone().addScaledVector(dir, pr * r).addScaledVector(n, ph)
+      out.positions.push(q.x, q.y, q.z)
+      out.uvs.push(0, 0)
+      out.edges.push(99, 0, EDGE_CODES.ninguno)
+      pushSkin(out, anchor, skinIndex, skinWeight)
+    }
+  }
+  const m = profile.length
+  for (let i = 0; i < seg; i++) {
+    for (let k = 0; k < m - 1; k++) {
+      const a0 = base + i * m + k
+      const a1 = base + ((i + 1) % seg) * m + k
+      tris.push(a0, a0 + 1, a1, a1, a0 + 1, a1 + 1)
+    }
+  }
+  if (!domed) {
+    // Cuatro agujeros con el hilo cruzado: dos pasadas de hilo (del color de los botones, más finas)
+    const hole = r * 0.22
+    for (const [u0, v0, u1, v1] of [[-1, -1, 1, 1], [-1, 1, 1, -1]]) {
+      const p0 = center.clone().addScaledVector(t, u0 * hole).addScaledVector(b, v0 * hole).addScaledVector(n, h * 0.66)
+      const p1 = center.clone().addScaledVector(t, u1 * hole).addScaledVector(b, v1 * hole).addScaledVector(n, h * 0.66)
+      const mid = p0.clone().add(p1).multiplyScalar(0.5)
+      const dir = p1.clone().sub(p0)
+      const len = dir.length()
+      dir.normalize()
+      box(out, mid, dir, dir.clone().cross(n).normalize(), n, [r * 0.09, len, r * 0.08], 'cordones', anchor, skinIndex, skinWeight)
+    }
+  }
+}
+
+/**
+ * Cierre delantero: botones repartidos por la tapeta (o el borde del delantero izquierdo si va abierta) o cremallera
+ * de dientes finos con su cursor y tirador; y el botón de cada puño de camisa.
+ */
+function addClosure(
+  out: MeshBuffers,
+  relaxed: Float32Array,
+  closure: HoodieResult['closure'],
+  cuffButtons: number[],
+  normalOf: (v: number) => THREE.Vector3,
+  cm: number,
+  skinIndex: Uint16Array,
+  skinWeight: Float32Array,
+) {
+  for (const v of cuffButtons) {
+    const p = new THREE.Vector3().fromArray(relaxed, v * 3)
+    const n = normalOf(v)
+    const t = new THREE.Vector3(0, 1, 0).addScaledVector(n, -n.y).normalize()
+    button(out, p.addScaledVector(n, 0.08 * cm), n, t, 0.5 * cm, false, v, skinIndex, skinWeight)
+  }
+  if (!closure) return
+  const left = edgePath(relaxed, closure.left, normalOf, cm)
+  if (closure.kind === 'botones') {
+    const r = (closure.size / 2) * cm
+    const domed = closure.size >= 1.4
+    const n = Math.max(1, closure.buttons)
+    // Del escote hacia abajo: el primero a 1,8 cm del escote; el último, a unos 12 cm del bajo (o en medio del placket del polo)
+    const top = left.length - (closure.full ? 1.8 : 1.6)
+    const bottom = closure.full ? Math.min(12, left.length * 0.2) : 2
+    for (let k = 0; k < n; k++) {
+      const d = n === 1 ? top : top - ((top - bottom) * k) / (n - 1)
+      const q = left.at(d)
+      // Abierta, el botón va en el delantero izquierdo, a 1,4 cm de su canto
+      const side = q.b.x > 0 ? q.b.clone().negate() : q.b
+      const c = q.p.clone().addScaledVector(q.n, 0.1 * cm)
+      if (closure.open) c.addScaledVector(side, 1.4 * cm)
+      button(out, c, q.n, q.t, r, domed, q.anchor, skinIndex, skinWeight)
+    }
+    return
+  }
+  // Cremallera: dientes cada 3 mm, alternos de un lado y otro (cerrada, engranados en el centro)
+  const pitch = 0.3
+  const toothW = 0.5 * cm
+  const sides = closure.open ? [left, edgePath(relaxed, closure.right, normalOf, cm)] : [left]
+  sides.forEach((path, s) => {
+    for (let d = 0.4, k = 0; d < path.length - 0.4; d += pitch, k++) {
+      const q = path.at(d)
+      const off = closure.open ? (s === 0 ? -1 : 1) * 0.25 : k % 2 ? 0.12 : -0.12
+      // El lado se mide hacia fuera del cuerpo en x (izquierdo hacia -x)
+      const bx = q.b.x < 0 ? q.b.clone().negate() : q.b
+      const c = q.p.clone().addScaledVector(q.n, 0.12 * cm).addScaledVector(bx, off * cm)
+      box(out, c, q.t, bx, q.n, [toothW, 0.2 * cm, 0.2 * cm], 'ojales', q.anchor, skinIndex, skinWeight)
+    }
+  })
+  // Cursor y tirador: arriba si va cerrada; abierta, abajo en el lado izquierdo
+  const q = closure.open ? left.at(1.2) : left.at(left.length - 1.4)
+  const bx = q.b.x < 0 ? q.b.clone().negate() : q.b
+  const slider = q.p.clone().addScaledVector(q.n, 0.32 * cm)
+  box(out, slider, q.t, bx, q.n, [0.9 * cm, 1.5 * cm, 0.42 * cm], 'ojales', q.anchor, skinIndex, skinWeight)
+  // Tirador: una lengüeta plana que cuelga del cursor
+  const down = q.t.clone().negate()
+  const pull = slider.clone().addScaledVector(q.n, 0.3 * cm).addScaledVector(down, 1.7 * cm)
+  box(out, pull, q.t, bx, q.n, [0.62 * cm, 2.6 * cm, 0.12 * cm], 'ojales', q.anchor, skinIndex, skinWeight)
 }
 
 /** El cuerpo con la prenda de debajo encima (sus puntos cuentan como piel del tronco). */
@@ -343,7 +545,7 @@ function orientOutwards(bySlot: number[][], pos: Float32Array, pose: PoseData, u
   const b = new THREE.Vector3()
   const c = new THREE.Vector3()
   const n = new THREE.Vector3()
-  const skip = new Set([slotIndex('cordones'), slotIndex('ojales')])
+  const skip = new Set([slotIndex('cordones'), slotIndex('ojales'), slotIndex('botones')])
   // Se decide por pieza entera (por mayoría): en una pieza todos los triángulos tienen el mismo giro,
   // y triángulo a triángulo fallaría donde la piel más cercana es la de otra zona (p. ej. el brazo junto al costado)
   const votes = new Map<number, number>()

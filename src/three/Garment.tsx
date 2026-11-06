@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import * as THREE from 'three'
 import { FABRICS, type FabricLook } from '../data/fabrics'
-import { GARMENT_SLOTS, RIB_SLOTS, slotIndex, type Design, type GarmentSlot, type Measurements, type SlotStyle } from '../types'
+import { GARMENT_SLOTS, RIB_SLOTS, isPatternDesign, slotIndex, type Design, type GarmentSlot, type Measurements, type SlotStyle } from '../types'
 import type { Model } from './Avatar'
 import { FIT_EASE, jointPosition, type BodyFit } from './body'
-import { dressInWorker, setUnderlay, useUnderlay } from './cloth/dressClient'
+import { dressInWorker, mergeUnderlays, setUnderlay, useUnderlays } from './cloth/dressClient'
 import { knitNormalMap } from './cloth/textures'
 import { Part, referencePose, type ReferencePose } from './pose'
 import { CloudGrid, computeTubeNormals, skinFromCloud, wrapTube, type Cloud, type TubeSpec } from './wrap'
@@ -14,6 +14,8 @@ const TRIM_DEFAULTS: Partial<Record<GarmentSlot, SlotStyle>> = {
   cordones: { color: '#ece7dc', look: { roughness: 0.95, sheen: 0.4, sheenRoughness: 0.9, clearcoat: 0, knit: 'sarga', knitDepth: 0.9, stiffness: 1 } },
   // Metal satinado (un metal pulido del todo refleja el estudio oscuro y se ve negro)
   ojales: { color: '#c9c9c9', look: { roughness: 0.38, sheen: 0, sheenRoughness: 1, clearcoat: 0.3, metalness: 0.6, knit: 'liso', knitDepth: 0, stiffness: 1 } },
+  // Botones de resina (un poco de brillo)
+  botones: { color: '#e8e2d4', look: { roughness: 0.32, sheen: 0, sheenRoughness: 1, clearcoat: 0.6, knit: 'liso', knitDepth: 0, stiffness: 1 } },
 }
 
 /** Color y material de cada zona: el que venga del Diseñador o, si no, la tela y el color de la prenda (canalé en puños, bajo y cuello). */
@@ -42,6 +44,8 @@ uniform float uSeams;
 #ifdef POCKET
 varying vec2 vPocketUv;
 uniform vec4 uPocket;
+// Centro en x, si hay otro al otro lado y si es de pecho (abierto arriba) en vez de canguro (abierto a los lados)
+uniform vec3 uPocketX;
 #endif
 
 // Tamaño de un píxel en cm del patrón (se calcula una vez, fuera de cualquier "if")
@@ -81,6 +85,13 @@ void seamDetail(vec3 e, out float h, out float thread, out float shade) {
     // Jareta: pespunte del canal del cordón; 5: abertura del bolsillo con su pespunte
     if (k == 4) { thread += stitchLine(d, 2.4, al); h -= 0.1 * (1.0 - smoothstep(0.0, 0.18, abs(d - 2.4))); }
     if (k == 5) thread += stitchLine(d, 0.9, al);
+    // Tapeta: canto doblado, pespunte junto al canto y otro a 3 cm, donde la tapeta se cose al delantero
+    if (k == 6) {
+      thread += stitchLine(d, 0.5, al) + stitchLine(d, 2.85, al + 0.16);
+      float sewn = 1.0 - smoothstep(0.0, 0.2, abs(d - 3.0));
+      h -= 0.12 * sewn;
+      shade += 0.18 * sewn;
+    }
   }
   h += 0.04 * thread;
 }
@@ -184,6 +195,7 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
   const uniforms = {
     uSeams: { value: 0 },
     uPocket: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uPocketX: { value: new THREE.Vector3(0, 0, 0) },
     uPrintFront: { value: NO_PRINT as THREE.Texture },
     uPrintBack: { value: NO_PRINT as THREE.Texture },
     uPrintFrame: { value: new THREE.Vector4(0, 1, 1, 0) },
@@ -199,7 +211,10 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
   }
   m.userData.seams = uniforms.uSeams
   m.userData.quilt = uniforms.uQuilt
-  if (pocket) m.userData.pocket = uniforms.uPocket
+  if (pocket) {
+    m.userData.pocket = uniforms.uPocket
+    m.userData.pocketX = uniforms.uPocketX
+  }
   if (prints) m.userData.prints = uniforms
   m.defines = { ...m.defines, ...(pocket ? { POCKET: '' } : {}) }
   m.onBeforeCompile = (shader) => {
@@ -226,16 +241,19 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
           // Bolsillo: fuera del trapecio no hay tela; sus bordes salen de la forma
           seamPxD = fwidth(vPocketUv.y);
           seamPxA = fwidth(vPocketUv.x);
+          float px = (uPocketX.y > 0.5 ? abs(vPocketUv.x) : vPocketUv.x) - uPocketX.x;
           float pt = (vPocketUv.y - uPocket.x) / max(uPocket.y, 0.001);
           float halfW = mix(uPocket.z, uPocket.w, clamp(pt, 0.0, 1.0));
-          if (pt < 0.0 || pt > 1.0 || abs(vPocketUv.x) > halfW) discard;
+          if (pt < 0.0 || pt > 1.0 || abs(px) > halfW) discard;
           float slope = uPocket.y / length(vec2(uPocket.y, uPocket.z - uPocket.w));
-          float dSide = (halfW - abs(vPocketUv.x)) * slope;
+          float dSide = (halfW - abs(px)) * slope;
           float dBottom = vPocketUv.y - uPocket.x;
           float dTop = uPocket.x + uPocket.y - vPocketUv.y;
-          if (dSide < min(dBottom, dTop)) seamEdge = vec3(dSide, vPocketUv.y, 5.0);
-          else if (dBottom < dTop) seamEdge = vec3(dBottom, vPocketUv.x, 2.0);
-          else seamEdge = vec3(dTop, vPocketUv.x, 2.0);
+          bool chestPocket = uPocketX.z > 0.5;
+          // Canguro: abierto por los lados; de pecho: abierto arriba (con su dobladillo) y pespunteado alrededor
+          if (dSide < min(dBottom, dTop)) seamEdge = vec3(dSide, vPocketUv.y, chestPocket ? 1.0 : 5.0);
+          else if (dBottom < dTop) seamEdge = vec3(dBottom, px, chestPocket ? 1.0 : 2.0);
+          else seamEdge = vec3(dTop, px, chestPocket ? 4.0 : 2.0);
         #endif
         float seamH, seamThread, seamShade;
         seamDetail(seamEdge, seamH, seamThread, seamShade);
@@ -315,7 +333,7 @@ function useSlotMaterials(design: Design) {
           m.polygonOffsetFactor = -2
           m.polygonOffsetUnits = -6
         }
-        if (slot !== 'cordones' && slot !== 'ojales') withSeams(m, slot === 'bolsillo', slot === 'cuerpo' || slot === 'bolsillo')
+        if (slot !== 'cordones' && slot !== 'ojales' && slot !== 'botones') withSeams(m, slot === 'bolsillo', slot === 'cuerpo' || slot === 'bolsillo')
         return m
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -341,9 +359,7 @@ interface Props {
  * Prendas que se construyen con patrón de costura (piezas cosidas y asentadas sobre el cuerpo): la sudadera y todas
  * las de arriba con mangas que traen sus acabados (`design.top`: camiseta, polo, camisa, chaquetas).
  */
-const PATTERN_GARMENTS = new Set<Design['garment']>(['sudadera'])
-const isPattern = (d: Design) =>
-  PATTERN_GARMENTS.has(d.garment) || (!!d.top && (d.garment === 'camiseta' || d.garment === 'manga-larga' || d.garment === 'chaleco')) || (!!d.pants && d.garment === 'pantalon') || (!!d.femTop && d.garment === 'top')
+const isPattern = isPatternDesign
 
 /**
  * Prenda puesta sobre el maniquí. Usa el mismo esqueleto que el maniquí, así se mueve con la animación.
@@ -362,15 +378,23 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
   const pose = useMemo(() => referencePose(model, cloud), [model, cloud])
   const pattern = isPattern(design)
   // La prenda de encima se asienta sobre la de debajo (si esta es de patrón, espera a que termine)
-  const under = useUnderlay()
-  const waitsFor = !design.under && design.overBulk !== undefined
-  const underlay = waitsFor ? under : null
-  const topKey = JSON.stringify([design.top ?? null, design.femTop ?? null, design.pants ?? null, design.legLength ?? null, design.coveredBy ?? null])
+  // Capa de la prenda en el conjunto y las de patrón que tiene debajo (se asienta sobre su tela cuando están)
+  const layer = design.layer
+  const belowKey = (design.below ?? []).join(',')
+  const unders = useUnderlays()
+  const underlay = useMemo(
+    () => mergeUnderlays(unders, belowKey ? belowKey.split(',').map(Number) : []),
+    // Solo cambia cuando cambia alguna de las capas de debajo
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [belowKey, ...(belowKey ? belowKey.split(',').map((l) => unders.get(Number(l))) : [])],
+  )
+  const topKey = JSON.stringify([design.top ?? null, design.open ?? false, design.femTop ?? null, design.pants ?? null, design.legLength ?? null, design.coveredBy ?? null])
 
   // Prendas de patrón: se calculan en segundo plano y se muestran al terminar (la anterior sigue visible mientras)
   const [patternGeom, setPatternGeom] = useState<THREE.BufferGeometry | null>(null)
   useEffect(() => {
-    if (!pattern) return
+    // Espera a que estén calculadas las prendas de debajo
+    if (!pattern || underlay === undefined) return
     let alive = true
     dressInWorker({
       info: model.info,
@@ -391,12 +415,12 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
       underlay: underlay ?? undefined,
       },
       // Cada prenda puesta tiene su propio turno de cálculo (la de arriba y la de debajo van a la vez)
-      design.under ? 'debajo' : 'encima',
+      layer !== undefined ? `capa-${layer}` : 'encima',
     )
       .then((g) => {
         if (!alive || !g) return
         // La de debajo deja su superficie para que la de encima se asiente sobre ella
-        if (design.under) setUnderlay(g.userData.surface)
+        if (layer !== undefined) setUnderlay(layer, g.userData.surface)
         setPatternGeom((prev) => {
           prev?.dispose()
           return g
@@ -410,7 +434,7 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
   }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.hoodUp, design.pocket, design.cords, design.bodyLength, design.sleeveLength, design.chestScale, design.overBulk, topKey, underlay, fabric])
   useEffect(() => () => patternGeom?.dispose(), [patternGeom])
   // Al quitarse la prenda de debajo, la de encima vuelve a asentarse solo sobre el cuerpo
-  useEffect(() => (design.under ? () => setUnderlay(null) : undefined), [design.under])
+  useEffect(() => (layer !== undefined ? () => setUnderlay(layer, null) : undefined), [layer])
 
   // Resto de prendas: tubos que envuelven el cuerpo (cálculo rápido, al momento)
   const wrapGeoms = useMemo(() => {
@@ -472,9 +496,11 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
   useEffect(() => {
     const geometries = pattern ? (patternGeom ? [{ g: patternGeom, slot: null }] : []) : wrapGeoms
     // Forma del bolsillo de esta prenda, para recortar su material
-    const shape = patternGeom?.userData.pocket as { y0: number; h: number; w0: number; w1: number } | null | undefined
+    const shape = patternGeom?.userData.pocket as { y0: number; h: number; w0: number; w1: number; x0?: number; mirror?: boolean } | null | undefined
     const pocketUniform = materials[slotIndex('bolsillo')].userData.pocket as { value: THREE.Vector4 } | undefined
+    const pocketX = materials[slotIndex('bolsillo')].userData.pocketX as { value: THREE.Vector3 } | undefined
     if (shape && pocketUniform) pocketUniform.value.set(shape.y0, shape.h, shape.w0, shape.w1)
+    if (shape && pocketX) pocketX.value.set(shape.x0 ?? 0, shape.mirror ? 1 : 0, shape.x0 !== undefined ? 1 : 0)
     // Costuras y rebordes solo en las prendas de patrón (las demás no saben dónde están sus bordes)
     for (const m of materials) if (m.userData.seams) (m.userData.seams as { value: number }).value = pattern ? 1 : 0
     // Acolchado (puffer): canales en el cuerpo y las mangas, con su relieve

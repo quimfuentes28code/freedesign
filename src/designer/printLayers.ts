@@ -77,7 +77,14 @@ export async function printLayer(t: GarmentTemplate, data: DesignData, view: Vie
   const hw = data.hardware ?? {}
   // Botones y cremallera de la propia prenda, con su estilo
   const all = reshapePockets(t.draw(view, data.options, drawScale(t, data, body)), data)
-  const shapes = all.filter((s) => s.role)
+  const real = ['sudadera', 'polo', 'camisa', 'bomber', 'puffer', 'cazadora', 'cortavientos', 'chaleco'].includes(t.id)
+  const shapes = all.filter((s) => {
+    if (!s.role) return false
+    if (!real) return true
+    // Los del centro del delantero (tapeta y cremallera) los pone el 3D; los de los bolsillos se pintan
+    const b = pathBox(s.d)
+    return Math.abs(b.x + b.w / 2 - CX) > 6
+  })
   // Bloques de color del cuerpo (los de mangas o capucha solo se ven en 2D)
   const blocks = (data.blocks ?? []).filter((b) => b.view === view && BODY_PIECES(t).includes(b.piece))
   const f = bodyFrame(t, data, view, body)

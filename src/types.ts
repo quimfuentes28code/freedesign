@@ -21,6 +21,25 @@ export interface TopShape {
   sleeveless?: boolean
   /** Canales del acolchado en 3D: su forma (índice en QUILT_SHAPES del Diseñador) y su separación (cm). */
   quilt?: { shape: number; step: number }
+  /** Cierre delante: el delantero va en dos piezas unidas por botones o cremallera (ver TopClosure). */
+  closure?: TopClosure
+  /** Bolsillo de pecho de parche (camisa, polo, cazadora): uno a la izquierda o uno a cada lado. */
+  chestPocket?: 'uno' | 'dos'
+  /** Pretina recta (cazadora): del ancho del cuerpo, sin fruncir, más baja. */
+  flatBand?: boolean
+}
+
+/** Cierre delantero de una prenda de arriba. */
+export interface TopClosure {
+  kind: 'botones' | 'cremallera'
+  /** Abierta de arriba abajo (chaquetas, camisa); si no, solo los cm de `length` desde el escote (polo, media cremallera). */
+  full: boolean
+  length?: number
+  /** Número de botones y su diámetro (cm). */
+  buttons?: number
+  buttonSize?: number
+  /** Tapeta: tira de tela doblada a lo largo de la abertura (camisa, polo, cazadora). */
+  placket?: boolean
 }
 
 /** Top de mujer con patrón. */
@@ -63,9 +82,19 @@ export type Fit = 'ajustado' | 'normal' | 'holgado'
  * Zonas de la prenda 3D que pueden llevar su propio color y material.
  * El orden es el índice de material de la malla (no cambiarlo sin cambiar también dress.ts).
  */
-export const GARMENT_SLOTS = ['cuerpo', 'mangas', 'capucha', 'cuello', 'bolsillo', 'punos', 'bajo', 'cordones', 'ojales'] as const
+export const GARMENT_SLOTS = ['cuerpo', 'mangas', 'capucha', 'cuello', 'bolsillo', 'punos', 'bajo', 'cordones', 'ojales', 'botones'] as const
 export type GarmentSlot = (typeof GARMENT_SLOTS)[number]
 export const slotIndex = (s: GarmentSlot) => GARMENT_SLOTS.indexOf(s)
+
+/**
+ * Prendas que se construyen con patrón de costura (piezas cosidas y asentadas sobre el cuerpo): la sudadera, las de
+ * arriba con sus acabados (`top`), los pantalones (`pants`) y el top de mujer (`femTop`). El resto son tubos.
+ */
+export const isPatternDesign = (d: Design) =>
+  d.garment === 'sudadera' ||
+  (!!d.top && (d.garment === 'camiseta' || d.garment === 'manga-larga' || d.garment === 'chaleco')) ||
+  (!!d.pants && d.garment === 'pantalon') ||
+  (!!d.femTop && d.garment === 'top')
 
 /** Zonas que son de canalé en la sudadera (si no se elige material, se ven como canalé). */
 export const RIB_SLOTS: GarmentSlot[] = ['cuello', 'punos', 'bajo']
@@ -114,6 +143,14 @@ export interface Design {
   legLength?: number
   /** Va debajo de otra prenda (el pantalón con una sudadera o camiseta): se ciñe a la cintura para no atravesarla. */
   under?: boolean
+  /** Prenda abierta por delante (solo las que tienen el cierre de arriba abajo). */
+  open?: boolean
+  /**
+   * Capa de la prenda en un conjunto (0 = la de más adentro, p. ej. el pantalón; luego la camiseta y la chaqueta) y
+   * capas de patrón que tiene debajo: se calcula después de ellas y se asienta sobre su tela.
+   */
+  layer?: number
+  below?: number[]
   /**
    * Largo (cm, del hombro al bajo) de la prenda que va encima. Lo que esa prenda tapa no se construye: la tela de
    * arriba se asienta contra el cuerpo y no contra esta, y la de debajo asomaba a manchas.

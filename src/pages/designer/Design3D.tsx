@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, useApi } from '../../api/client'
 import { printLayer } from '../../designer/printLayers'
-import { getTemplate } from '../../designer/templates'
+import { defaultDesign, getTemplate } from '../../designer/templates'
 import { clientBody, type Body, type BodyKind } from '../../production/measurements'
 import { designTo3D, hasOwn3D, mannequinMeasurements } from '../../designer/to3d'
 import { isPants } from '../../designer/types'
-import type { Design } from '../../types'
+import { isPatternDesign, type Design } from '../../types'
 import type { GarmentTemplate } from '../../designer/types'
 import type { Client } from '../../shared/clients'
 import { bodyKind, type DesignData } from '../../shared/designs'
@@ -38,18 +38,42 @@ export function useDesign3D(template: GarmentTemplate | null | undefined, data: 
 /** Cuerpo del maniquí: el del cliente si tiene medidas. */
 export const bodyOf = (client?: Client, kind: BodyKind = 'hombre') => (client && Object.keys(client.measurements).length ? clientBody(client.measurements, kind).body : undefined)
 
-/** Prenda de arriba y de abajo juntas: la de abajo (pantalón) va debajo y se ciñe a la cintura. */
-export function outfitOf(main: Design, other: Design | null, mainIsPants: boolean): { design: Design; outfit: Design[] } {
-  if (!other) return { design: main, outfit: [] }
-  // Lo de fuera es siempre la prenda de arriba
-  const [outer, inner] = mainIsPants ? [other, main] : [main, other]
-  // Lo que abulta el pantalón en la cadera según su corte (la prenda de arriba se apoya encima)
-  const bulk = inner.pants ? { slim: 4, regular: 8, ancho: 16, baggy: 24 }[inner.pants.leg] : 6
-  return {
-    design: { ...outer, overBulk: bulk },
-    outfit: [{ ...inner, under: true, coveredBy: outer.garment === 'pantalon' ? undefined : outer.bodyLength, overPattern: !!(outer.top || outer.garment === 'sudadera') }],
-  }
+/**
+ * Prenda de arriba y de abajo juntas (y, si se pide, una camiseta básica debajo de la de arriba). Van por capas: el
+ * pantalón (que se ciñe a la cintura), la camiseta y la prenda de arriba; cada prenda de patrón se asienta sobre la
+ * tela de las de debajo.
+ */
+export function outfitOf(main: Design, other: Design | null, mainIsPants: boolean, tee?: Design | null): { design: Design; outfit: Design[] } {
+  const [outer, pants] = other ? (mainIsPants ? [other, main] : [main, other]) : mainIsPants ? [null, main] : [main, null]
+  if (!outer) return { design: main, outfit: [] }
+  // Lo que abulta el pantalón en la cadera según su corte (lo de arriba se apoya encima)
+  const bulk = pants ? (pants.pants ? { slim: 4, regular: 8, ancho: 16, baggy: 24 }[pants.pants.leg] : 6) : undefined
+  const layers: Design[] = []
+  const patternBelow = () => layers.filter(isPatternDesign).map((d) => d.layer!)
+  if (pants)
+    layers.push({
+      ...pants,
+      layer: 0,
+      under: true,
+      coveredBy: (tee ?? outer).bodyLength,
+      overPattern: isPatternDesign(outer),
+    })
+  if (tee) layers.push({ ...tee, layer: layers.length, below: patternBelow(), overBulk: bulk })
+  const top: Design = { ...outer, layer: layers.length, below: patternBelow(), overBulk: bulk === undefined ? undefined : bulk + (tee ? 3 : 0) }
+  return { design: top, outfit: layers }
 }
+
+/** Camiseta básica (blanca o negra) para llevar debajo de una prenda abierta, con el cuerpo del maniquí. */
+export function basicTee(color: 'blanca' | 'negra', female: boolean): Design {
+  const t = getTemplate('camiseta')!
+  const data = defaultDesign(t, { corte: 'regular', manga: 'corta', ...(female ? { genero: 'mujer' } : {}) }) as DesignData
+  const hex = color === 'blanca' ? '#f3f1ec' : '#1b1b1d'
+  for (const p of Object.values(data.pieces)) p.color = hex
+  return designTo3D(t, data)
+}
+
+/** Selector «Debajo» de una prenda que se puede llevar abierta. */
+export type TeeChoice = '' | 'blanca' | 'negra'
 
 interface Props {
   template: GarmentTemplate
@@ -101,8 +125,13 @@ export function Design3D({ template, data, materials, client, designId }: Props)
     }
   }
 
-  const { design, outfit } = useMemo(() => outfitOf(main, other, pants), [main, other, pants])
-  const shown = useMemo(() => ({ ...design, hoodUp }), [design, hoodUp])
+  // Prendas abiertas por delante (chaquetas, camisa): se pueden ver abiertas y con una camiseta básica debajo
+  const canOpen = !pants && !!main.top?.closure?.full
+  const [open, setOpen] = useState(false)
+  const [teeColor, setTeeColor] = useState<TeeChoice>('')
+  const tee = useMemo(() => (canOpen && teeColor ? basicTee(teeColor, kind === 'mujer') : null), [canOpen, teeColor, kind])
+  const { design, outfit } = useMemo(() => outfitOf(main, other, pants, tee), [main, other, pants, tee])
+  const shown = useMemo(() => ({ ...design, hoodUp, open: canOpen && open }), [design, hoodUp, canOpen, open])
   const measurements = useMemo(() => mannequinMeasurements(client?.measurements, kind), [client, kind])
   const [autoRotate, setAutoRotate] = useState(false)
   const sidePrints = (data.prints ?? []).filter((p) => p.view === 'side').length
@@ -143,6 +172,22 @@ export function Design3D({ template, data, materials, client, designId }: Props)
               <input type="checkbox" checked={hoodUp} onChange={(e) => setHoodUp(e.target.checked)} />
               Capucha puesta
             </label>
+          )}
+          {canOpen && (
+            <>
+              <label className="toggle">
+                <input type="checkbox" checked={open} onChange={(e) => setOpen(e.target.checked)} />
+                Abierta
+              </label>
+              <label className="outfit-pick" title="Camiseta básica debajo de la prenda">
+                <span>Debajo</span>
+                <select value={teeColor} onChange={(e) => setTeeColor(e.target.value as TeeChoice)}>
+                  <option value="">Nada</option>
+                  <option value="blanca">Camiseta blanca</option>
+                  <option value="negra">Camiseta negra</option>
+                </select>
+              </label>
+            </>
           )}
           <label className="toggle">
             <input type="checkbox" checked={autoRotate} onChange={(e) => setAutoRotate(e.target.checked)} />

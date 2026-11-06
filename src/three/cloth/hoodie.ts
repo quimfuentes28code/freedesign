@@ -48,6 +48,13 @@ export interface HoodieResult {
    * tienen grosor. Puntos en orden a lo largo del borde, zona de la prenda y radio del reborde (cm).
    */
   rims: { verts: number[]; slot: GarmentSlot; radius: number }[]
+  /**
+   * Cierre delantero: los dos bordes de la abertura de abajo arriba (lado izquierdo y derecho del cuerpo), y si va
+   * abierta. Los botones y la cremallera se construyen sobre ellos una vez asentada la tela.
+   */
+  closure: { left: number[]; right: number[]; kind: 'botones' | 'cremallera'; buttons: number; size: number; open: boolean; full: boolean } | null
+  /** Puntos donde va el botón de cada puño de camisa. */
+  cuffButtons: number[]
 }
 
 /** Trapecio del bolsillo canguro en el patrón del delantero (cm): de `y0` a `y0 + h`, semiancho de `w0` abajo a `w1` arriba. */
@@ -56,6 +63,9 @@ export interface PocketShape {
   h: number
   w0: number
   w1: number
+  /** Centro en x (cm) y si hay otro igual al otro lado (bolsillos de pecho). */
+  x0?: number
+  mirror?: boolean
 }
 
 interface Body {
@@ -87,6 +97,11 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const shape: TopShape = design.top ?? { hem: 'canale', cuff: 'canale', neck: 'canale' }
   const hasBand = shape.hem !== 'dobladillo'
   const hasCuff = shape.cuff !== 'dobladillo'
+  // Cierre delantero; abierta solo si el cierre va de arriba abajo
+  const closure = shape.closure
+  const open = !!closure?.full && !!design.open
+  // Pretina recta (cazadora): más baja que un canalé
+  const bandH = (shape.flatBand ? 5 : 7) * s
   // --- Medidas del patrón (cm) ---
   // El relleno de una acolchada la separa del cuerpo como una holgura más
   const ease = EASE[design.fit] + (shape.padded ? 9 : 0)
@@ -94,7 +109,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const panelBend = shape.padded ? 7 : 1
   const bodyC = (m.chest + ease) * (design.chestScale ?? 1)
   const W = bodyC / 2 // ancho de delantero y espalda
-  const L = design.bodyLength - (hasBand ? 7 : 1) // largo del cuerpo sin el bajo (canalé o pretina) o el dobladillo
+  const L = design.bodyLength - (hasBand ? bandH / s : 1) // largo del cuerpo sin el bajo (canalé o pretina) o el dobladillo
   const neckW = 19 * s
   const frontDrop = 8.5 * s
   const backDrop = 2.5 * s
@@ -112,11 +127,13 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   // Puño de canalé ceñido a la muñeca; el de camisa, algo más suelto
   const cuffC = (shape.cuff === 'puno' ? 23 : 19) * s + (shape.padded ? 4 * s : 0)
   const ribH = 7 * s
+  // Puño de manga corta (polo): una tira estrecha a la medida del final de la manga, no un puño de muñeca
+  const cuffH = longSleeve ? (shape.cuff === 'puno' ? 6 * s : ribH) : 2.5 * s
   // El bajo de canalé recoge el cuerpo y se ajusta a la cadera (como mucho la cadera más 10 cm); el cuerpo se
   // ahueca encima. Si fuera casi tan ancho como el cuerpo, colgaría abierto como una falda
   // Con un pantalón debajo, el bajo rodea la cadera con el pantalón puesto (lo que abulta, `overBulk`)
   const bulk = design.overBulk ?? 0
-  const bandC = Math.max(shape.hem === 'canale' ? Math.min(bodyC * 0.88, m.hips + 10) : Math.min(bodyC * 0.95, m.hips + 18), bulk ? m.hips + bulk + 8 : 0)
+  const bandC = shape.flatBand ? bodyC * 0.97 : Math.max(shape.hem === 'canale' ? Math.min(bodyC * 0.88, m.hips + 10) : Math.min(bodyC * 0.95, m.hips + 18), bulk ? m.hips + bulk + 8 : 0)
 
   // --- Referencias del cuerpo (unidades del modelo, postura en T) ---
   const topY = info.neckY + 1.5 * unit
@@ -176,6 +193,10 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
 
   // Fila de la axila: por encima, el borde lateral es la sisa (pespunteada); por debajo, la costura del costado
   const armpitRow = Math.floor(((L - slope - armhole) / (L - slope)) * (nv - 1))
+  // Abertura del delantero: por la columna del centro, de arriba abajo o solo desde el escote (polo, media cremallera)
+  const centerCol = (nu - 1) / 2
+  const frontH = L - frontDrop
+  const fromRow = !closure || closure.full ? 0 : Math.max(1, Math.round(((frontH - (closure.length ?? 20) * s) / frontH) * (nv - 1)))
   const torsoPanel = (front: boolean) => {
     const drop = front ? frontDrop : backDrop
     const towards = front ? 1 : -1
@@ -184,14 +205,18 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
       nu,
       nv,
       bend: panelBend,
+      split: front && closure ? { col: centerCol, from: fromRow, edge: closure.placket ? 'tapeta' : 'pespunte' } : undefined,
       edges: { u0: side, u1: side, v0: 'recubierta', v1: 'pespunte' },
       flat: (u, v, out) => {
         const x = (u - 0.5) * W
         out.set(x, v * yTop(x, drop))
       },
       place: (u, v, out) => {
-        const x = (u - 0.5) * W
-        const y = hemY + v * yTop(x, drop) * unit
+        const x0 = (u - 0.5) * W
+        const y = hemY + v * yTop(x0, drop) * unit
+        // Abierta: los dos delanteros se separan (cada uno hacia su lado), menos junto al escote
+        const gap = front && open ? 8 * s * (1 - THREE.MathUtils.smoothstep(v, 0.55, 1)) : 0
+        const x = gap ? (u > 0.5 ? 1 : -1) * (gap + Math.abs(x0) * (1 - gap / (W / 2))) : x0
         const th = (x / W) * Math.PI
         let z = b * Math.cos(th)
         // Cerca de los hombros delantero y espalda se juntan por encima del cuerpo
@@ -230,6 +255,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
 
   // --- Mangas y puños ---
   const sleevePanels: { panel: Panel; len: number }[] = []
+  const cuffButtons: number[] = []
   const rims: HoodieResult['rims'] = []
   for (const side of [1, -1] as const) {
     const ax = arm(side)
@@ -284,7 +310,8 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
       continue
     }
     const end = start.clone().addScaledVector(ax.dir, sleeveLen * unit)
-    const nc = grid(cuffC, 1.6)
+    const cuffLen = longSleeve ? cuffC : sleeveEnd * 0.94
+    const nc = grid(cuffLen, 1.6)
     const ribCuff = shape.cuff === 'canale'
     const cuff = add(
       cloth.addPanel({
@@ -295,10 +322,10 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
         // La costura se marca del lado de la manga; el canalé arranca limpio (si no, sus costillas salían como rayas).
         // El puño de camisa es de la misma tela, con su pespunte
         edges: ribCuff ? { v0: 'ninguno', v1: 'doblez', u0: 'ninguno', u1: 'ninguno' } : { v0: 'pespunte', v1: 'doblez', u0: 'plana', u1: 'plana' },
-        flat: (u, v, out) => out.set((u - 0.5) * cuffC, -v * ribH),
+        flat: (u, v, out) => out.set((u - 0.5) * cuffLen, -v * cuffH),
         place: (u, v, out) => {
-          const c = end.clone().addScaledVector(ax.dir, v * ribH * unit)
-          ring(c, Math.max((cuffC * unit) / (2 * Math.PI), ax.radius(c.x) + 1 * unit), u, out)
+          const c = end.clone().addScaledVector(ax.dir, v * cuffH * unit)
+          ring(c, Math.max((cuffLen * unit) / (2 * Math.PI), ax.radius(c.x) + 1 * unit), u, out)
         },
       }),
       [side > 0 ? Part.ArmL : Part.ArmR, side > 0 ? Part.HandL : Part.HandR],
@@ -308,6 +335,8 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     cloth.sew(cuff.col(0), cuff.col(nc - 1))
     // Final del puño: canalé doblado (la fila ya da la vuelta entera: su primer y último punto están cosidos)
     rims.push({ verts: cuff.row(RIB_ROWS - 1), slot: 'punos', radius: 0.3 * s })
+    // Puño de camisa: su botón, por fuera de la muñeca
+    if (shape.cuff === 'puno' && !shape.padded) cuffButtons.push(cuff.index(Math.round(0.5 * (nc - 1)), Math.floor(RIB_ROWS / 2)))
   }
 
   // --- Bajo: canalé, pretina o dobladillo ---
@@ -315,11 +344,15 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   let bandPanel: Panel | null = null
   if (!hasBand) {
     // Dobladillo: el borde del cuerpo lleva el grosor de la tela doblada
-    rims.push({ verts: hemLoop, slot: 'cuerpo', radius: 0.3 * s })
+    // Con abertura de arriba abajo, el reborde empieza en un canto y acaba en el otro (no cruza la abertura)
+    const open0 = closure?.full
+      ? [front.right(centerCol, 0), ...front.row(0).slice(centerCol + 1), ...back.row(0).reverse(), ...front.row(0).slice(0, centerCol + 1)]
+      : hemLoop
+    rims.push({ verts: open0, slot: 'cuerpo', radius: 0.3 * s })
   } else {
   // El bajo nace alrededor de la cadera real (centrado en ella y con su forma, más ancho que ella), no en una elipse
   // centrada en el pecho: así, al ser más estrecho que el cuerpo, no empieza metido en los glúteos
-  const bandY = hemY - (ribH / 2) * unit
+  const bandY = hemY - (bandH / 2) * unit
   const hip = zExtent(points, bandY - 3 * unit, bandY + 3 * unit, info.shoulderX * 0.55)
   const hipZ = (hip.min + hip.max) / 2
   const hipRatio = 0.8
@@ -330,7 +363,10 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     const th = isFront ? -Math.PI / 2 + u * 2 * Math.PI : Math.PI / 2 - (u * 2 - 1) * Math.PI
     return out.set(cx + bandA * Math.sin(th), 0, hipZ + (isFront ? 1 : -1) * bandA * hipRatio * Math.cos(th))
   }
-  const nb = grid(bandC, 1.6)
+  // Con abertura de arriba abajo, el bajo se abre por el centro del delantero (a un cuarto de vuelta)
+  let nb = grid(bandC, 1.6)
+  if (closure?.full) nb = Math.round((nb - 1) / 4) * 4 + 1
+  const bandCut = (nb - 1) / 4
   const ribBand = shape.hem === 'canale'
   const band = add(
     cloth.addPanel({
@@ -340,18 +376,33 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
       bend: ribBand ? RIB_BEND : 4,
       // La costura se marca del lado del cuerpo (con su doble pespunte); el canalé arranca limpio
       edges: { v0: 'doblez', v1: 'ninguno', u0: 'ninguno', u1: 'ninguno' },
-      flat: (u, v, out) => out.set(u * bandC, v * ribH),
+      split: closure?.full ? { col: bandCut, from: 0, edge: closure.placket ? 'tapeta' : 'pespunte' } : undefined,
+      flat: (u, v, out) => out.set(u * bandC, v * bandH),
       place: (u, v, out) => {
         bandPoint(u, out)
-        out.y = hemY - (1 - v) * ribH * unit
+        // Abierta, el bajo se separa como el delantero
+        if (open && u < 0.5) out.x += (u > 0.25 ? 1 : -1) * 8 * s * unit * Math.max(0, 1 - Math.abs(u - 0.25) / 0.2)
+        out.y = hemY - (1 - v) * bandH * unit
       },
     }),
     [Part.Torso],
     'bajo',
   )
-  cloth.sew(band.row(RIB_ROWS - 1), hemLoop)
+  if (closure?.full) {
+    // Cada lado de la abertura se cose por separado (los dos puntos del centro están en el mismo sitio del patrón)
+    const top = band.row(RIB_ROWS - 1)
+    const half = (nb - 1) / 2
+    cloth.sew(top.slice(0, bandCut + 1), front.row(0).slice(0, centerCol + 1))
+    cloth.sew([band.right(bandCut, RIB_ROWS - 1), ...top.slice(bandCut + 1, half + 1)], [front.right(centerCol, 0), ...front.row(0).slice(centerCol + 1)])
+    cloth.sew(top.slice(half), back.row(0).reverse())
+  } else cloth.sew(band.row(RIB_ROWS - 1), hemLoop)
   cloth.sew(band.col(0), band.col(nb - 1))
-  rims.push({ verts: band.row(0), slot: 'bajo', radius: 0.3 * s })
+  const row0 = band.row(0)
+  rims.push({
+    verts: closure?.full ? [band.right(bandCut, 0), ...row0.slice(bandCut + 1), ...row0.slice(1, bandCut + 1)] : row0,
+    slot: 'bajo',
+    radius: 0.3 * s,
+  })
   bandPanel = band
   }
 
@@ -360,13 +411,16 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const center = (nu - 1) / 2
   const halfNeck = (side: 1 | -1, over = 0) => {
     const f = neckIdx.filter((i) => side * (i - center) >= 0).sort((p, q) => side * (p - q))
+    const fr = (i: number) => (side > 0 && closure && i === centerCol ? front.right(i, nv - 1) : topF[i])
     // Capucha cruzada: el delantero sigue más allá del centro (los dos lados se montan y se cosen al escote)
     const extra = over > 0 ? neckIdx.filter((i) => side * (i - center) < 0 && -side * xOf(i) <= over).sort((p, q) => side * (p - q)) : []
-    return [...extra.map((i) => topF[i]), ...f.map((i) => topF[i]), ...[...f].reverse().map((i) => topB[i])]
+    return [...extra.map((i) => topF[i]), ...f.map(fr), ...[...f].reverse().map((i) => topB[i])]
   }
   const neckLen = Math.PI * 0.5 * (neckW / 2 + (frontDrop + backDrop) / 2) * 2
 
   const hoodPanels: Panel[] = []
+  // La cremallera sigue por el cuello alto
+  let collarZip: { left: number[]; right: number[] } | null = null
   // Puntos del cuello que se sujetan a su sitio (tira de canalé tumbada, cuello de camisa con su pala)
   const neckPins: number[] = []
   const cordExits: number[] = []
@@ -515,8 +569,10 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
       [Part.Torso, Part.Neck],
       'cuello',
     )
-    cloth.sew(collar.row(0), [...loop, loop[0]])
-    cloth.sew(collar.col(0), collar.col(nn - 1))
+    cloth.sew(collar.row(0), [...loop, closure ? topF[centerCol] : loop[0]])
+    // Abierta, el cuello también (cada mitad con su delantero)
+    if (!open) cloth.sew(collar.col(0), collar.col(nn - 1))
+    if (closure?.kind === 'cremallera' && neckKind !== 'camisa') collarZip = { left: collar.col(nn - 1), right: collar.col(0) }
     const collarAll = Array.from({ length: nn * nr }, (_, q) => collar.index(q % nn, Math.floor(q / nn)))
     // Todos los cuellos se sujetan a su sitio (si no, el alto de las chaquetas se venía abajo o se pegaba al cuello)
     if (neckKind !== 'camisa') neckPins.push(...collarAll.slice(nn))
@@ -578,6 +634,18 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const ph = 21 * s
   // Empieza unos cm por encima del bajo: justo encima del canalé la tela se frunce y el bolsillo se levantaría
   const py = 3.5 * s
+  // Bolsillo de pecho de parche: a la izquierda del cuerpo (a la derecha según se mira), o uno a cada lado
+  const cw = 6 * s
+  const ch = 14 * s
+  const cy = L - 21 * s - ch
+  const cx0 = 10.5 * s
+  const chestPocket = shape.chestPocket
+    ? {
+        panel: front.id,
+        inside: (x: number, y: number) => y >= cy && y <= cy + ch && Math.abs((shape.chestPocket === 'dos' ? Math.abs(x) : x) - cx0) < cw,
+        shape: { y0: cy, h: ch, w0: cw, w1: cw, x0: cx0, mirror: shape.chestPocket === 'dos' },
+      }
+    : null
   const pocket = design.pocket
     ? {
         panel: front.id,
@@ -588,7 +656,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
         },
         shape: { y0: py, h: ph, w0: pw / 2, w1: pw * 0.34 },
       }
-    : null
+    : chestPocket
 
   // --- Capas: qué piezas no se pueden atravesar entre sí ---
   const all = (p: Panel) => Array.from({ length: p.nu * p.nv }, (_, k) => p.index(k % p.nu, Math.floor(k / p.nu)))
@@ -628,9 +696,31 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
       : hoodPanels.flatMap((p) => all(p).filter((_, k) => (k % p.nu) / (p.nu - 1) < 0.35 && Math.floor(k / p.nu) / (p.nv - 1) < 0.45))),
     ...neckPins,
   ]
-  const layers = { hood: hoodFree, hoodAll: hoodPanels.flatMap(all), torso: torsoAll, sleevesLow, torsoLow, sleeveCap, torsoArmhole, bodyOnly, collarPins }
+  // Puntos de la derecha de las aberturas (no están en la rejilla de su pieza)
+  const rightsOf = (p: Panel) => (p.split ? Array.from({ length: p.nv - p.split.from }, (_, k) => p.right(p.split!.col, p.split!.from + k)) : [])
+  const torsoWithCut = [...torsoAll, ...rightsOf(front)]
+  if (bandPanel) bodyOnly.push(...rightsOf(bandPanel))
 
-  return { cloth, follows, slots, pocket, layers, cordExits, rims }
+  // Cierre: los dos bordes de la abertura de abajo arriba (bajo, delantero y cuello alto); cerrada, se cosen
+  let closureOut: HoodieResult['closure'] = null
+  if (closure) {
+    const fl = front.col(centerCol).slice(fromRow)
+    const frr = Array.from({ length: nv - fromRow }, (_, k) => front.right(centerCol, fromRow + k))
+    const bp = bandPanel?.split ? bandPanel : null
+    const bl = bp ? bp.col(bp.split!.col).slice(0, RIB_ROWS - 1) : []
+    const br = bp ? Array.from({ length: RIB_ROWS - 1 }, (_, j) => bp.right(bp.split!.col, j)) : []
+    const zip = collarZip as { left: number[]; right: number[] } | null
+    const left = [...bl, ...fl, ...(zip ? zip.left.slice(1) : [])]
+    const right = [...br, ...frr, ...(zip ? zip.right.slice(1) : [])]
+    if (!open) {
+      cloth.sew(fl, frr)
+      if (bl.length) cloth.sew(bl, br)
+    }
+    closureOut = { left, right, kind: closure.kind, buttons: closure.buttons ?? 5, size: closure.buttonSize ?? 1.2, open, full: closure.full }
+  }
+  const layers = { hood: hoodFree, hoodAll: hoodPanels.flatMap(all), torso: torsoWithCut, sleevesLow, torsoLow, sleeveCap, torsoArmhole, bodyOnly, collarPins }
+
+  return { cloth, follows, slots, pocket, layers, cordExits, rims, closure: closureOut, cuffButtons }
 }
 
 /** Perímetro aproximado de una elipse (Ramanujan). */

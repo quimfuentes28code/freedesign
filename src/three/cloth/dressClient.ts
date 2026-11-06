@@ -54,25 +54,45 @@ function toGeometry(out: DressOutput) {
   return g
 }
 
-// --- Prenda de debajo asentada: la de encima se calcula sobre ella ---
-let underlay: Underlay | null = null
+// --- Prendas de debajo asentadas: cada capa se calcula sobre las que tiene debajo ---
+let underlays = new Map<number, Underlay>()
 const underListeners = new Set<() => void>()
 
-/** La prenda de debajo avisa de su superficie al terminar (o null al quitarse). */
-export function setUnderlay(u: Underlay | null) {
-  underlay = u
+/** Cada capa avisa de su superficie al terminar (o null al quitarse). */
+export function setUnderlay(layer: number, u: Underlay | null) {
+  const next = new Map(underlays)
+  if (u) next.set(layer, u)
+  else next.delete(layer)
+  underlays = next
   underListeners.forEach((l) => l())
 }
 
-/** Superficie de la prenda de debajo, para la de encima (cambia cuando se recalcula). */
-export function useUnderlay() {
+/** Superficies de todas las capas puestas (cambia cuando alguna se recalcula). */
+export function useUnderlays() {
   return useSyncExternalStore(
     (cb) => {
       underListeners.add(cb)
       return () => underListeners.delete(cb)
     },
-    () => underlay,
+    () => underlays,
   )
+}
+
+/** Las superficies de varias capas juntas, o `undefined` si alguna aún no está calculada. */
+export function mergeUnderlays(all: Map<number, Underlay>, layers: number[]): Underlay | null | undefined {
+  if (!layers.length) return null
+  const list = layers.map((l) => all.get(l))
+  if (list.some((u) => !u)) return undefined
+  const size = list.reduce((n, u) => n + u!.points.length, 0)
+  const points = new Float32Array(size)
+  const normals = new Float32Array(size)
+  let at = 0
+  for (const u of list) {
+    points.set(u!.points, at)
+    normals.set(u!.normals, at)
+    at += u!.points.length
+  }
+  return { points, normals }
 }
 
 /** `true` mientras se está calculando alguna prenda (para mostrar "Ajustando prenda…"). */
