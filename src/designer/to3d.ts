@@ -34,25 +34,28 @@ function garmentOf(t: GarmentTemplate, data: DesignData): GarmentType {
 function topShapeOf(t: GarmentTemplate, o: DesignData['options']): TopShape | undefined {
   const v = (id: string) => String(opt(t, o, id) ?? '')
   const ribbed = v('punos') === 'canale'
+  const fit = { neckFit: (v('ajusteCuello') || 'holgado') as 'cenido' | 'holgado' }
   switch (t.id) {
     case 'sudadera':
-      return { hem: ribbed ? 'canale' : 'dobladillo', cuff: ribbed ? 'canale' : 'dobladillo', neck: v('cuelloSin') === 'alto' ? 'alto' : v('cuelloSin') === 'polo' ? 'camisa' : 'canale' }
+      return { ...fit, hem: ribbed ? 'canale' : 'dobladillo', cuff: ribbed ? 'canale' : 'dobladillo', neck: v('cuelloSin') === 'alto' ? 'alto' : v('cuelloSin') === 'polo' ? 'camisa' : 'canale' }
     case 'camiseta':
-      return { hem: 'dobladillo', cuff: 'dobladillo', neck: v('cuello') === 'alto' ? 'alto' : 'canale' }
+      return { ...fit, hem: 'dobladillo', cuff: 'dobladillo', neck: v('cuello') === 'alto' ? 'alto' : 'canale' }
     case 'polo':
-      return { hem: 'dobladillo', cuff: ribbed ? 'canale' : 'dobladillo', neck: 'camisa' }
+      return { hem: 'dobladillo', cuff: ribbed ? 'canale' : 'dobladillo', ...mao(v('cuello')) }
     case 'camisa':
-      return { hem: 'dobladillo', cuff: v('manga') === 'corta' ? 'dobladillo' : 'puno', neck: 'camisa' }
+      return { hem: 'dobladillo', cuff: v('manga') === 'corta' ? 'dobladillo' : 'puno', ...mao(v('cuello')) }
     case 'bomber':
-      return { hem: 'canale', cuff: 'canale', neck: v('cuello') === 'solapa' ? 'camisa' : 'alto' }
+      // El canalé de la bomber es un cuello bajo (unos 4,5 cm); el «alto», uno de chaqueta
+      return { ...fit, hem: 'canale', cuff: 'canale', neck: v('cuello') === 'solapa' ? 'camisa' : 'alto', ...(v('cuello') === 'canale' ? { neckHeight: 4.5 } : {}) }
     // El «ribete elástico» recoge la muñeca y el bajo, como un puño y una pretina finos
     case 'puffer':
-      return { hem: ribbed ? 'canale' : 'pretina', cuff: ribbed ? 'canale' : 'puno', neck: 'alto', padded: true, quilt: quiltOf(o, t) }
+      return { ...fit, hem: ribbed ? 'canale' : 'pretina', cuff: ribbed ? 'canale' : 'puno', neck: 'alto', padded: true, quilt: quiltOf(o, t) }
     case 'cazadora':
-      return { hem: v('bajo') === 'pretina' ? 'pretina' : 'dobladillo', cuff: 'puno', neck: 'camisa' }
+      return { hem: v('bajo') === 'pretina' ? 'pretina' : 'dobladillo', cuff: 'puno', ...mao(v('cuello')) }
     case 'chaleco': {
       const neck = v('cuello')
       return {
+        ...fit,
         hem: v('bajo') === 'canale' ? 'canale' : 'dobladillo',
         cuff: 'dobladillo',
         neck: neck === 'alto' ? 'alto' : 'canale',
@@ -61,10 +64,14 @@ function topShapeOf(t: GarmentTemplate, o: DesignData['options']): TopShape | un
       }
     }
     case 'cortavientos':
-      return { hem: ribbed ? 'canale' : 'pretina', cuff: ribbed ? 'canale' : 'puno', neck: 'alto' }
+      return { ...fit, hem: ribbed ? 'canale' : 'pretina', cuff: ribbed ? 'canale' : 'puno', neck: 'alto' }
   }
   return undefined
 }
+
+/** Cuello mao (una tira recta de pie, algo separada del cuello) o de camisa (con su pala). */
+const mao = (cuello: string): Pick<TopShape, 'neck' | 'neckFit' | 'neckHeight'> =>
+  cuello === 'mao' ? { neck: 'alto', neckFit: 'holgado', neckHeight: 3.5 } : { neck: 'camisa' }
 
 /** Corte y acabados en 3D de un pantalón (se cose con patrón; ver three/cloth/pants.ts). */
 function pantsShapeOf(t: GarmentTemplate, o: DesignData['options']): PantsShape {
@@ -175,9 +182,10 @@ export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<s
   }
 }
 
-export const DEFAULT_MEASUREMENTS: Measurements = { height: 172, chest: 92, waist: 76, hips: 98 }
-/** Maniquí de mujer de partida (talla M): busto, bajo pecho, cintura y cadera de mujer. */
-export const FEMALE_MEASUREMENTS: Measurements = { height: 165, chest: 92, waist: 72, hips: 99, female: true, underbust: 76, neck: 34, backWidth: 35, backLength: 40 }
+/** Maniquí de hombre de partida: 180 cm y unos 80 kg (talla M-L), con su cuello, espalda y talle. */
+export const DEFAULT_MEASUREMENTS: Measurements = { height: 180, chest: 102, waist: 88, hips: 103, neck: 40, backWidth: 45, backLength: 45 }
+/** Maniquí de mujer de partida: 165 cm y unos 60 kg (talla S-M), con busto, bajo pecho, cintura y cadera de mujer. */
+export const FEMALE_MEASUREMENTS: Measurements = { height: 165, chest: 88, waist: 68, hips: 96, female: true, underbust: 74, neck: 33, backWidth: 35, backLength: 40 }
 
 /** Medidas del maniquí: las del cliente del diseño si las tiene, si no unas medias (de hombre o de mujer). */
 export function mannequinMeasurements(m?: ClientMeasurements, kind: 'hombre' | 'mujer' = 'hombre'): Measurements {

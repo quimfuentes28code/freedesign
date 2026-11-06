@@ -75,6 +75,8 @@ const topFit = (def: string, ids = ['ajustado', 'regular', 'boxy', 'oversize']) 
   choice('corte', 'Corte', 'corte', ids.map((i) => [i, { ajustado: 'Ajustado', regular: 'Regular', boxy: 'Boxy', oversize: 'Oversize' }[i]!]), def)
 const pantsFit = (def: string, ids = ['slim', 'regular', 'ancho', 'baggy']) =>
   choice('corte', 'Corte', 'corte', ids.map((i) => [i, { slim: 'Slim', regular: 'Regular', ancho: 'Ancho', baggy: 'Baggy' }[i]!]), def)
+/** Cuello alto (cisne, chaquetas): pegado al cuello o separado de él. */
+const neckFitOption = (def: 'cenido' | 'holgado') => choice('ajusteCuello', 'Ajuste del cuello alto', 'detalles', [['holgado', 'Holgado'], ['cenido', 'Ceñido']], def)
 const sleeveOption = (def: string) => choice('manga', 'Manga', 'corte', [['corta', 'Corta'], ['larga', 'Larga']], def)
 
 /** Configuración común de las prendas de torso (lo que cada prenda no cambia). */
@@ -159,6 +161,7 @@ const sudadera: GarmentTemplate = {
     lengthOption,
     toggle('capucha', 'Capucha', 'detalles', true),
     choice('cuelloSin', 'Cuello (sin capucha)', 'detalles', [['redondo', 'Redondo'], ['alto', 'Alto'], ['polo', 'Polo']], 'redondo'),
+    neckFitOption('cenido'),
     toggle('cordones', 'Cordones', 'detalles', true),
     choice('bolsillo', 'Bolsillo', 'detalles', [['canguro', 'Canguro'], ['ninguno', 'Sin bolsillo']], 'canguro'),
     choice('cremallera', 'Cremallera', 'detalles', [['ninguna', 'Sin cremallera'], ['media', 'Media'], ['completa', 'Completa']], 'ninguna'),
@@ -222,6 +225,7 @@ const camiseta: GarmentTemplate = {
     lengthOption,
     sleeveOption('corta'),
     choice('cuello', 'Cuello', 'detalles', [['redondo', 'Redondo'], ['pico', 'Pico'], ['alto', 'Cisne'], ['henley', 'Henley']], 'redondo'),
+    neckFitOption('cenido'),
     toggle('bolsillo', 'Bolsillo de pecho', 'detalles', false),
     stitchOption,
   ],
@@ -372,6 +376,7 @@ const bomber: GarmentTemplate = {
     topFit('boxy', ['regular', 'boxy', 'oversize']),
     choice('largo', 'Largo', 'corte', [['crop', 'Crop'], ['normal', 'Normal']], 'normal'),
     choice('cuello', 'Cuello', 'detalles', [['canale', 'Canalé'], ['alto', 'Alto'], ['solapa', 'Solapa'], ['capucha', 'Capucha']], 'canale'),
+    neckFitOption('holgado'),
     choice('cierre', 'Cierre', 'detalles', [['cremallera', 'Cremallera'], ['botones', 'Botones']], 'cremallera'),
     choice('bolsillos', 'Bolsillos', 'detalles', [['ojal', 'De ojal'], ['solapa', 'Con solapa'], ['ninguno', 'Sin bolsillos']], 'ojal'),
     toggle('bolsilloManga', 'Bolsillo en la manga', 'detalles', true),
@@ -433,6 +438,7 @@ const puffer: GarmentTemplate = {
     topFit('boxy', ['regular', 'boxy', 'oversize']),
     lengthOption,
     choice('cuello', 'Cuello', 'detalles', [['alto', 'Alto'], ['capucha', 'Capucha']], 'alto'),
+    neckFitOption('holgado'),
     channelWidth('anchos'),
     channelShape,
     choice('bolsillos', 'Bolsillos', 'detalles', [['ojal', 'De ojal'], ['ninguno', 'Sin bolsillos']], 'ojal'),
@@ -604,6 +610,7 @@ const chaleco: GarmentTemplate = {
     channelWidth('medios'),
     channelShape,
     choice('cuello', 'Cuello', 'detalles', [['alto', 'Alto'], ['redondo', 'Redondo'], ['pico', 'Pico'], ['capucha', 'Capucha']], 'alto'),
+    neckFitOption('holgado'),
     choice('cierre', 'Cierre', 'detalles', [['cremallera', 'Cremallera'], ['botones', 'Botones']], 'cremallera'),
     choice('bolsillos', 'Bolsillos', 'detalles', [['ojal', 'De ojal'], ['solapa', 'Con solapa'], ['ninguno', 'Sin bolsillos']], 'ojal'),
     choice('bajo', 'Bajo', 'acabados', [['recto', 'Ribete'], ['canale', 'Canalé']], 'recto'),
@@ -716,6 +723,7 @@ const cortavientos: GarmentTemplate = {
     topFit('oversize', ['regular', 'boxy', 'oversize']),
     lengthOption,
     choice('cuello', 'Cuello', 'detalles', [['capucha', 'Capucha'], ['alto', 'Alto']], 'capucha'),
+    neckFitOption('holgado'),
     choice('cremallera', 'Cremallera', 'detalles', [['completa', 'Entera'], ['media', 'Media (anorak)']], 'completa'),
     choice('bolsillo', 'Bolsillo', 'detalles', [['ojal', 'De ojal'], ['canguro', 'Canguro'], ['ninguno', 'Sin bolsillo']], 'ojal'),
     toggle('cordones', 'Cordones', 'detalles', true),

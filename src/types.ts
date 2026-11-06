@@ -12,6 +12,9 @@ export interface TopShape {
   cuff: 'canale' | 'dobladillo' | 'puno'
   /** Cuello cuando no lleva capucha: tira de canalé, cuello alto (cisne, chaqueta) o de camisa (de momento, una tira recta). */
   neck: 'canale' | 'alto' | 'camisa'
+  /** Cuello alto: pegado al cuello o separado de él, y su alto (cm; si no, el de cada tipo). */
+  neckFit?: 'cenido' | 'holgado'
+  neckHeight?: number
   /** Acolchada (puffer): más separada del cuerpo, con más cuerpo y el cuello más alto. */
   padded?: boolean
   /** Sin mangas (chaleco): la sisa queda abierta, con su ribete. */

@@ -470,7 +470,9 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     const loop = [...halfNeck(1).slice(0, -1), ...halfNeck(-1).reverse().slice(0, -1)]
     const nn = grid(neckLen, 1.6)
     // Alto del cuello: tira de canalé (3 cm), de camisa (4 cm) o alto (cisne o cuello de chaqueta; más en la acolchada)
-    const collarH = (shape.neck === 'alto' ? (shape.padded ? 9 : 7) : shape.neck === 'camisa' ? 3 : 2.2) * s
+    const collarH = (shape.neckHeight ?? (shape.neck === 'alto' ? (shape.padded ? 9 : 7) : shape.neck === 'camisa' ? 3 : 2.2)) * s
+    // Cuello alto holgado: separado del cuello y algo abierto arriba (el de las chaquetas); ceñido: abraza el cuello
+    const loose = shape.neck === 'alto' && shape.neckFit !== 'cenido'
     const nr = Math.max(3, grid(collarH, 1.6))
     const ribCollar = shape.neck === 'canale' || (shape.neck === 'alto' && !shape.padded)
     const pts = loop.map((n) => new THREE.Vector3(cloth.pos[n * 3], cloth.pos[n * 3 + 1], cloth.pos[n * 3 + 2]))
@@ -489,7 +491,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
           // Sube recto y, si es alto, se cierra un poco hacia el cuello al subir. La tira de canalé de un cuello redondo
           // se abre hacia fuera y queda tumbada sobre el escote (se sujeta a ese sitio: si no, el cuello la levantaba)
           const crew = shape.neck === 'canale'
-          const k2 = shape.neck === 'alto' ? 0.95 - 0.12 * v : crew ? 0.97 + 0.22 * v : 0.95
+          const k2 = shape.neck === 'alto' ? (loose ? 1.08 + 0.06 * v : 0.95 - 0.12 * v) : crew ? 0.97 + 0.22 * v : 0.95
           out.set(p.x * k2, p.y + v * collarH * (crew ? 0.55 : 1) * unit, cz + (p.z - cz) * k2)
         },
       }),
@@ -499,7 +501,8 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     cloth.sew(collar.row(0), [...loop, loop[0]])
     cloth.sew(collar.col(0), collar.col(nn - 1))
     const collarAll = Array.from({ length: nn * nr }, (_, q) => collar.index(q % nn, Math.floor(q / nn)))
-    if (shape.neck === 'canale') neckPins.push(...collarAll.slice(nn))
+    // Todos los cuellos se sujetan a su sitio (si no, el alto de las chaquetas se venía abajo o se pegaba al cuello)
+    if (shape.neck !== 'camisa') neckPins.push(...collarAll.slice(nn))
     if (shape.neck !== 'camisa') rims.push({ verts: collar.row(nr - 1), slot: 'cuello', radius: 0.3 * s })
     else {
       // Cuello de camisa o de polo: el pie (la tira de antes) y la pala, que sube un poco, se dobla hacia fuera por encima
@@ -511,7 +514,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
         const p = pts[j].clone().lerp(pts[(j + 1) % pts.length], k - Math.floor(k))
         return new THREE.Vector3(p.x * 0.95, p.y + collarH * unit, cz + (p.z - cz) * 0.95)
       })
-      const leafLen = (u: number) => THREE.MathUtils.lerp(5 * s, 7.5 * s, Math.abs(u - 0.5) * 2 ** 1 * Math.abs(u - 0.5) * 2)
+      const leafLen = (u: number) => THREE.MathUtils.lerp(4.5 * s, 6.5 * s, (Math.abs(u - 0.5) * 2) ** 2)
       const maxLen = 7.5 * s
       const nl = Math.max(4, grid(maxLen, 1.3))
       const r = 0.7 * s * unit
@@ -537,7 +540,8 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
               out.copy(p).addScaledVector(up, r * Math.sin(phi)).addScaledVector(outDir, r * (1 - Math.cos(phi)))
             } else {
               const e = d - arc
-              const dir = up.clone().multiplyScalar(-0.82).addScaledVector(outDir, 0.55 + tip * 0.3).normalize()
+              // La pala cae pegada al pie y a los hombros, no abierta hacia fuera
+              const dir = up.clone().multiplyScalar(-0.95).addScaledVector(outDir, 0.3 + tip * 0.25).normalize()
               out.copy(p).addScaledVector(outDir, 2 * r).addScaledVector(dir, e)
             }
             out.addScaledVector(new THREE.Vector3(Math.sign(p.x || 1), 0, 0), tip * 1.2 * s * unit * v)

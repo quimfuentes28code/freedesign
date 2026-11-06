@@ -70,3 +70,28 @@ Se marca cada fase al terminarla.
 - [x] Deshilachado en bajos y bordes: flecos, bajo sin coser o desflecado (sale girado, con los hilos hacia abajo)
 - [x] Desgaste en zonas concretas: zona aclarada, bigotes y roce
 - [x] También en 3D: se pintan sobre la prenda (los rotos y deshilachados con relieve); aún no son agujeros de verdad en la tela
+
+## 3D realista (en marcha)
+
+Hecho: prendas de arriba, pantalones, chaleco y top cosidos con patrón; caída de los pantalones sobre las zapatillas;
+canales de la puffer en relieve; cuellos redondo, de camisa y de polo; tres zapatillas.
+
+Lo que falta, por fases (pedido el 6/11/2026):
+
+1. ✓ **Maniquí y proporciones**: maniquí de hombre de 180 cm y 80 kg y de mujer de 165 cm y 60 kg, con la ropa a
+   su medida; cuellos sujetos a su sitio (alto de chaqueta, bomber, mao y de camisa); cuello alto ceñido u holgado
+   («Ajuste del cuello alto»).
+2. **Capuchas**: con forma y volumen (bajada y puesta); cuello integrado a la capucha; los tipos de capucha
+   (cruzada, con cuello alto…) también en la puffer y en 3D; cordones opcionales en todas (la puffer no deja quitarlos)
+   y que no queden incrustados en la tela.
+3. **Prendas abiertas por delante**: dos delanteros de verdad unidos por botones o cremallera; botones pequeños y
+   cosidos; cremalleras finas y realistas; poder llevarlas abiertas con una camiseta básica blanca o negra debajo.
+   Polo con su tapeta y puños de canalé o lisos; camisa con tapeta, todos los botones y bolsillo; cazadora con puños de
+   botón o sin puño, pretina bien hecha y sus botones.
+4. **Detalles del 2D en 3D**: bolsillos, cordones, trabillas, botón y bragueta del pantalón, bandas… y revisar qué
+   opciones del Diseñador aún no cambian el 3D.
+5. **Gorros y gorras en 3D**.
+6. **Zapatillas otra vez**: forma natural (sin la punta rara), malla fina (que no se vea pixelada) y materiales reales
+   (piel, ante, goma).
+7. **Tejidos y texturas básicos** para todas las cuentas nuevas.
+8. **Canales de la puffer en 2D**: líneas suaves, que se puedan enlazar en un patrón y editar.
