@@ -225,5 +225,6 @@ export function resolveMaterial(template: string, piece: string, materialId: str
   const cat = getCatalogMaterial(materialId)
   if (cat) return { catalog: cat, chosen: true }
   const lib = materialId ? library?.get(materialId) : undefined
-  return { catalog: defaultMaterialFor(template, piece), library: lib, chosen: !!lib }
+  // Un material propio con textura se ve como ese material del catálogo
+  return { catalog: getCatalogMaterial(lib?.look) ?? defaultMaterialFor(template, piece), library: lib, chosen: !!lib }
 }

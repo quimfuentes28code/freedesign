@@ -1,4 +1,5 @@
 import {
+  BASIC_MATERIALS,
   MATERIAL_CATEGORIES,
   PRICE_UNITS,
   type Material,
@@ -17,6 +18,8 @@ export async function materialsRoute(request: Request, env: Env, uid: string, id
   if (!id && request.method === 'GET') {
     return json(await listMaterials(env, uid, url.searchParams.get('q') ?? '', url.searchParams.get('category') ?? ''))
   }
+  // Añade a la cuenta los materiales básicos que aún no tenga (por nombre)
+  if (id === 'basicos' && request.method === 'POST') return json({ added: await addBasicMaterials(env, uid) })
   if (!id && request.method === 'POST') return json(await createMaterial(env, uid, await readMaterial(request, env, uid)), 201)
   if (id && request.method === 'GET') return json(await getMaterial(env, uid, id))
   if (id && request.method === 'PUT') return json(await updateMaterial(env, uid, id, await readMaterial(request, env, uid)))
@@ -45,6 +48,7 @@ interface MaterialRow {
   width_cm: number | null
   tags: string
   photo: string
+  look: string
   created_at: string
   updated_at: string
 }
@@ -68,6 +72,7 @@ function toMaterial(r: MaterialRow): Material {
     widthCm: r.width_cm,
     tags: r.tags,
     photo: r.photo,
+    look: r.look ?? '',
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   }
@@ -95,12 +100,12 @@ async function getMaterial(env: Env, uid: string, id: string) {
 
 const MATERIAL_FIELDS = [
   'category', 'name', 'description', 'reference', 'supplier_id', 'price', 'price_unit', 'color',
-  'composition', 'weight_gsm', 'width_cm', 'tags', 'photo',
+  'composition', 'weight_gsm', 'width_cm', 'tags', 'photo', 'look',
 ] as const
 
 const materialValues = (m: MaterialInput) => [
   m.category, m.name, m.description, m.reference, m.supplierId, m.price, m.priceUnit, m.color,
-  m.composition, m.weightGsm, m.widthCm, m.tags, m.photo,
+  m.composition, m.weightGsm, m.widthCm, m.tags, m.photo, m.look,
 ]
 
 async function createMaterial(env: Env, uid: string, m: MaterialInput) {
@@ -145,7 +150,26 @@ async function readMaterial(request: Request, env: Env, uid: string): Promise<Ma
     widthCm: isFabric ? num(b.widthCm) : null,
     tags: text(b.tags),
     photo,
+    // Textura: un material del catálogo integrado (cat:…) o ninguna
+    look: /^cat:[a-z0-9-]{1,60}$/.test(text(b.look)) ? text(b.look) : '',
   }
+}
+
+/** Crea en la cuenta los materiales básicos (BASIC_MATERIALS) que no tenga ya con el mismo nombre. Devuelve cuántos. */
+export async function addBasicMaterials(env: Env, uid: string) {
+  const { results } = await env.DB.prepare('SELECT name FROM materials WHERE user_id = ?').bind(uid).all<{ name: string }>()
+  const have = new Set(results.map((r) => r.name.toLowerCase()))
+  const missing = BASIC_MATERIALS.filter((m) => !have.has(m.name.toLowerCase()))
+  if (!missing.length) return 0
+  const t = now()
+  const cols = ['id', 'user_id', ...MATERIAL_FIELDS, 'created_at', 'updated_at']
+  const sql = `INSERT INTO materials (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`
+  await env.DB.batch(
+    missing.map((m) =>
+      env.DB.prepare(sql).bind(crypto.randomUUID(), uid, ...materialValues({ ...m, supplierId: null, photo: '', reference: '', color: '' }), t, t),
+    ),
+  )
+  return missing.length
 }
 
 // --- Proveedores: /api/suppliers ---

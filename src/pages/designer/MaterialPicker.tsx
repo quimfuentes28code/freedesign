@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { catalogFor, groupCatalog, resolveMaterial, type CatalogMaterial } from '../../designer/materials'
+import { catalogFor, getCatalogMaterial, groupCatalog, resolveMaterial, type CatalogMaterial } from '../../designer/materials'
 import { Swatch } from '../../designer/swatches'
 import type { PieceDef } from '../../designer/types'
 import type { Material } from '../../shared/library'
@@ -52,7 +52,7 @@ export function MaterialPicker({ template, piece, materialId, color, library, on
   return (
     <div className="material-picker" ref={root}>
       <button type="button" className="material-current" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <Swatch material={current.library ? undefined : current.catalog} library={current.library} color={color} size={34} />
+        <Swatch material={current.library && !current.library.look ? undefined : current.catalog} library={current.library} color={color} size={34} />
         <span className="material-text">
           <span className="material-name">{name}</span>
           <span className="material-meta">
@@ -85,7 +85,7 @@ export function MaterialPicker({ template, piece, materialId, color, library, on
                     className={m.id === materialId ? 'material-option active' : 'material-option'}
                     onClick={() => pick(m.id)}
                   >
-                    <Swatch library={m} color={m.photo ? color : color} size={40} />
+                    <Swatch material={getCatalogMaterial(m.look)} library={m} color={color} size={40} />
                     <span className="material-text">
                       <span className="material-name">{m.name}</span>
                       <span className="material-meta">{[m.composition, m.weightGsm ? `${m.weightGsm} g/m²` : ''].filter(Boolean).join(' · ') || 'Material propio'}</span>

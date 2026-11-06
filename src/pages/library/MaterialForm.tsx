@@ -11,6 +11,8 @@ import {
   type MaterialInput,
 } from '../../shared/library'
 import { PhotoInput } from './PhotoInput'
+import { CATALOG, getCatalogMaterial, groupCatalog } from '../../designer/materials'
+import { Swatch } from '../../designer/swatches'
 
 /** Unidad de precio habitual para cada categoría (se propone al elegirla). */
 const DEFAULT_UNIT: Record<MaterialCategory, MaterialInput['priceUnit']> = {
@@ -222,6 +224,28 @@ export function MaterialForm() {
             + Añadir un proveedor nuevo
           </button>
         </section>
+
+        {(form.category === 'tejido' || form.category === 'fornitura') && (
+          <section className="card">
+            <h2>Textura</h2>
+            <p className="muted small">Cómo se ve en el Diseñador y en el 3D (el color es el de cada pieza).</p>
+            <div className="look-pick">
+              <Swatch material={getCatalogMaterial(form.look)} color={getCatalogMaterial(form.look)?.tint ?? '#9a9a9a'} size={44} />
+              <select value={form.look} onChange={(e) => set('look', e.target.value)} aria-label="Textura">
+                <option value="">Sin textura (la de cada prenda)</option>
+                {groupCatalog(CATALOG.filter((m) => m.category === form.category)).map(([group, items]) => (
+                  <optgroup key={group} label={group}>
+                    {items.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+          </section>
+        )}
 
         <section className="card wide-card">
           <h2>Descripción</h2>

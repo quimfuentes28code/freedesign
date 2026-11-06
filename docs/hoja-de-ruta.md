@@ -97,5 +97,5 @@ Lo que falta, por fases (pedido el 6/11/2026):
 5. ✓ **Gorros y gorras en 3D** (gorro de punto con vuelta y pompón; gorra de 5 o 6 paneles, visera curva o plana, trucker y cierres; en el editor y en el Probador, «Cabeza»). Falta: sus estampados en 3D.
 6. ✓ **Zapatillas otra vez** (hecho: puntera en cúpula, sección más ancha abajo, malla más fina, paneles pintados en textura, piel con grano, ante y nobuk, caña ceñida): forma natural (sin la punta rara), malla fina (que no se vea pixelada) y materiales reales
    (piel, ante, goma).
-7. **Tejidos y texturas básicos** para todas las cuentas nuevas.
+7. ✓ **Tejidos y texturas básicos** para todas las cuentas nuevas (25 materiales con composición, gramaje, ancho, precio y textura; «Añadir básicos» en la Biblioteca para las que ya existen; textura elegible en cada material propio).
 8. **Canales de la puffer en 2D**: líneas suaves, que se puedan enlazar en un patrón y editar.

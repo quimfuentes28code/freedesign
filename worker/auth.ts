@@ -1,5 +1,6 @@
 import { ACCOUNT_TYPES, MAX_BRAND_COLORS, MIN_PASSWORD, type AccountType, type BrandColor, type ProfileInput, type User } from '../src/shared/users'
 import { HttpError, json, now, readBody, required, text, type Env } from './http'
+import { addBasicMaterials } from './library'
 
 /**
  * Cuentas y sesiones: /api/auth/*
@@ -81,6 +82,8 @@ async function register(request: Request, env: Env, url: URL) {
   )
     .bind(id, email, hash, salt, profile.accountType, profile.name, profile.companyName, profile.taxId, profile.phone, t, t)
     .run()
+  // Cada cuenta nueva empieza con tejidos y fornituras básicos en su Biblioteca
+  await addBasicMaterials(env, id)
   const cookie = await startSession(env, id, url)
   return withCookie(json(await getUser(env, id), 201), cookie)
 }

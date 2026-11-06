@@ -90,6 +90,8 @@ export const api = {
     request<Material[]>(`/materials?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`),
   getMaterial: (id: string) => request<Material>(`/materials/${id}`),
   createMaterial: (m: MaterialInput) => request<Material>('/materials', send('POST', m)),
+  /** Añade a la Biblioteca los materiales básicos que falten. */
+  addBasicMaterials: () => request<{ added: number }>('/materials/basicos', send('POST', {})),
   updateMaterial: (id: string, m: MaterialInput) => request<Material>(`/materials/${id}`, send('PUT', m)),
   deleteMaterial: (id: string) => request<void>(`/materials/${id}`, send('DELETE')),
 
