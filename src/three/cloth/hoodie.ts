@@ -99,7 +99,8 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const frontDrop = 8.5 * s
   const backDrop = 2.5 * s
   const slope = 4 * s
-  const armhole = 22 * s + ease * 0.25
+  // Sin mangas, la sisa es más honda (como la de un chaleco)
+  const armhole = 22 * s + ease * 0.25 + (shape.sleeveless ? 4 * s : 0)
   const sleeveTop = armhole * 2
   // Manga larga: acaba en la muñeca del maniquí (así las manos se ven siempre); lo que el diseño la alargue o la acorte
   // por sus medidas se suma a eso. La corta mide lo que diga el diseño
@@ -235,6 +236,11 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     const edge = side > 0 ? nu - 1 : 0
     const frontEdge = front.col(edge).slice(armpitRow) // de la axila al hombro
     const backEdge = back.col(edge).slice(armpitRow).reverse() // del hombro a la axila
+    if (shape.sleeveless) {
+      // Chaleco: la sisa queda abierta alrededor del brazo, con un ribete
+      rims.push({ verts: [...frontEdge, ...backEdge.slice(1)], slot: 'cuerpo', radius: 0.3 * s })
+      continue
+    }
     const start = ax.at(side * a)
     // Distancia de la costura de la sisa a la muñeca, por el eje del brazo (cm)
     const toWrist = Math.abs(wristX(side) - start.x) / Math.abs(ax.dir.x) / unit - 1

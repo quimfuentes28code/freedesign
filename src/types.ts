@@ -14,8 +14,18 @@ export interface TopShape {
   neck: 'canale' | 'alto' | 'camisa'
   /** Acolchada (puffer): más separada del cuerpo, con más cuerpo y el cuello más alto. */
   padded?: boolean
+  /** Sin mangas (chaleco): la sisa queda abierta, con su ribete. */
+  sleeveless?: boolean
   /** Canales del acolchado en 3D: su forma (índice en QUILT_SHAPES del Diseñador) y su separación (cm). */
   quilt?: { shape: number; step: number }
+}
+
+/** Top de mujer con patrón. */
+export interface FemTopShape {
+  kind: 'tirantes' | 'bandeau' | 'halter' | 'cruzado' | 'corse'
+  neckline: 'recto' | 'pico' | 'redondo' | 'corazon'
+  straps: 'finos' | 'anchos'
+  fit: 'ajustado' | 'regular' | 'holgado'
 }
 
 /** Corte y acabados de un pantalón con patrón. */
@@ -86,6 +96,8 @@ export interface Design {
   top?: TopShape
   /** Pantalones con patrón: corte de la pierna, bajo y cintura (ver three/cloth/pants.ts). */
   pants?: PantsShape
+  /** Top de mujer con patrón: tipo, escote, tirantes y corte (ver three/cloth/femtop.ts). */
+  femTop?: FemTopShape
   /** Largo total del cuerpo, del hombro al bajo, en cm. */
   bodyLength: number
   /** Largo de manga, de la costura del hombro al final del puño, en cm. */

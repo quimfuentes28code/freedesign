@@ -7,6 +7,7 @@ import { CloudGrid } from '../wrap'
 import { EDGE_CODES } from './Cloth'
 import { buildHoodie, type PocketShape } from './hoodie'
 import { buildPants } from './pants'
+import { buildFemTop } from './femtop'
 import { relax, SpatialHash } from './relax'
 import { skinCloth } from './skinCloth'
 
@@ -75,7 +76,8 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   }
   const isPants = design.garment === 'pantalon'
   const pants = isPants ? pantsGarment({ info, points: cloud.pos, unit }, measurements, design) : null
-  const garment = pants ?? buildHoodie({ info, points: cloud.pos, unit }, measurements, design)
+  const femTop = !isPants && design.garment === 'top' ? femTopGarment({ info, points: cloud.pos, unit }, measurements, design) : null
+  const garment = pants ?? femTop ?? buildHoodie({ info, points: cloud.pos, unit }, measurements, design)
   const { cloth, follows, slots, pocket, layers, cordExits, rims } = garment
 
   // La rigidez a la flexión depende de la tela
@@ -85,7 +87,16 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   const { skinIndex, skinWeight } = skinCloth(cloth, cloud, new CloudGrid(cloud.pos), pose.parts, follows)
   lap('pesos')
   cloth.pos = Array.from(skinPoints(pose, cloth.pos, skinIndex, skinWeight))
-  const relaxed = isPants
+  const relaxed = femTop
+    ? relax(cloth, pose, {
+        seconds: input.seconds ?? 1.2,
+        thickness: 0.6 * unit,
+        gravity: 980 * unit,
+        cell: 2.2 * unit,
+        // El borde de arriba se sujeta (un top sin tirantes no se escurre)
+        pins: femTop.pins,
+      })
+    : isPants
     ? relax(cloth, withShoes(pose, unit), {
         // Un poco más de tiempo: la tela de más del bajo tiene que caer y apilarse sobre las zapatillas
         seconds: input.seconds ?? 1.6,
@@ -248,6 +259,18 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     pocket: pocket?.shape ?? null,
     timings,
     surface,
+  }
+}
+
+/** El top de mujer con el mismo formato que la sudadera. */
+function femTopGarment(body: Parameters<typeof buildFemTop>[0], m: Measurements, design: Design) {
+  const p = buildFemTop(body, m, design)
+  const none: number[] = []
+  return {
+    ...p,
+    pocket: null,
+    cordExits: none,
+    layers: { hood: none, hoodAll: none, torso: none, sleevesLow: none, torsoLow: none, sleeveCap: none, torsoArmhole: none, bodyOnly: none, collarPins: none },
   }
 }
 

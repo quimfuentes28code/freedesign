@@ -1,6 +1,6 @@
 import type { DesignData } from '../shared/designs'
 import type { Material } from '../shared/library'
-import type { Design, Fit, GarmentSlot, GarmentType, Measurements, SlotStyle, TopShape, PantsShape } from '../types'
+import type { Design, Fit, GarmentSlot, GarmentType, Measurements, SlotStyle, TopShape, PantsShape, FemTopShape } from '../types'
 import type { Measurements as ClientMeasurements } from '../shared/clients'
 import type { Body } from '../production/measurements'
 import { resolveMaterial } from './materials'
@@ -50,6 +50,16 @@ function topShapeOf(t: GarmentTemplate, o: DesignData['options']): TopShape | un
       return { hem: ribbed ? 'canale' : 'pretina', cuff: ribbed ? 'canale' : 'puno', neck: 'alto', padded: true, quilt: quiltOf(o, t) }
     case 'cazadora':
       return { hem: v('bajo') === 'pretina' ? 'pretina' : 'dobladillo', cuff: 'puno', neck: 'camisa' }
+    case 'chaleco': {
+      const neck = v('cuello')
+      return {
+        hem: v('bajo') === 'canale' ? 'canale' : 'dobladillo',
+        cuff: 'dobladillo',
+        neck: neck === 'alto' ? 'alto' : 'canale',
+        sleeveless: true,
+        ...(v('tipo') === 'acolchado' ? { padded: true, quilt: quiltOf(o, t) } : {}),
+      }
+    }
     case 'cortavientos':
       return { hem: ribbed ? 'canale' : 'pretina', cuff: ribbed ? 'canale' : 'puno', neck: 'alto' }
   }
@@ -77,10 +87,11 @@ function quiltOf(o: DesignData['options'], t: GarmentTemplate) {
 
 /** Capucha en 3D: la sudadera con capucha y las chaquetas con el cuello «capucha». */
 const hasHood = (t: GarmentTemplate, o: DesignData['options']) =>
-  t.id === 'sudadera' ? !!opt<boolean>(t, o, 'capucha') : ['bomber', 'puffer', 'cortavientos'].includes(t.id) && opt(t, o, 'cuello') === 'capucha'
+  t.id === 'sudadera' ? !!opt<boolean>(t, o, 'capucha') : ['bomber', 'puffer', 'cortavientos', 'chaleco'].includes(t.id) && opt(t, o, 'cuello') === 'capucha'
 
 /** Prendas base que en 3D se ven con una forma aproximada (sin su cuello, tapeta, acolchado…). */
-export const hasOwn3D = (t: GarmentTemplate) => ['sudadera', 'camiseta', 'polo', 'camisa', 'bomber', 'puffer', 'cazadora', 'cortavientos', 'pantalon'].includes(t.id)
+export const hasOwn3D = (t: GarmentTemplate) =>
+  ['sudadera', 'camiseta', 'polo', 'camisa', 'bomber', 'puffer', 'cazadora', 'cortavientos', 'chaleco', 'top', 'pantalon', 'pantalon-ancho', 'pantalon-corto'].includes(t.id)
 
 /** Parte de la pierna que cubre el pantalón (de la entrepierna al tobillo). */
 const LEG_LENGTH: Record<string, number> = { mini: 0.2, corto: 0.32, bermuda: 0.55, tobillero: 0.93 }
@@ -146,6 +157,15 @@ export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<s
     cords: hood && opt<boolean>(t, data.options, 'cordones') !== false,
     top,
     pants: isPants(t) ? pantsShapeOf(t, data.options) : undefined,
+    femTop:
+      t.id === 'top'
+        ? {
+            kind: opt(t, data.options, 'tipo') as FemTopShape['kind'],
+            neckline: opt(t, data.options, 'escote') as FemTopShape['neckline'],
+            straps: opt(t, data.options, 'tirantes') as FemTopShape['straps'],
+            fit: opt(t, data.options, 'corte') as FemTopShape['fit'],
+          }
+        : undefined,
     // Top: largo desde la axila (crop, a la cintura o a la cadera); el resto, del hombro al bajo
     bodyLength: (t.id === 'top' ? ({ crop: 16, cintura: 26, cadera: 40 }[String(opt(t, data.options, 'largo'))] ?? 16) : (BODY_LENGTH[String(opt(t, data.options, 'largo'))] ?? 70)) * s.length,
     sleeveLength: (short ? 24 : 64) * s.sleeve,

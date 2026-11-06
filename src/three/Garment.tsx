@@ -343,7 +343,7 @@ interface Props {
  */
 const PATTERN_GARMENTS = new Set<Design['garment']>(['sudadera'])
 const isPattern = (d: Design) =>
-  PATTERN_GARMENTS.has(d.garment) || (!!d.top && (d.garment === 'camiseta' || d.garment === 'manga-larga')) || (!!d.pants && d.garment === 'pantalon')
+  PATTERN_GARMENTS.has(d.garment) || (!!d.top && (d.garment === 'camiseta' || d.garment === 'manga-larga' || d.garment === 'chaleco')) || (!!d.pants && d.garment === 'pantalon') || (!!d.femTop && d.garment === 'top')
 
 /**
  * Prenda puesta sobre el maniquí. Usa el mismo esqueleto que el maniquí, así se mueve con la animación.
@@ -365,7 +365,7 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
   const under = useUnderlay()
   const waitsFor = !design.under && design.overBulk !== undefined
   const underlay = waitsFor ? under : null
-  const topKey = JSON.stringify([design.top ?? null, design.pants ?? null, design.legLength ?? null, design.coveredBy ?? null])
+  const topKey = JSON.stringify([design.top ?? null, design.femTop ?? null, design.pants ?? null, design.legLength ?? null, design.coveredBy ?? null])
 
   // Prendas de patrón: se calculan en segundo plano y se muestran al terminar (la anterior sigue visible mientras)
   const [patternGeom, setPatternGeom] = useState<THREE.BufferGeometry | null>(null)
