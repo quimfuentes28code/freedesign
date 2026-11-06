@@ -92,6 +92,9 @@ export interface Design {
   cords?: boolean
   /** Capucha puesta sobre la cabeza (si no, bajada sobre la espalda). */
   hoodUp?: boolean
+  /** Capucha cruzada (un lado monta sobre el otro delante) y cuello alto cosido por dentro de la capucha. */
+  hoodCross?: boolean
+  hoodCollar?: boolean
   /**
    * Prendas de arriba con patrón (sudadera, camiseta, polo, camisa, chaquetas): cómo acaban mangas, bajo y cuello.
    * Sin ella, las de una sudadera (canalé en puños, bajo y cuello).

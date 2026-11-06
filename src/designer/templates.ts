@@ -98,9 +98,11 @@ const hasHood = (t: GarmentTemplate, o: Options) => opt<boolean>(t, o, 'capucha'
  * Extras de cuello y capucha que se combinan con lo demás: capucha cruzada, cuello alto bajo la capucha,
  * balaclava por dentro y lengüeta de cierre en el cuello alto. Se añaden a una prenda con `withNeckExtras`.
  */
-const neckExtrasCfg = (t: GarmentTemplate, o: Options): Pick<TopCfg, 'hoodCross' | 'hoodCollar' | 'balaclava' | 'neckTab'> => {
+const neckExtrasCfg = (t: GarmentTemplate, o: Options): Pick<TopCfg, 'hoodCross' | 'hoodCollar' | 'balaclava' | 'neckTab' | 'cords'> => {
   const hood = hasHood(t, o)
   return {
+    // Cordones de la capucha (la sudadera y el cortavientos los ponen después con su propia opción)
+    cords: hood && opt<boolean>(t, o, 'cordones') === true,
     hoodCross: hood && opt<boolean>(t, o, 'capuchaCruzada') === true,
     hoodCollar: hood && opt<boolean>(t, o, 'cuelloAltoCapucha') === true,
     balaclava: hood && opt<boolean>(t, o, 'balaclava') === true,
@@ -110,7 +112,10 @@ const neckExtrasCfg = (t: GarmentTemplate, o: Options): Pick<TopCfg, 'hoodCross'
 
 function withNeckExtras(t: GarmentTemplate, { tab }: { tab: boolean }) {
   const color = t.pieces.find((p) => p.id === T.body)?.defaultColor ?? '#cccccc'
+  // Las prendas que no traen cordones propios los ganan como opción (la capucha de la puffer, la bomber o el chaleco)
+  const ownCords = t.options.some((x) => x.id === 'cordones')
   const extra: OptionDef[] = [
+    ...(ownCords ? [] : [toggle('cordones', 'Cordones de la capucha', 'detalles', false)]),
     toggle('capuchaCruzada', 'Capucha cruzada', 'detalles', false),
     toggle('cuelloAltoCapucha', 'Cuello alto bajo la capucha', 'detalles', false),
     toggle('balaclava', 'Balaclava dentro de la capucha', 'detalles', false),
@@ -120,6 +125,7 @@ function withNeckExtras(t: GarmentTemplate, { tab }: { tab: boolean }) {
   const at = t.options.findIndex((x) => x.group === 'acabados')
   t.options.splice(at < 0 ? t.options.length : at, 0, ...extra)
   t.pieces.push({ id: T.balaclava, label: 'Balaclava', defaultColor: color, materials: FABRIC }, ...(tab ? [{ id: T.tab, label: 'Lengüeta', defaultColor: color, materials: FABRIC }] : []))
+  if (!ownCords) t.pieces.push({ id: T.cords, label: 'Cordones', defaultColor: '#f4f1ea', materials: TRIM })
   if (!t.pieces.some((p) => p.id === T.collar)) t.pieces.push({ id: T.collar, label: 'Cuello', defaultColor: color, materials: FABRIC })
   const active = t.activePieces
   t.activePieces = (o) => {
@@ -128,6 +134,7 @@ function withNeckExtras(t: GarmentTemplate, { tab }: { tab: boolean }) {
     return [
       ...list,
       ...(c.balaclava ? [T.balaclava] : []),
+      ...(!ownCords && c.cords ? [T.cords] : []),
       ...(c.hoodCollar && !list.includes(T.collar) ? [T.collar] : []),
       ...(c.neckTab !== 'ninguna' && (c.hoodCollar || opt(t, o, 'cuello') === 'alto') ? [T.tab] : []),
     ]

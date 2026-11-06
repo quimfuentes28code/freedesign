@@ -440,7 +440,8 @@ function addCords(
       p.y -= step
       // Cae casi recto (un cordón de verdad no se abre hacia los lados), con un vaivén muy suave
       p.x += dir * cm * (-0.04 + 0.04 * Math.sin(7 * t + side * 2))
-      const a = keepOutside(p, 0.6 * cm)
+      // Separado de la tela lo bastante para que no se vea incrustado entre dos puntos de la malla
+      const a = keepOutside(p, 0.95 * cm)
       // Mantiene el largo de cada tramo tras el empujón
       const prev = path[path.length - 1]
       p.sub(prev).setLength(step).add(prev)

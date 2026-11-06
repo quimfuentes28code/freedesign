@@ -81,9 +81,9 @@ Lo que falta, por fases (pedido el 6/11/2026):
 1. ✓ **Maniquí y proporciones**: maniquí de hombre de 180 cm y 80 kg y de mujer de 165 cm y 60 kg, con la ropa a
    su medida; cuellos sujetos a su sitio (alto de chaqueta, bomber, mao y de camisa); cuello alto ceñido u holgado
    («Ajuste del cuello alto»).
-2. **Capuchas**: con forma y volumen (bajada y puesta); cuello integrado a la capucha; los tipos de capucha
-   (cruzada, con cuello alto…) también en la puffer y en 3D; cordones opcionales en todas (la puffer no deja quitarlos)
-   y que no queden incrustados en la tela.
+2. ✓ **Capuchas**: la bajada cae por la espalda como una bolsa con volumen; cuello alto cosido por dentro de la
+   capucha y capucha cruzada también en 3D (sudadera, bomber, puffer, chaleco y cortavientos); cordones opcionales en
+   todas («Cordones de la capucha» en las chaquetas) y separados de la tela.
 3. **Prendas abiertas por delante**: dos delanteros de verdad unidos por botones o cremallera; botones pequeños y
    cosidos; cremalleras finas y realistas; poder llevarlas abiertas con una camiseta básica blanca o negra debajo.
    Polo con su tapeta y puños de canalé o lisos; camisa con tapeta, todos los botones y bolsillo; cazadora con puños de

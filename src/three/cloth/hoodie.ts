@@ -358,9 +358,11 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   // --- Cuello: capucha o canalé ---
   const neckIdx = topF.map((_, i) => i).filter((i) => Math.abs(xOf(i)) <= neckW / 2 + 0.01)
   const center = (nu - 1) / 2
-  const halfNeck = (side: 1 | -1) => {
+  const halfNeck = (side: 1 | -1, over = 0) => {
     const f = neckIdx.filter((i) => side * (i - center) >= 0).sort((p, q) => side * (p - q))
-    return [...f.map((i) => topF[i]), ...[...f].reverse().map((i) => topB[i])]
+    // Capucha cruzada: el delantero sigue más allá del centro (los dos lados se montan y se cosen al escote)
+    const extra = over > 0 ? neckIdx.filter((i) => side * (i - center) < 0 && -side * xOf(i) <= over).sort((p, q) => side * (p - q)) : []
+    return [...extra.map((i) => topF[i]), ...f.map((i) => topF[i]), ...[...f].reverse().map((i) => topB[i])]
   }
   const neckLen = Math.PI * 0.5 * (neckW / 2 + (frontDrop + backDrop) / 2) * 2
 
@@ -384,8 +386,12 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     const width = (t: number) =>
       THREE.MathUtils.lerp(neckLen / 2, hoodD, THREE.MathUtils.smoothstep(t, 0, 0.35)) *
       (1 - 0.3 * THREE.MathUtils.smoothstep(t, 0.6, 1))
+    // Cruzada: cada lado pasa unos cm del centro; el izquierdo (-1) monta por encima
+    const cross = design.hoodCross ? Math.min(neckW / 2 - 1 * s, 7 * s) : 0
     const hoods = ([1, -1] as const).map((side) => {
-      const neck = halfNeck(side)
+      const neck = halfNeck(side, cross)
+      const extraW = (v: number) => cross * (1 - THREE.MathUtils.smoothstep(v, 0.1, 0.55))
+      const over = cross > 0 && side < 0
       const base = (sParam: number) => {
         const k = sParam * (neck.length - 1)
         const i = Math.min(Math.floor(k), neck.length - 2)
@@ -397,16 +403,20 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
         cloth.addPanel({
           nu: nh,
           nv: nt,
+          // Más rígida que el cuerpo: así la capucha mantiene su volumen (bajada no se aplasta en una hoja)
+          bend: 3.5,
           // Abertura con el canal del cordón; costura central y de arriba pespunteadas
           edges: { u0: 'jareta', u1: 'pespunte', v1: 'pespunte' },
           // Esquina de la coronilla (donde se juntan la costura de la nuca y la de arriba) redondeada, como en un patrón
           // de verdad: si fuera en ángulo recto, la capucha acabaría en pico
           flat: (u, v, out) => {
             const c = THREE.MathUtils.smoothstep(u, 0.55, 1) * THREE.MathUtils.smoothstep(v, 0.55, 1)
-            out.set(side * (u * width(v) - c * 5 * s), v * hoodH - c * 5 * s)
+            out.set(side * (u * (width(v) + extraW(v)) - c * 5 * s), v * hoodH - c * 5 * s)
           },
           place: (u, v, out) => {
             const p = base(u)
+            // El lado que monta va un poco por fuera del otro junto a la abertura
+            if (over) p.add(new THREE.Vector3(p.x, 0, p.z - cz).setLength(1.1 * s * unit * (1 - THREE.MathUtils.smoothstep(u, 0, 0.35))))
             if (design.hoodUp) {
               // Capucha puesta: cada mitad es un gajo alrededor de la cabeza. La costura central y la de arriba
               // van por el centro (x = 0) de la nuca a la frente; la abertura enmarca la cara.
@@ -428,22 +438,26 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
             // Capucha bajada, como cae de verdad: la abertura queda alrededor del cuello como un cuello vuelto
             // (por eso los ojales y los cordones siguen delante) y el resto de la capucha cae sobre la parte alta
             // de la espalda y se cierra hacia el centro, donde están la costura central y la de arriba (x = 0).
-            const backward = THREE.MathUtils.smoothstep(u, 0.1, 0.9) // 0 junto a la abertura, 1 en la costura central
-            // Separación del centro: la del escote, y junto a la abertura rodea el cuello por los lados
-            // Sobre la espalda, cada mitad se extiende desde la costura central (x = 0) hasta la abertura, con el ancho de
-            // su patrón: si todo se juntara en el centro, la tela quedaría comprimida y se arrugaría en un bulto
-            const lateral = Math.max(
-              Math.abs(p.x) * (1 - v) + (1 - u) * Math.sin(Math.PI * Math.min(v, 0.5)) * (neckW / 2 + 4 * s) * unit,
-              (1 - u) * width(v) * 0.78 * unit * THREE.MathUtils.smoothstep(v, 0.15, 0.6),
-            )
+            // Vista desde detrás es un escudo: la abertura (u = 0) rodea el cuello por los lados y baja en U hasta la
+            // frente, abajo en el centro; la costura central (u = 1) va por el medio, de la nuca a la coronilla, y la
+            // de arriba (v = 1) cierra el fondo. Las dos costuras quedan en x = 0 (si no, al coserse juntaban las dos
+            // mitades desde lejos y la capucha se arrugaba en un bulto junto al cuello)
+            const sm = THREE.MathUtils.smoothstep
+            const backward = sm(u, 0.1, 0.9) // 0 junto a la abertura, 1 en la costura central
+            const around = (1 - u) * Math.sin(Math.PI * Math.min(v, 0.5)) * (neckW / 2 + 4 * s) * (1 - sm(v, 0.5, 1))
+            const shield = 12 * s * Math.pow(1 - u, 0.6) * Math.sqrt(Math.max(0, 1 - v * v)) * sm(v, 0.1, 0.5)
+            const lateral = Math.max(Math.abs(p.x) * (1 - v), Math.max(around, shield) * unit)
             // La parte de la abertura sube un poco (cuello vuelto); la de atrás cae por la espalda
-            const rise = (1 - backward) * 3 * s * unit * Math.sin(Math.min(v / 0.4, 1) * Math.PI * 0.5)
-            // Cae por la espalda: la coronilla (arriba del patrón) es lo que queda más abajo, en U (desde media pieza hasta la
-            // costura central baja igual; si bajara más el centro, acabaría en pico). La abertura se queda alrededor del cuello
-            const drop = v * hoodH * THREE.MathUtils.lerp(0.1, 0.7, THREE.MathUtils.smoothstep(u, 0.05, 0.45)) * unit
-            // De delante hacia atrás: todo acaba sobre la espalda, un poco separado de ella
-            const z = THREE.MathUtils.lerp(p.z, backZ - 3.5 * s * unit, THREE.MathUtils.smoothstep(v, 0, 0.7))
-            out.set(side * lateral, p.y + rise - drop, z)
+            const rise = (1 - backward) * 3 * s * unit * Math.sin(Math.min(v / 0.4, 1) * Math.PI * 0.5) * (1 - sm(v, 0.4, 0.8))
+            // Cae por la espalda: la costura central de la nuca hacia abajo; la abertura se queda junto al cuello por los
+            // lados y luego baja hasta la frente
+            const drop = hoodH * 0.7 * unit * THREE.MathUtils.lerp(sm(v, 0.25, 1), v, sm(u, 0, 0.5))
+            // De delante hacia atrás: todo acaba sobre la espalda, algo separado de ella
+            const z = THREE.MathUtils.lerp(p.z, backZ - 2 * s * unit, sm(v, 0, 0.6))
+            // Volumen: la capucha es una bolsa, no una hoja; la costura central queda por fuera y abombada y el fondo
+            // (la coronilla) se cierra otra vez hacia la espalda
+            const pouch = 8 * s * unit * Math.sin((Math.PI / 2) * Math.min(1, u * 1.4)) * sm(v, 0.05, 0.4) * (1 - 0.7 * sm(v, 0.8, 1))
+            out.set(side * lateral, p.y + rise - drop, z - pouch)
           },
         }),
         // Puesta, la capucha se mueve con la cabeza
@@ -458,7 +472,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
       // a cada lado de la barbilla
       if (design.cords !== false) {
         const j = Math.min(nt - 1, Math.max(1, Math.round((7 * s) / (hoodH / (nt - 1)))))
-        const i = Math.min(nh - 2, Math.max(1, Math.round(((2.4 * s) / width(j / (nt - 1))) * (nh - 1))))
+        const i = Math.min(nh - 2, Math.max(1, Math.round(((2.4 * s) / (width(j / (nt - 1)) + extraW(j / (nt - 1)))) * (nh - 1))))
         cordExits.push(panel.index(i, j))
       }
       return panel
@@ -466,22 +480,25 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     const [left, right] = hoods
     cloth.sew(left.col(nh - 1), right.col(nh - 1)) // costura de la nuca
     cloth.sew(left.row(nt - 1), right.row(nt - 1)) // costura de arriba
-  } else {
+  }
+  if (!design.hood || design.hoodCollar) {
+    // Con capucha, el cuello alto va cosido al mismo escote, por dentro de ella y ceñido al cuello
+    const neckKind: TopShape['neck'] = design.hood ? 'alto' : shape.neck
     const loop = [...halfNeck(1).slice(0, -1), ...halfNeck(-1).reverse().slice(0, -1)]
     const nn = grid(neckLen, 1.6)
     // Alto del cuello: tira de canalé (3 cm), de camisa (4 cm) o alto (cisne o cuello de chaqueta; más en la acolchada)
-    const collarH = (shape.neckHeight ?? (shape.neck === 'alto' ? (shape.padded ? 9 : 7) : shape.neck === 'camisa' ? 3 : 2.2)) * s
+    const collarH = (design.hood ? 7 : shape.neckHeight ?? (neckKind === 'alto' ? (shape.padded ? 9 : 7) : neckKind === 'camisa' ? 3 : 2.2)) * s
     // Cuello alto holgado: separado del cuello y algo abierto arriba (el de las chaquetas); ceñido: abraza el cuello
-    const loose = shape.neck === 'alto' && shape.neckFit !== 'cenido'
+    const loose = neckKind === 'alto' && shape.neckFit !== 'cenido' && !design.hood
     const nr = Math.max(3, grid(collarH, 1.6))
-    const ribCollar = shape.neck === 'canale' || (shape.neck === 'alto' && !shape.padded)
+    const ribCollar = neckKind === 'canale' || (neckKind === 'alto' && !shape.padded)
     const pts = loop.map((n) => new THREE.Vector3(cloth.pos[n * 3], cloth.pos[n * 3 + 1], cloth.pos[n * 3 + 2]))
     const collar = add(
       cloth.addPanel({
         nu: nn,
         nv: nr,
         material: ribCollar ? 1 : 0,
-        bend: shape.neck === 'canale' ? 2 : 4,
+        bend: neckKind === 'canale' ? 2 : 4,
         edges: { v1: 'doblez' },
         flat: (u, v, out) => out.set(u * neckLen * 0.9, v * collarH),
         place: (u, v, out) => {
@@ -490,8 +507,8 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
           const p = pts[i].clone().lerp(pts[(i + 1) % pts.length], k - Math.floor(k))
           // Sube recto y, si es alto, se cierra un poco hacia el cuello al subir. La tira de canalé de un cuello redondo
           // se abre hacia fuera y queda tumbada sobre el escote (se sujeta a ese sitio: si no, el cuello la levantaba)
-          const crew = shape.neck === 'canale'
-          const k2 = shape.neck === 'alto' ? (loose ? 1.08 + 0.06 * v : 0.95 - 0.12 * v) : crew ? 0.97 + 0.22 * v : 0.95
+          const crew = neckKind === 'canale'
+          const k2 = neckKind === 'alto' ? (loose ? 1.08 + 0.06 * v : 0.95 - 0.12 * v) : crew ? 0.97 + 0.22 * v : 0.95
           out.set(p.x * k2, p.y + v * collarH * (crew ? 0.55 : 1) * unit, cz + (p.z - cz) * k2)
         },
       }),
@@ -502,8 +519,8 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     cloth.sew(collar.col(0), collar.col(nn - 1))
     const collarAll = Array.from({ length: nn * nr }, (_, q) => collar.index(q % nn, Math.floor(q / nn)))
     // Todos los cuellos se sujetan a su sitio (si no, el alto de las chaquetas se venía abajo o se pegaba al cuello)
-    if (shape.neck !== 'camisa') neckPins.push(...collarAll.slice(nn))
-    if (shape.neck !== 'camisa') rims.push({ verts: collar.row(nr - 1), slot: 'cuello', radius: 0.3 * s })
+    if (neckKind !== 'camisa') neckPins.push(...collarAll.slice(nn))
+    if (neckKind !== 'camisa') rims.push({ verts: collar.row(nr - 1), slot: 'cuello', radius: 0.3 * s })
     else {
       // Cuello de camisa o de polo: el pie (la tira de antes) y la pala, que sube un poco, se dobla hacia fuera por encima
       // del pie y cae sobre los hombros. Abierto delante, con las puntas algo más largas y separadas

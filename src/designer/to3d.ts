@@ -162,6 +162,8 @@ export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<s
     hood,
     pocket: ['sudadera', 'cortavientos'].includes(t.id) && opt(t, data.options, 'bolsillo') === 'canguro',
     cords: hood && opt<boolean>(t, data.options, 'cordones') !== false,
+    hoodCross: hood && opt<boolean>(t, data.options, 'capuchaCruzada') === true,
+    hoodCollar: hood && opt<boolean>(t, data.options, 'cuelloAltoCapucha') === true,
     top,
     pants: isPants(t) ? pantsShapeOf(t, data.options) : undefined,
     femTop:
