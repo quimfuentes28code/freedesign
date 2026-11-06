@@ -14,6 +14,8 @@ export const QUILT_SHAPES = [
   { id: 'cuadros', label: 'Cuadros' },
   { id: 'verticales', label: 'Verticales' },
   { id: 'diagonales', label: 'Diagonales' },
+  // Sin canales automáticos: se dibujan a mano con el lápiz y «Canal de acolchado»
+  { id: 'libre', label: 'A mano (los dibujo yo)' },
 ] as const
 export type QuiltShape = (typeof QUILT_SHAPES)[number]['id']
 

@@ -349,6 +349,8 @@ export interface Drawing {
   width: number
   /** Trazo discontinuo, como un pespunte. */
   dash: boolean
+  /** Canal de acolchado dibujado a mano: pespunte con el relieve del relleno a los lados. */
+  quilt?: boolean
   hidden?: boolean
   locked?: boolean
 }

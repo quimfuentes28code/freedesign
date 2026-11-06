@@ -412,6 +412,10 @@ export function Canvas(props: Props) {
                 <input type="checkbox" checked={selectedDraw?.dash ?? settings.brush.dash} onChange={(e) => setBrush({ dash: e.target.checked })} />
                 Pespunte
               </label>
+              <label className="toggle small-toggle" title="Dibuja canales de acolchado (puffer, chaleco): pespunte con el relleno abultado a los lados">
+                <input type="checkbox" checked={(selectedDraw ? selectedDraw.quilt : settings.brush.quilt) ?? false} onChange={(e) => setBrush({ quilt: e.target.checked })} />
+                Canal de acolchado
+              </label>
               {selectedDraw && (
                 <button className="tool" onClick={() => onDrawings(drawings.filter((d) => d.id !== selectedDraw.id))} title="Borrar el trazo (Supr)">
                   Borrar trazo

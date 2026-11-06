@@ -16,6 +16,8 @@ export interface Brush {
   color: string
   width: number
   dash: boolean
+  /** Dibuja canales de acolchado (puffer, chaleco) en vez de líneas. */
+  quilt?: boolean
 }
 
 /** Trazado SVG de un dibujo. El lápiz se suaviza con curvas entre los puntos medios. */
@@ -49,6 +51,23 @@ export function drawingPath(d: Drawing) {
 
 const dashOf = (d: Pick<Drawing, 'dash' | 'width'>) => (d.dash ? `${Math.max(2.4, d.width * 2.4)} ${Math.max(1.8, d.width * 1.8)}` : undefined)
 
+/**
+ * Un trazo pintado: línea normal o, si es un canal de acolchado, la hendidura del pespunte (sombra) con el relleno
+ * abultado a los lados (brillo) y el pespunte encima.
+ */
+function Stroke({ d, path }: { d: Drawing; path: string }) {
+  if (!d.quilt) return <path d={path} fill="none" stroke={d.color} strokeWidth={d.width} strokeDasharray={dashOf(d)} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
+  const w = Math.max(0.6, d.width)
+  return (
+    <g pointerEvents="none" strokeLinecap="round" strokeLinejoin="round" fill="none">
+      <path d={path} stroke="#000" strokeOpacity={0.12} strokeWidth={w * 7} />
+      <path d={path} stroke="#000" strokeOpacity={0.22} strokeWidth={w * 3} />
+      <path d={path} stroke="#fff" strokeOpacity={0.16} strokeWidth={w * 1.6} transform="translate(0 -1.4)" />
+      <path d={path} stroke={d.color} strokeWidth={w * 0.7} strokeDasharray={`${w * 2.4} ${w * 1.7}`} />
+    </g>
+  )
+}
+
 /** Solo los trazos (para la ficha técnica y las miniaturas). */
 export function DrawingsView({ drawings, view }: { drawings: Drawing[]; view: View }) {
   return (
@@ -56,7 +75,7 @@ export function DrawingsView({ drawings, view }: { drawings: Drawing[]; view: Vi
       {drawings
         .filter((d) => d.view === view && !d.hidden)
         .map((d) => (
-          <path key={d.id} d={drawingPath(d)} fill="none" stroke={d.color} strokeWidth={d.width} strokeDasharray={dashOf(d)} strokeLinecap="round" strokeLinejoin="round" />
+          <Stroke key={d.id} d={d} path={drawingPath(d)} />
         ))}
     </g>
   )
@@ -129,7 +148,7 @@ export function DrawingsLayer({ ctx, drawings, view, selected, onSelect, tool, b
           const path = drawingPath(d)
           return (
             <g key={d.id}>
-              <path d={path} fill="none" stroke={d.color} strokeWidth={d.width} strokeDasharray={dashOf(d)} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
+              <Stroke d={d} path={path} />
               {selected === d.id && <path d={path} fill="none" stroke="#2563eb" strokeWidth={0.8} strokeDasharray="2 2" pointerEvents="none" />}
               {/* Zona para agarrarlo aunque el trazo sea fino */}
               {!tool && !d.locked && (
@@ -149,7 +168,7 @@ export function DrawingsLayer({ ctx, drawings, view, selected, onSelect, tool, b
           )
         })}
       {draft && (
-        <path d={drawingPath(draft)} fill="none" stroke={draft.color} strokeWidth={draft.width} strokeDasharray={dashOf(draft)} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
+        <Stroke d={draft} path={drawingPath(draft)} />
       )}
       {tool && (
         <rect

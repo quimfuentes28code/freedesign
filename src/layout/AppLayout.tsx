@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
 import { ACCOUNT_TYPES, displayName } from '../shared/users'
 import { Icon, type IconName } from './icons'
+import { StudioBackdrop } from './StudioBackdrop'
 
 /** Apartados de la app, en el orden del menú. */
 export const SECTIONS: { to: string; label: string; icon: IconName }[] = [
@@ -24,6 +25,7 @@ export function AppLayout() {
   // Inicio: el estudio de fotos 3D a pantalla completa, con el menú flotando encima
   const home = pathname === '/'
   return (
+    <StudioBackdrop home={home}>
     <div className={['app', compact ? 'compact' : '', home ? 'home' : ''].filter(Boolean).join(' ')}>
       <aside className="sidebar">
         <Link to="/" className="brand brand-link" title="Inicio: el estudio">
@@ -65,5 +67,6 @@ export function AppLayout() {
         <Outlet />
       </main>
     </div>
+    </StudioBackdrop>
   )
 }

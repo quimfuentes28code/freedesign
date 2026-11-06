@@ -9,7 +9,7 @@ import { mannequinMeasurements } from '../designer/to3d'
 import { isPants, type GarmentTemplate } from '../designer/types'
 import { bodyKind, type DesignData } from '../shared/designs'
 import { displayName } from '../shared/users'
-import { Scene } from '../three/Scene'
+import { useStage } from '../layout/StudioBackdrop'
 import { SHOE_STYLES } from '../three/Shoes'
 import type { ShoeStyle } from '../types'
 import { outfitOf, useDesign3D } from './designer/Design3D'
@@ -86,13 +86,15 @@ export function StudioHome() {
   const bottom3d = useDesign3D(look?.bottom?.template, look?.bottom?.data, materials)
   const worn = useMemo(() => (top3d ? outfitOf(top3d, bottom3d, false) : null), [top3d, bottom3d])
   const animate = useMemo(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches, [])
+  // El maniquí vive en el fondo de la app (ver layout/StudioBackdrop.tsx): se le pasa lo que lleva
+  const setStage = useStage()
+  useEffect(() => {
+    setStage(worn ? { design: worn.design, outfit: worn.outfit, measurements, shoes: look?.shoes ?? null, animate } : null)
+  }, [worn, measurements, look?.shoes, animate, setStage])
   const shoeLabel = SHOE_STYLES.find((s) => s.id === look?.shoes)?.label
 
   return (
-    <div className="studio home-stage">
-      <main className="viewport">
-        {worn && <Scene stage="studio" measurements={measurements} design={worn.design} outfit={worn.outfit} autoRotate={false} animate={animate} shoes={look?.shoes} />}
-      </main>
+    <div className="home-stage">
       {look && (
         <div className="home-card">
           <span className="home-kicker">{user ? `Hola, ${displayName(user)}` : 'FreeDesign'}</span>

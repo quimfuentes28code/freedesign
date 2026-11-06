@@ -197,6 +197,7 @@ function readDrawing(raw: unknown): Drawing | null {
     color: /^#[0-9a-f]{6}$/i.test(color) ? color : '#1d1c1a',
     width: Math.min(12, Math.max(0.3, finite(d.width, 1.2))),
     dash: d.dash === true,
+    ...(d.quilt === true ? { quilt: true } : {}),
     ...(d.hidden === true ? { hidden: true } : {}),
     ...(d.locked === true ? { locked: true } : {}),
   }

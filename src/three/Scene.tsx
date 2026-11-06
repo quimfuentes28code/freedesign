@@ -8,7 +8,8 @@ import { PhotoStudio, StudioEffects, WARM } from './PhotoStudio'
 
 interface Props {
   measurements: Measurements
-  design: Design
+  /** Prenda que lleva el maniquí (sin prenda no sale maniquí: solo el decorado). */
+  design: Design | null
   /** Otras prendas que lleva el maniquí a la vez (van por debajo de `design`). */
   outfit?: Design[]
   autoRotate: boolean
@@ -21,6 +22,10 @@ interface Props {
   stage?: 'neutral' | 'studio'
   /** Calzado del maniquí. */
   shoes?: ShoeStyle | null
+  /** «demand» pinta solo cuando algo cambia (el decorado de fondo de los apartados, que no se mueve). */
+  frameloop?: 'always' | 'demand'
+  /** Se puede girar y acercar con el ratón. */
+  interactive?: boolean
 }
 
 /**
@@ -50,7 +55,7 @@ function DevHandle() {
 }
 
 /** Escena 3D: maniquí con la prenda, en un estudio con luces suaves y cámara orbital para verlo en 360°. */
-export function Scene({ measurements, design, outfit, autoRotate, animate, showBody = true, focus = 0.53, stage = 'neutral', shoes }: Props) {
+export function Scene({ measurements, design, outfit, autoRotate, animate, showBody = true, focus = 0.53, stage = 'neutral', shoes, frameloop = 'always', interactive = true }: Props) {
   const studio = stage === 'studio'
   const H = measurements.height / 100
   // Aviso de carga fuera de la escena 3D (el modelo pesa varios MB)
@@ -59,9 +64,9 @@ export function Scene({ measurements, design, outfit, autoRotate, animate, showB
 
   return (
     <>
-      {active && <span className="loading">Cargando maniquí…</span>}
-      {!active && dressing && <span className="busy">Ajustando prenda…</span>}
-      <Canvas shadows={studio ? 'soft' : true} dpr={[1, 2]} camera={{ position: studio ? [-0.35, 1.38, 4.1] : showBody ? [0, 1.2, 3.6] : [0, H * focus + 0.1, 3.2], fov: studio ? 38 : 36 }}>
+      {design && active && <span className="loading">Cargando maniquí…</span>}
+      {design && !active && dressing && <span className="busy">Ajustando prenda…</span>}
+      <Canvas frameloop={frameloop} shadows={studio ? 'soft' : true} dpr={[1, 2]} camera={{ position: studio ? [-0.35, 1.38, 4.1] : showBody ? [0, 1.2, 3.6] : [0, H * focus + 0.1, 3.2], fov: studio ? 38 : 36 }}>
         {studio ? (
           <>
             <color attach="background" args={['#0b0907']} />
@@ -104,7 +109,7 @@ export function Scene({ measurements, design, outfit, autoRotate, animate, showB
         )}
 
         <Suspense fallback={null}>
-          <Mannequin measurements={measurements} design={design} outfit={outfit} animate={animate} showBody={showBody} shoes={shoes} />
+          {design && <Mannequin measurements={measurements} design={design} outfit={outfit} animate={animate} showBody={showBody} shoes={shoes} />}
         </Suspense>
 
         <ContactShadows position={[0, 0.002, 0]} opacity={studio ? 0.65 : 0.5} scale={4} blur={2.2} far={2} resolution={512} />
@@ -120,6 +125,7 @@ export function Scene({ measurements, design, outfit, autoRotate, animate, showB
           maxAzimuthAngle={studio ? 1.25 : Infinity}
           autoRotate={autoRotate}
           autoRotateSpeed={1.2}
+          enabled={interactive}
           makeDefault
         />
         {import.meta.env.DEV && <DevHandle />}

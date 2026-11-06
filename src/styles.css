@@ -1225,3 +1225,55 @@ body {
   border-color: rgb(40 30 20 / 0.06);
   box-shadow: 0 14px 36px rgb(40 30 20 / 0.08), 0 1px 3px rgb(40 30 20 / 0.05);
 }
+
+/* --- El plató de fotos de fondo en toda la app (layout/StudioBackdrop.tsx) --- */
+.studio-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: #0b0907;
+  pointer-events: none;
+}
+
+/* En la portada se puede girar el maniquí */
+.studio-backdrop.live {
+  pointer-events: auto;
+}
+
+/* En los apartados el plató queda detrás de un velo claro: casi no se ve */
+.studio-veil {
+  position: absolute;
+  inset: 0;
+  background: rgb(245 242 237 / 0.84);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.studio-backdrop .loading,
+.studio-backdrop .busy {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: #f3ece2;
+  background: rgb(20 16 12 / 0.6);
+}
+
+.app {
+  position: relative;
+  z-index: 1;
+}
+
+/* Portada: todo deja pasar el ratón al plató menos el menú y la tarjeta */
+.app.home {
+  background: none;
+  pointer-events: none;
+}
+
+.app.home .sidebar {
+  pointer-events: auto;
+}
