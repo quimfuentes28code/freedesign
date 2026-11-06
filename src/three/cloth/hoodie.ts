@@ -3,6 +3,7 @@ import type { Design, GarmentSlot, Measurements, TopShape } from '../../types'
 import type { ModelInfo } from '../body'
 import { Part } from '../pose'
 import { Cloth, type EdgeKind, type Panel } from './Cloth'
+import { rectShape, type Patch, type Tab } from './patches'
 
 /**
  * Canalé de puños y bajo: filas de puntos (cada ~1,4 cm) y rigidez a la flexión. Es un tejido elástico y firme que queda
@@ -55,6 +56,9 @@ export interface HoodieResult {
   closure: { left: number[]; right: number[]; kind: 'botones' | 'cremallera'; buttons: number; size: number; open: boolean; full: boolean } | null
   /** Puntos donde va el botón de cada puño de camisa. */
   cuffButtons: number[]
+  /** Bolsillos de parche, solapas y vivos (ver patches.ts). */
+  patches: Patch[]
+  tabs: Tab[]
 }
 
 /** Trapecio del bolsillo canguro en el patrón del delantero (cm): de `y0` a `y0 + h`, semiancho de `w0` abajo a `w1` arriba. */
@@ -634,18 +638,45 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const ph = 21 * s
   // Empieza unos cm por encima del bajo: justo encima del canalé la tela se frunce y el bolsillo se levantaría
   const py = 3.5 * s
-  // Bolsillo de pecho de parche: a la izquierda del cuerpo (a la derecha según se mira), o uno a cada lado
-  const cw = 6 * s
-  const ch = 14 * s
-  const cy = L - 21 * s - ch
-  const cx0 = 10.5 * s
-  const chestPocket = shape.chestPocket
-    ? {
-        panel: front.id,
-        inside: (x: number, y: number) => y >= cy && y <= cy + ch && Math.abs((shape.chestPocket === 'dos' ? Math.abs(x) : x) - cx0) < cw,
-        shape: { y0: cy, h: ch, w0: cw, w1: cw, x0: cx0, mirror: shape.chestPocket === 'dos' },
-      }
-    : null
+  // --- Bolsillos de parche (sobre el patrón plano: x desde el centro, positivo a la izquierda del cuerpo; y desde el bajo) ---
+  const patches: Patch[] = []
+  if (shape.chestPocket) {
+    // De pecho: a la izquierda del cuerpo (a la derecha según se mira); la cazadora lleva dos, con solapa en pico y botón
+    const two = shape.chestPocket === 'dos'
+    const pw = (two ? 13 : 12) * s
+    const ph = (two ? 13 : 14) * s
+    const cy = L - (two ? 24 : 22) * s - ph / 2
+    for (const k of two ? [1, -1] : [1]) {
+      patches.push({ panel: front.id, nu: 6, nv: 7, shape: rectShape(k * 10.5 * s, cy, pw, ph, 0, two ? 0 : 1.2 * s), edges: ['pespunte', 'pespunte', 'pespunte', two ? 'pespunte' : 'jareta'], lift: 0.15, slot: 'bolsillo' })
+      if (two)
+        patches.push({
+          panel: front.id,
+          nu: 6,
+          nv: 3,
+          shape: rectShape(k * 10.5 * s, cy + ph / 2 - 1 * s, pw + 1 * s, 5.5 * s, 0, 1.8 * s),
+          edges: ['pespunte', 'pespunte', 'pespunte', 'ninguno'],
+          lift: 0.45,
+          slot: 'bolsillo',
+          button: { u: 0.5, v: 0.3, size: 1.4 },
+        })
+    }
+  }
+  if (shape.pockets === 'ojal') {
+    // De ojal: un vivo inclinado a cada lado (para meter las manos), con la parte de arriba hacia el centro
+    const cx = Math.min(16 * s, W / 2 - 9 * s)
+    for (const k of [1, -1]) patches.push({ panel: front.id, nu: 2, nv: 9, shape: rectShape(k * cx, 22 * s, 2 * s, 17 * s, k * 18), edges: ['pespunte', 'pespunte', 'pespunte', 'pespunte'], lift: 0.28, slot: 'bolsillo' })
+  } else if (shape.pockets === 'solapa') {
+    // De parche con solapa y botón, abajo a cada lado
+    const cx = Math.min(17 * s, W / 2 - 11 * s)
+    for (const k of [1, -1]) {
+      patches.push({ panel: front.id, nu: 7, nv: 8, shape: rectShape(k * cx, 13 * s, 17 * s, 19 * s), edges: ['pespunte', 'pespunte', 'pespunte', 'jareta'], lift: 0.25, slot: 'bolsillo' })
+      patches.push({ panel: front.id, nu: 7, nv: 3, shape: rectShape(k * cx, 21.5 * s, 18 * s, 6.5 * s), edges: ['pespunte', 'pespunte', 'pespunte', 'ninguno'], lift: 0.55, slot: 'bolsillo', button: { u: 0.5, v: 0.35, size: 1.3 } })
+    }
+  }
+  if (shape.sleevePocket && sleevePanels.length) {
+    // Bolsillo de la manga izquierda (bomber), en lo alto del brazo, por fuera
+    patches.push({ panel: sleevePanels[0].panel.id, nu: 5, nv: 6, shape: rectShape(0, -12 * s, 9 * s, 11 * s), edges: ['pespunte', 'pespunte', 'pespunte', 'jareta'], lift: 0.2, slot: 'bolsillo' })
+  }
   const pocket = design.pocket
     ? {
         panel: front.id,
@@ -656,7 +687,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
         },
         shape: { y0: py, h: ph, w0: pw / 2, w1: pw * 0.34 },
       }
-    : chestPocket
+    : null
 
   // --- Capas: qué piezas no se pueden atravesar entre sí ---
   const all = (p: Panel) => Array.from({ length: p.nu * p.nv }, (_, k) => p.index(k % p.nu, Math.floor(k / p.nu)))
@@ -720,7 +751,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   }
   const layers = { hood: hoodFree, hoodAll: hoodPanels.flatMap(all), torso: torsoWithCut, sleevesLow, torsoLow, sleeveCap, torsoArmhole, bodyOnly, collarPins }
 
-  return { cloth, follows, slots, pocket, layers, cordExits, rims, closure: closureOut, cuffButtons }
+  return { cloth, follows, slots, pocket, layers, cordExits, rims, closure: closureOut, cuffButtons, patches, tabs: [] as Tab[] }
 }
 
 /** Perímetro aproximado de una elipse (Ramanujan). */

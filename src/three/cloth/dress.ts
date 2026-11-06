@@ -7,6 +7,7 @@ import { CloudGrid } from '../wrap'
 import { EDGE_CODES } from './Cloth'
 import { buildHoodie, type HoodieResult, type PocketShape } from './hoodie'
 import { buildPants } from './pants'
+import type { Patch, Tab } from './patches'
 import { buildFemTop } from './femtop'
 import { relax, SpatialHash } from './relax'
 import { skinCloth } from './skinCloth'
@@ -78,7 +79,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   const pants = isPants ? pantsGarment({ info, points: cloud.pos, unit }, measurements, design) : null
   const femTop = !isPants && design.garment === 'top' ? femTopGarment({ info, points: cloud.pos, unit }, measurements, design) : null
   const garment = pants ?? femTop ?? buildHoodie({ info, points: cloud.pos, unit }, measurements, design)
-  const { cloth, follows, slots, pocket, layers, cordExits, rims, closure, cuffButtons } = garment
+  const { cloth, follows, slots, pocket, layers, cordExits, rims, closure, cuffButtons, patches, tabs } = garment
 
   // La rigidez a la flexión depende de la tela
   for (const l of cloth.links) if (l.k < 0.5) l.k = Math.min(1, l.k * fabric.stiffness)
@@ -225,6 +226,9 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     )
   }
 
+  // Bolsillos de parche, solapas, vivos y trabillas, pegados a la tela ya asentada
+  if (patches.length || tabs.length) addPatches({ positions, uvs, edges, idx, wts, bySlot }, relaxed, cloth, patches, tabs, normalOf, unit, skinIndex, skinWeight)
+
   // Botones y cremallera de verdad (con volumen), sobre la tela ya asentada
   if (closure || cuffButtons.length)
     addClosure({ positions, uvs, edges, idx, wts, bySlot }, relaxed, closure, cuffButtons, normalOf, unit, skinIndex, skinWeight)
@@ -276,6 +280,8 @@ function femTopGarment(body: Parameters<typeof buildFemTop>[0], m: Measurements,
     cordExits: none,
     closure: null,
     cuffButtons: none,
+    patches: [] as Patch[],
+    tabs: [] as Tab[],
     layers: { hood: none, hoodAll: none, torso: none, sleevesLow: none, torsoLow: none, sleeveCap: none, torsoArmhole: none, bodyOnly: none, collarPins: none },
   }
 }
@@ -287,10 +293,141 @@ function pantsGarment(body: Parameters<typeof buildPants>[0], m: Measurements, d
   return {
     ...p,
     pocket: null,
-    cordExits: none,
     closure: null,
-    cuffButtons: none,
-    layers: { hood: none, hoodAll: none, torso: none, sleevesLow: none, torsoLow: none, sleeveCap: none, torsoArmhole: none, bodyOnly: none, collarPins: none },
+    // Los cordones de la cintura se apoyan en toda la tela del pantalón
+    layers: { hood: none, hoodAll: none, torso: Array.from({ length: p.cloth.panelOf.length }, (_, v) => v), sleevesLow: none, torsoLow: none, sleeveCap: none, torsoArmhole: none, bodyOnly: none, collarPins: none },
+  }
+}
+
+/**
+ * Parches (bolsillos, solapas, vivos) pegados a la tela asentada: cada punto del parche se busca en el patrón plano de
+ * su pieza (en qué triángulo cae) y toma la posición, la normal y los huesos de ese trozo de tela, un poco por fuera.
+ * Lleva sus propios bordes (pespuntes, dobleces) y la textura de la tela continúa (UV = patrón en cm).
+ */
+function addPatches(
+  out: MeshBuffers,
+  relaxed: Float32Array,
+  cloth: { flat: number[]; panelOf: number[]; tris: [number[], number[]] },
+  patches: Patch[],
+  tabs: Tab[],
+  normalOf: (v: number) => THREE.Vector3,
+  cm: number,
+  skinIndex: Uint16Array,
+  skinWeight: Float32Array,
+) {
+  const trisOf = new Map<number, number[]>()
+  for (const tris of cloth.tris)
+    for (let t = 0; t < tris.length; t += 3) {
+      const p = cloth.panelOf[tris[t]]
+      if (!trisOf.has(p)) trisOf.set(p, [])
+      trisOf.get(p)!.push(tris[t], tris[t + 1], tris[t + 2])
+    }
+  const F = cloth.flat
+  /** Punto de la tela en (x, y) del patrón de una pieza: posición, normal y el punto de tela más cercano. */
+  const onCloth = (panel: number, x: number, y: number) => {
+    const tris = trisOf.get(panel) ?? []
+    let best = { score: Infinity, t: 0, w: [1, 0, 0] }
+    for (let t = 0; t < tris.length; t += 3) {
+      const [a, b, c] = [tris[t], tris[t + 1], tris[t + 2]]
+      const ax = F[a * 2], ay = F[a * 2 + 1]
+      const v0x = F[b * 2] - ax, v0y = F[b * 2 + 1] - ay
+      const v1x = F[c * 2] - ax, v1y = F[c * 2 + 1] - ay
+      const v2x = x - ax, v2y = y - ay
+      const den = v0x * v1y - v1x * v0y
+      if (Math.abs(den) < 1e-9) continue
+      const wb = (v2x * v1y - v1x * v2y) / den
+      const wc = (v0x * v2y - v2x * v0y) / den
+      const wa = 1 - wb - wc
+      // Fuera del triángulo: cuánto se sale (el de menos, si el punto cae fuera de la pieza)
+      const score = Math.max(0, -wa) + Math.max(0, -wb) + Math.max(0, -wc)
+      if (score < best.score) best = { score, t, w: [wa, wb, wc] }
+      if (score === 0) break
+    }
+    const ids = [tris[best.t], tris[best.t + 1], tris[best.t + 2]]
+    const w = best.w.map((k) => THREE.MathUtils.clamp(k, -0.2, 1.2))
+    const p = new THREE.Vector3()
+    const n = new THREE.Vector3()
+    ids.forEach((v, k) => {
+      p.addScaledVector(new THREE.Vector3().fromArray(relaxed, v * 3), w[k])
+      n.addScaledVector(normalOf(v), w[k])
+    })
+    const anchor = ids[w.indexOf(Math.max(...w))]
+    return { p, n: n.normalize(), anchor }
+  }
+
+  for (const patch of patches) {
+    const { nu, nv } = patch
+    const base = out.positions.length / 3
+    const flat: [number, number][] = []
+    const normals: THREE.Vector3[] = []
+    for (let j = 0; j < nv; j++)
+      for (let i = 0; i < nu; i++) {
+        const [x, y] = patch.shape(i / (nu - 1), j / (nv - 1))
+        const q = onCloth(patch.panel, x, y)
+        q.p.addScaledVector(q.n, patch.lift * cm)
+        out.positions.push(q.p.x, q.p.y, q.p.z)
+        out.uvs.push(x, y)
+        pushSkin(out, q.anchor, skinIndex, skinWeight)
+        flat.push([x, y])
+        normals.push(q.n)
+      }
+    const at = (i: number, j: number) => j * nu + i
+    const dist = (a: number, b: number) => Math.hypot(flat[a][0] - flat[b][0], flat[a][1] - flat[b][1])
+    for (let j = 0; j < nv; j++)
+      for (let i = 0; i < nu; i++) {
+        const v = at(i, j)
+        const cands: [number, number, number][] = [
+          [dist(v, at(0, j)), flat[at(0, j)][1], EDGE_CODES[patch.edges[0]]],
+          [dist(v, at(nu - 1, j)), flat[at(nu - 1, j)][1], EDGE_CODES[patch.edges[1]]],
+          [dist(v, at(i, 0)), flat[at(i, 0)][0], EDGE_CODES[patch.edges[2]]],
+          [dist(v, at(i, nv - 1)), flat[at(i, nv - 1)][0], EDGE_CODES[patch.edges[3]]],
+        ]
+        let best: [number, number, number] = [99, 0, EDGE_CODES.ninguno]
+        for (const c of cands) if (c[2] !== EDGE_CODES.ninguno && c[0] < best[0]) best = c
+        out.edges.push(...best)
+      }
+    const tris = out.bySlot[slotIndex(patch.slot)]
+    const P = (k: number) => new THREE.Vector3().fromArray(out.positions, (base + k) * 3)
+    for (let j = 0; j < nv - 1; j++)
+      for (let i = 0; i < nu - 1; i++) {
+        const a = at(i, j), b = at(i + 1, j), c = at(i, j + 1), d = at(i + 1, j + 1)
+        // Cara hacia fuera de la tela
+        const nrm = P(b).sub(P(a)).cross(P(c).sub(P(a)))
+        if (nrm.dot(normals[a]) >= 0) tris.push(base + a, base + b, base + c, base + b, base + d, base + c)
+        else tris.push(base + a, base + c, base + b, base + b, base + c, base + d)
+      }
+    // Canto del parche: una tira corta hacia la tela, para que tenga grosor y no se vea de papel
+    const ring = [...Array.from({ length: nu }, (_, i) => at(i, 0)), ...Array.from({ length: nv - 1 }, (_, j) => at(nu - 1, j + 1)), ...Array.from({ length: nu - 1 }, (_, i) => at(nu - 2 - i, nv - 1)), ...Array.from({ length: nv - 2 }, (_, j) => at(0, nv - 2 - j))]
+    const rimBase = out.positions.length / 3
+    ring.forEach((k) => {
+      const p = P(k).addScaledVector(normals[k], -patch.lift * cm)
+      out.positions.push(p.x, p.y, p.z)
+      out.uvs.push(flat[k][0], flat[k][1])
+      out.edges.push(0.05, 0, EDGE_CODES.doblez)
+      for (let q = 0; q < 4; q++) {
+        out.idx.push(out.idx[(base + k) * 4 + q])
+        out.wts.push(out.wts[(base + k) * 4 + q])
+      }
+    })
+    for (let r = 0; r < ring.length; r++) {
+      const a = base + ring[r], b = base + ring[(r + 1) % ring.length]
+      const c = rimBase + r, d = rimBase + ((r + 1) % ring.length)
+      tris.push(a, c, b, b, c, d, a, b, c, b, d, c)
+    }
+    if (patch.button) {
+      const [x, y] = patch.shape(patch.button.u, patch.button.v)
+      const q = onCloth(patch.panel, x, y)
+      const t = new THREE.Vector3(0, 1, 0).addScaledVector(q.n, -q.n.y).normalize()
+      button(out, q.p.addScaledVector(q.n, (patch.lift + 0.08) * cm), q.n, t, (patch.button.size / 2) * cm, patch.button.size >= 1.4, q.anchor, skinIndex, skinWeight)
+    }
+  }
+
+  for (const tab of tabs) {
+    const p = new THREE.Vector3().fromArray(relaxed, tab.vertex * 3)
+    const n = normalOf(tab.vertex)
+    const t = new THREE.Vector3(0, 1, 0).addScaledVector(n, -n.y).normalize()
+    const b = t.clone().cross(n).normalize()
+    box(out, p.addScaledVector(n, (tab.size[2] / 2 + 0.05) * cm), t, b, n, [tab.size[0] * cm, tab.size[1] * cm, tab.size[2] * cm], tab.slot, tab.vertex, skinIndex, skinWeight)
   }
 }
 

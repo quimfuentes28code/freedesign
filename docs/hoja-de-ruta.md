@@ -88,8 +88,12 @@ Lo que falta, por fases (pedido el 6/11/2026):
    cosidos; cremalleras finas y realistas; poder llevarlas abiertas con una camiseta básica blanca o negra debajo.
    Polo con su tapeta y puños de canalé o lisos; camisa con tapeta, todos los botones y bolsillo; cazadora con puños de
    botón o sin puño, pretina bien hecha y sus botones.
-4. **Detalles del 2D en 3D**: bolsillos, cordones, trabillas, botón y bragueta del pantalón, bandas… y revisar qué
-   opciones del Diseñador aún no cambian el 3D.
+4. ✓ **Detalles del 2D en 3D** (hecho: bolsillos laterales, traseros y cargo con solapa del pantalón, banda lateral,
+   cordón, trabillas, botón y bragueta; bolsillos de ojal, con solapa, de pecho y de manga de las chaquetas; colores de
+   cinturilla, bolsillos, cordón y banda). Aún no cambian el 3D: el pespunte doble («Costuras»), los canesús de camisa y
+   cazadora, las pinzas del pantalón, el cuello en pico y el henley de la camiseta, el cubano y la solapa (salen como
+   cuello de camisa), la balaclava y la lengüeta del cuello, el cierre del corsé, los canales de acolchado dibujados a
+   mano y los estampados del lateral.
 5. **Gorros y gorras en 3D**.
 6. **Zapatillas otra vez**: forma natural (sin la punta rara), malla fina (que no se vea pixelada) y materiales reales
    (piel, ante, goma).

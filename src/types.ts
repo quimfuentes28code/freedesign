@@ -27,6 +27,9 @@ export interface TopShape {
   chestPocket?: 'uno' | 'dos'
   /** Pretina recta (cazadora): del ancho del cuerpo, sin fruncir, más baja. */
   flatBand?: boolean
+  /** Bolsillos bajos de chaqueta: de ojal (un vivo inclinado) o de parche con solapa; y el de la manga (bomber). */
+  pockets?: 'ojal' | 'solapa'
+  sleevePocket?: boolean
 }
 
 /** Cierre delantero de una prenda de arriba. */
@@ -58,6 +61,12 @@ export interface PantsShape {
   cuff: 'recto' | 'vuelto' | 'puno'
   /** Cinturilla elástica o de la misma tela (con trabillas). */
   waist: 'elastica' | 'trabillas'
+  /** Bolsillos laterales (abertura inclinada), traseros de parche, cargo con solapa; cordón y banda lateral. */
+  sidePockets?: boolean
+  backPockets?: boolean
+  cargo?: boolean
+  cord?: boolean
+  stripe?: boolean
 }
 
 export interface Measurements {
@@ -82,7 +91,7 @@ export type Fit = 'ajustado' | 'normal' | 'holgado'
  * Zonas de la prenda 3D que pueden llevar su propio color y material.
  * El orden es el índice de material de la malla (no cambiarlo sin cambiar también dress.ts).
  */
-export const GARMENT_SLOTS = ['cuerpo', 'mangas', 'capucha', 'cuello', 'bolsillo', 'punos', 'bajo', 'cordones', 'ojales', 'botones'] as const
+export const GARMENT_SLOTS = ['cuerpo', 'mangas', 'capucha', 'cuello', 'bolsillo', 'punos', 'bajo', 'cordones', 'ojales', 'botones', 'banda'] as const
 export type GarmentSlot = (typeof GARMENT_SLOTS)[number]
 export const slotIndex = (s: GarmentSlot) => GARMENT_SLOTS.indexOf(s)
 

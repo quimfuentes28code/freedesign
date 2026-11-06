@@ -3,6 +3,7 @@ import type { Design, GarmentSlot, Measurements } from '../../types'
 import type { ModelInfo } from '../body'
 import { Part } from '../pose'
 import { Cloth, type Panel } from './Cloth'
+import { rectShape, type Patch, type Tab } from './patches'
 
 /**
  * Patrón de un pantalón, como el de un taller: delantero y trasero de cada pierna (cuatro piezas), cosidos por el
@@ -30,6 +31,11 @@ export interface PantsResult {
   /** Puntos sujetos a su sitio: el borde de arriba cuando va tapado (la cinturilla escondida lo sujetaría). */
   pins: number[]
   rims: { verts: number[]; slot: GarmentSlot; radius: number }[]
+  /** Bolsillos, banda lateral y trabillas; ojales del cordón de la cintura y su botón. */
+  patches: Patch[]
+  tabs: Tab[]
+  cordExits: number[]
+  cuffButtons: number[]
 }
 
 interface Body {
@@ -182,6 +188,10 @@ export function buildPants(body: Body, m: Measurements, design: Design): PantsRe
 
   const nv = grid(flatLen, 2)
   const crotchRow = Math.round((crotchF / flatLen) * (nv - 1))
+  const patches: Patch[] = []
+  const tabs: Tab[] = []
+  const cordExits: number[] = []
+  const buttons: number[] = []
   const nu = grid(Math.max(legTop / 2, seatC / 4), 2.2)
 
   /** Punto de una pieza en el cuerpo: alrededor de la pierna (abajo) o de la cadera (arriba). */
@@ -213,8 +223,14 @@ export function buildPants(body: Body, m: Measurements, design: Design): PantsRe
         cloth.addPanel({
           nu,
           nv,
-          // Costado con pespunte; entrepierna y tiro, costura plana; bajo recubierto (o canalé si lleva puño)
-          edges: { u0: 'pespunte', u1: 'plana', v0: jogger ? 'recubierta' : 'doblez', v1: hasBand ? 'recubierta' : 'ninguno' },
+          // Costado con pespunte; entrepierna y tiro, costura plana (con trabillas, la bragueta en el delantero izquierdo);
+          // bajo recubierto (o canalé si lleva puño)
+          edges: {
+            u0: 'pespunte',
+            u1: side > 0 && front && shape.waist === 'trabillas' ? (j) => (j > crotchRow + 1 ? 'bragueta' : 'plana') : 'plana',
+            v0: jogger ? 'recubierta' : 'doblez',
+            v1: hasBand ? 'recubierta' : 'ninguno',
+          },
           flat: (u, v, out) => {
             const f = v * flatLen
             // La pieza de un lado es la imagen en espejo de la del otro (como se cortan en el taller)
@@ -259,7 +275,7 @@ export function buildPants(body: Body, m: Measurements, design: Design): PantsRe
         nv: nr,
         material: elastic ? 1 : 0,
         bend: 4,
-        edges: { v0: 'pespunte', v1: 'doblez', u0: 'ninguno', u1: 'ninguno' },
+        edges: { v0: 'recubierta', v1: 'doblez', u0: 'ninguno', u1: 'ninguno' },
         flat: (u, v, out) => out.set(u * bandC, v * bandH),
         place: (u, v, out) => {
           // Recorre como el borde de arriba: del costado izquierdo, por delante, al derecho, y por detrás de vuelta
@@ -268,8 +284,25 @@ export function buildPants(body: Body, m: Measurements, design: Design): PantsRe
         },
       }),
       [Part.Torso],
-      'cuerpo',
+      'bajo',
     )
+    // u = 0,25 es el centro de delante y 0,75 el de detrás
+    const at = (u: number, row: number) => band.index(Math.round((((u % 1) + 1) % 1) * (nb - 1)), row)
+    if (shape.waist === 'trabillas') {
+      // Trabillas repartidas por la cintura (dos delante, dos a los lados de detrás y una en el centro) y el botón
+      for (const u of [0.25 - 0.13, 0.25 + 0.13, 0.04, 0.46, 0.75 - 0.1, 0.75, 0.75 + 0.1]) tabs.push({ vertex: at(u, 1), size: [1.1, bandH / s + 1.2, 0.3], slot: 'bajo' })
+      // El botón, en el centro de delante (el punto de la cinturilla más centrado por delante)
+      let best = at(0.25, 2)
+      for (let i = 0; i < nb; i++) {
+        const v = band.index(i, 2)
+        if (cloth.pos[v * 3 + 2] > waistZ && Math.abs(cloth.pos[v * 3]) < Math.abs(cloth.pos[best * 3])) best = v
+      }
+      buttons.push(best)
+    } else if (shape.cord) {
+      // Cordón: sale por dos ojales a cada lado del centro de delante
+      const d = 1.6 / bandC
+      cordExits.push(at(0.25 - d, 1), at(0.25 + d, 1))
+    }
     cloth.sew(band.row(0), topLoop)
     cloth.sew(band.col(0), band.col(nb - 1))
     rims.push({ verts: band.row(nr - 1), slot: 'cuerpo', radius: 0.3 * s })
@@ -317,5 +350,40 @@ export function buildPants(body: Body, m: Measurements, design: Design): PantsRe
     for (const P of [F, B]) for (let j = 0; j < crotchRow - 1; j++) legsVerts[k].push(...P.row(j))
   }
 
-  return { cloth, follows, slots, legs: legsVerts, pins, rims }
+  // --- Bolsillos y banda (sobre el patrón plano de cada pieza: x desde el costado, y desde el bajo) ---
+  // Delanteros: x crece hacia el centro en el izquierdo y decrece en el derecho; traseros al revés
+  const T = flatLen
+  const sgn = (side: 1 | -1, front: boolean) => side * (front ? 1 : -1)
+  for (const side of [1, -1] as const) {
+    for (const front of [true, false]) {
+      const panel = panels[`${side}${front}`].id
+      const k = sgn(side, front)
+      if (front && shape.sidePockets && hasBand)
+        // Abertura inclinada junto al costado: la vista del bolsillo, rasa, con el pespunte en su canto
+        patches.push({ panel, nu: 4, nv: 8, shape: (u, v) => [k * u * THREE.MathUtils.lerp(2.2, 6.5, v), T - 19 * s + v * 18 * s], edges: ['ninguno', 'abertura', 'ninguno', 'ninguno'], lift: 0.06, slot: 'bolsillo' })
+      if (!front && shape.backPockets && hasBand) {
+        const w = widthAt(T - 12 * s)
+        patches.push({
+          panel,
+          nu: 6,
+          nv: 7,
+          shape: rectShape(k * w * 0.5, T - 15 * s, 13 * s, 14 * s, 0, shape.waist === 'trabillas' ? 1.5 * s : 0),
+          edges: ['pespunte', 'pespunte', 'pespunte', 'jareta'],
+          lift: 0.18,
+          slot: 'bolsillo',
+        })
+      }
+      // Cargo: en el lado del muslo, con su solapa
+      if (front && shape.cargo && crotchF - 26 * s > 2 * stack + 4) {
+        const cy = crotchF - 14 * s
+        patches.push({ panel, nu: 7, nv: 8, shape: rectShape(k * 11 * s, cy, 15 * s, 17 * s), edges: ['pespunte', 'pespunte', 'pespunte', 'jareta'], lift: 0.3, slot: 'bolsillo' })
+        patches.push({ panel, nu: 7, nv: 3, shape: rectShape(k * 11 * s, cy + 9.5 * s, 16 * s, 6 * s), edges: ['pespunte', 'pespunte', 'pespunte', 'ninguno'], lift: 0.6, slot: 'bolsillo' })
+      }
+      // Banda lateral: una tira a cada lado de la costura del costado, del bajo a la cintura
+      if (shape.stripe)
+        patches.push({ panel, nu: 2, nv: grid(T, 3), shape: (u, v) => [k * u * 1.7 * s, 0.6 + v * (T - 1.2)], edges: ['ninguno', 'pespunte', 'ninguno', 'ninguno'], lift: 0.14, slot: 'banda' })
+    }
+  }
+
+  return { cloth, follows, slots, legs: legsVerts, pins, rims, patches, tabs, cordExits, cuffButtons: buttons }
 }

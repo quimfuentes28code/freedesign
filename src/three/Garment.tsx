@@ -86,6 +86,11 @@ void seamDetail(vec3 e, out float h, out float thread, out float shade) {
     if (k == 4) { thread += stitchLine(d, 2.4, al); h -= 0.1 * (1.0 - smoothstep(0.0, 0.18, abs(d - 2.4))); }
     if (k == 5) thread += stitchLine(d, 0.9, al);
     // Tapeta: canto doblado, pespunte junto al canto y otro a 3 cm, donde la tapeta se cose al delantero
+    // Bragueta: la tapa monta sobre el tiro (canto en sombra) y su pespunte a 3,5 cm
+    if (k == 7) {
+      thread += stitchLine(d, 3.5, al) + stitchLine(d, 0.5, al + 0.16);
+      shade += 0.35 * (1.0 - smoothstep(0.0, 0.3, d));
+    }
     if (k == 6) {
       thread += stitchLine(d, 0.5, al) + stitchLine(d, 2.85, al + 0.16);
       float sewn = 1.0 - smoothstep(0.0, 0.2, abs(d - 3.0));
@@ -244,6 +249,8 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
           float px = (uPocketX.y > 0.5 ? abs(vPocketUv.x) : vPocketUv.x) - uPocketX.x;
           float pt = (vPocketUv.y - uPocket.x) / max(uPocket.y, 0.001);
           float halfW = mix(uPocket.z, uPocket.w, clamp(pt, 0.0, 1.0));
+          // Sin bolsillo canguro (forma vacía), el material del bolsillo es el de los parches: no se recorta
+          if (uPocket.y > 0.0) {
           if (pt < 0.0 || pt > 1.0 || abs(px) > halfW) discard;
           float slope = uPocket.y / length(vec2(uPocket.y, uPocket.z - uPocket.w));
           float dSide = (halfW - abs(px)) * slope;
@@ -254,6 +261,7 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
           if (dSide < min(dBottom, dTop)) seamEdge = vec3(dSide, vPocketUv.y, chestPocket ? 1.0 : 5.0);
           else if (dBottom < dTop) seamEdge = vec3(dBottom, px, chestPocket ? 1.0 : 2.0);
           else seamEdge = vec3(dTop, px, chestPocket ? 4.0 : 2.0);
+          }
         #endif
         float seamH, seamThread, seamShade;
         seamDetail(seamEdge, seamH, seamThread, seamShade);
@@ -334,6 +342,12 @@ function useSlotMaterials(design: Design) {
           m.polygonOffsetUnits = -6
         }
         if (slot !== 'cordones' && slot !== 'ojales' && slot !== 'botones') withSeams(m, slot === 'bolsillo', slot === 'cuerpo' || slot === 'bolsillo')
+        // Bolsillos, solapas y bandas van encima de la tela: siempre por delante de ella
+        if (slot === 'banda') {
+          m.polygonOffset = true
+          m.polygonOffsetFactor = -2
+          m.polygonOffsetUnits = -6
+        }
         return m
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

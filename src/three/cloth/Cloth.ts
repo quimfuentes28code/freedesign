@@ -189,11 +189,13 @@ export class Cloth {
  * - recubierta: costura con doble pespunte (recubridora), como encima de puños y bajo
  * - doblez: borde doblado y redondeado (bajo de canalé, final del puño)
  * - jareta: borde doblado con el pespunte del canal del cordón (abertura de la capucha)
+ * - abertura: canto de la abertura de un bolsillo, con su pespunte
+ * - bragueta: costura del tiro delantero con el pespunte de la bragueta a 3,5 cm
  * - tapeta: borde doblado de una tapeta de botones, con su pespunte a 6 mm y el de la tapeta a 3 cm
  * - ninguno: sin marca
  */
-export type EdgeKind = 'plana' | 'pespunte' | 'recubierta' | 'doblez' | 'jareta' | 'tapeta' | 'ninguno'
-export const EDGE_CODES: Record<EdgeKind, number> = { plana: 0, pespunte: 1, recubierta: 2, doblez: 3, jareta: 4, tapeta: 6, ninguno: 9 }
+export type EdgeKind = 'plana' | 'pespunte' | 'recubierta' | 'doblez' | 'jareta' | 'abertura' | 'tapeta' | 'bragueta' | 'ninguno'
+export const EDGE_CODES: Record<EdgeKind, number> = { plana: 0, pespunte: 1, recubierta: 2, doblez: 3, jareta: 4, abertura: 5, tapeta: 6, bragueta: 7, ninguno: 9 }
 
 /** Acabado de cada borde: columna 0, última columna, fila 0 y última fila (o una función del índice a lo largo del borde). */
 export interface PanelEdges {

@@ -32,6 +32,16 @@ function garmentOf(t: GarmentTemplate, data: DesignData): GarmentType {
  * Los cuellos de camisa, las tapetas y el volumen del acolchado aún son aproximados.
  */
 function topShapeOf(t: GarmentTemplate, o: DesignData['options']): TopShape | undefined {
+  const shape = topShapeBase(t, o)
+  if (!shape) return shape
+  // Bolsillos bajos de las chaquetas (de ojal o con solapa) y el de la manga de la bomber
+  const b = String(opt(t, o, 'bolsillos') ?? opt(t, o, 'bolsillo') ?? '')
+  if (b === 'ojal' || b === 'solapa') shape.pockets = b
+  if (opt<boolean>(t, o, 'bolsilloManga') === true) shape.sleevePocket = true
+  return shape
+}
+
+function topShapeBase(t: GarmentTemplate, o: DesignData['options']): TopShape | undefined {
   const v = (id: string) => String(opt(t, o, id) ?? '')
   const ribbed = v('punos') === 'canale'
   const fit = { neckFit: (v('ajusteCuello') || 'holgado') as 'cenido' | 'holgado' }
@@ -125,7 +135,8 @@ function pantsShapeOf(t: GarmentTemplate, o: DesignData['options']): PantsShape 
   const leg: PantsShape['leg'] = cut === 'slim' ? 'slim' : cut === 'baggy' ? 'baggy' : cut === 'ancho' || t.id !== 'pantalon' ? (cut === 'regular' ? 'regular' : 'ancho') : 'regular'
   const cuff: PantsShape['cuff'] = v('bajo') === 'puno' ? 'puno' : v('bajo') === 'vuelto' ? 'vuelto' : 'recto'
   const waist: PantsShape['waist'] = v('cintura') === 'trabillas' ? 'trabillas' : 'elastica'
-  return { leg, cuff, waist }
+  const on = (id: string) => opt<boolean>(t, o, id) === true
+  return { leg, cuff, waist, sidePockets: on('laterales'), backPockets: on('traseros'), cargo: on('cargo'), cord: waist === 'elastica' && on('cordon'), stripe: on('banda') }
 }
 
 /** Canales del acolchado en 3D, con la forma y el ancho del Diseñador (los dibujados a mano aún no salen en 3D). */
@@ -172,6 +183,11 @@ const SLOT_OF: Record<string, GarmentSlot> = {
   bajo: 'bajo',
   cordones: 'cordones',
   fornituras: 'ojales',
+  // Pantalón: cinturilla, bolsillos, cordón y banda lateral
+  cinturilla: 'bajo',
+  bolsillos: 'bolsillo',
+  cordon: 'cordones',
+  banda: 'banda',
   botones: 'botones',
 }
 
