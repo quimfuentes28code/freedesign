@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
   return (
     <header className="page-header">
-      <div>
+      <div className="page-title">
         <h1>{title}</h1>
         {subtitle && <p className="page-subtitle">{subtitle}</p>}
       </div>

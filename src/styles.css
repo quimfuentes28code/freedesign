@@ -1277,3 +1277,161 @@ body {
 .app.home .sidebar {
   pointer-events: auto;
 }
+
+/*
+ * --- Texto sobre el plató ---
+ * Lo que va directamente sobre el fondo oscuro (títulos, subtítulos, pestañas, etiquetas sueltas) se escribe en
+ * claro; todo lo que tiene su propio fondo claro (tarjetas, botones, campos, paneles…) vuelve a la letra oscura.
+ */
+.page,
+.studio-backdrop ~ .app .content > .status {
+  --text: #f7efe4;
+  --muted: rgb(247 239 228 / 0.72);
+  --border: rgb(255 228 196 / 0.2);
+  color: var(--text);
+}
+
+.page-header h1,
+.page-header .page-subtitle,
+.creator-main > .editor-header .editor-name {
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.55), 0 4px 18px rgb(0 0 0 / 0.45);
+}
+
+.card,
+.button,
+.chip,
+input,
+select,
+textarea,
+.tag,
+.tool,
+.zoom,
+.canvas,
+.canvas-context,
+.tool-rail,
+.print-row,
+.print-thumb,
+.file-tile,
+.photo-drop,
+.material-option,
+.material-pop,
+.material-photo,
+.font-current,
+.font-pop,
+.detail-kind,
+.template-pick,
+.art-pick,
+.artwork-tile,
+.shape-menu-panel,
+.chart-tip,
+.step,
+.colorway-chip,
+.compare-card,
+.probador-item,
+.account-type button,
+.expense-total,
+.totals div,
+.editor-panel,
+.editor-layers,
+.studio .panel,
+.studio-editor .editor-header {
+  --text: #1d1c1a;
+  --muted: #74706a;
+  --border: #e2dfd9;
+  color: var(--text);
+}
+
+/* Título y subtítulo de cada apartado: sobre una placa de cristal oscuro (como la tarjeta de la portada) para que
+   se lean encima de cualquier zona del plató, también la del fondo blanco */
+.page-title {
+  padding: 12px 18px 12px;
+  border-radius: 16px;
+  background: rgb(20 16 12 / 0.55);
+  border: 1px solid rgb(255 214 170 / 0.14);
+  box-shadow: 0 18px 50px rgb(0 0 0 / 0.3);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+}
+
+.page-title h1 {
+  font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+  font-weight: 600;
+  font-size: 30px;
+  color: #fff6ea;
+  text-shadow: none;
+}
+
+.page-title .page-subtitle {
+  color: rgb(243 236 226 / 0.68);
+  text-shadow: none;
+}
+
+/* Controles con fondo claro propio: letra oscura */
+.segmented {
+  --text: #1d1c1a;
+  --muted: #74706a;
+  --border: #e2dfd9;
+  color: var(--text);
+}
+
+/* Pestañas de los apartados: en una placa de cristal oscuro, como el título */
+.tabs {
+  display: inline-flex;
+  border-bottom: none;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgb(20 16 12 / 0.55);
+  border: 1px solid rgb(255 214 170 / 0.14);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Textos sueltos sobre el plató (avisos, etiquetas de grupo…): con sombra para que se lean también sobre el blanco */
+.page {
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.7), 0 0 14px rgb(0 0 0 / 0.45);
+}
+
+.page .card,
+.page .button,
+.page .chip,
+.page input,
+.page select,
+.page textarea,
+.page .segmented,
+.page .tag,
+.page .page-title,
+.page .tabs .tab.active,
+.page [class*='card'],
+.page table {
+  text-shadow: none;
+}
+
+.tabs .tab {
+  border-bottom: none;
+  margin-bottom: 0;
+  border-radius: 9px;
+  color: rgb(247 239 228 / 0.75);
+}
+
+.tabs .tab:hover {
+  color: #fff6ea;
+}
+
+.tabs .tab.active {
+  background: rgb(255 250 243 / 0.95);
+  color: #1d1c1a;
+}
+
+/* Títulos de grupo y notas sueltas sobre el plató (fuera de cualquier panel claro): etiqueta de cristal oscuro */
+.page :is(h2, h3, p.muted, p.small, .catalog-title):not(.card *, [class*='card'] *, .page-title *, .panel *, .editor-panel *, table *, .tabs *, form *, li *) {
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 11px;
+  border-radius: 9px;
+  color: #f7efe4;
+  background: rgb(20 16 12 / 0.55);
+  border: 1px solid rgb(255 214 170 / 0.12);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  text-shadow: none;
+}

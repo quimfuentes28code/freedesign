@@ -1,11 +1,12 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { loadFont } from '../designer/fonts'
 import { Scene } from '../three/Scene'
 import type { Design, Measurements, ShoeStyle } from '../types'
 import { mannequinMeasurements } from '../designer/to3d'
 
 /**
  * El plató de fotos es el fondo de toda la app. En la portada sale con el maniquí vestido y se puede girar; en el
- * resto de apartados queda detrás, quieto y casi tapado por un velo claro, sin maniquí (se pinta una vez y no gasta).
+ * resto de apartados queda detrás, quieto y sin maniquí (se pinta una vez y no gasta), con los paneles claros flotando encima.
  */
 
 export interface StageLook {
@@ -27,6 +28,10 @@ export function StudioBackdrop({ home, children }: { home: boolean; children: Re
   const [look, setLook] = useState<StageLook | null>(null)
   const shown = home ? look : null
   const value = useMemo(() => setLook, [])
+  // Letra de los títulos (portada y placas de cada apartado)
+  useEffect(() => {
+    loadFont("'Cormorant Garamond', serif")
+  }, [])
   return (
     <StageContext.Provider value={value}>
       <div className={home ? 'studio-backdrop live' : 'studio-backdrop'} aria-hidden={!home}>
@@ -41,7 +46,6 @@ export function StudioBackdrop({ home, children }: { home: boolean; children: Re
           frameloop={home ? 'always' : 'demand'}
           interactive={home}
         />
-        {!home && <div className="studio-veil" />}
       </div>
       {children}
     </StageContext.Provider>

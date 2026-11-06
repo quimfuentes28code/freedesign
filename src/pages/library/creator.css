@@ -396,3 +396,26 @@
   background: var(--soft);
   border-radius: 8px;
 }
+
+/* --- Creador con los paneles flotando sobre el plató, como el editor de diseños --- */
+.creator {
+  gap: 12px;
+  padding: 12px;
+  height: 100dvh;
+}
+
+.creator .creator-main,
+.creator > .editor-panel {
+  background: rgb(255 255 255 / 0.88);
+  border: 1px solid rgb(40 30 20 / 0.07);
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgb(40 30 20 / 0.12), 0 1px 3px rgb(40 30 20 / 0.05);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.creator > .editor-panel {
+  border-left: 1px solid rgb(40 30 20 / 0.07);
+}
