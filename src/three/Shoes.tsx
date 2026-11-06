@@ -59,6 +59,8 @@ interface StyleDef {
   footRows: number
   shaftRows: number
   roughness: number
+  /** Dónde el corte es de ante o nobuk (1) en vez de piel lisa (0). */
+  suede: (p: Spot) => number
   colors: {
     upper: (p: Spot) => Rgb
     sole: (v: number, s: number) => Rgb
@@ -93,6 +95,7 @@ const STYLES: Record<ShoeStyle, StyleDef> = {
     footRows: 5,
     shaftRows: 3,
     roughness: 0.42,
+    suede: () => 0,
     colors: {
       upper: ({ s, v, lace }) => {
         // Paneles superpuestos (puntera, ojaleras, contrafuerte) con su pespunte al borde
@@ -131,6 +134,8 @@ const STYLES: Record<ShoeStyle, StyleDef> = {
     footRows: 4,
     shaftRows: 4,
     roughness: 0.95,
+    // Nobuk: todo el corte
+    suede: () => 1,
     colors: {
       upper: ({ s, v }) => {
         const wheat = rgb('#c68b3e')
@@ -164,6 +169,8 @@ const STYLES: Record<ShoeStyle, StyleDef> = {
     footRows: 5,
     shaftRows: 0,
     roughness: 0.7,
+    // Ante gris en la puntera y el talón; el resto, piel negra
+    suede: ({ s, v }) => Math.max(inBand(s, 0.8, 2), inBand(s, -1, 0.22) * (1 - smoothstep(0.7, 0.78, v))),
     colors: {
       upper: ({ s, v }) => {
         const grey = rgb('#6e6e6e')
@@ -308,6 +315,7 @@ class Builder {
   skinI: number[] = []
   skinW: number[] = []
   idx: number[] = []
+  uv: number[] = []
   constructor(private ff: FootFrame) {}
   /** Del sistema del zapato (x lateral, y altura, z del talón a la puntera) al del modelo. */
   world(x: number, y: number, z: number): V3 {
@@ -316,9 +324,10 @@ class Builder {
     const s = Math.sin(angle)
     return [heel.x + x * c + z * s, y, heel.y - x * s + z * c]
   }
-  vertex(p: V3, color: Rgb) {
+  vertex(p: V3, color: Rgb, uv: [number, number] = [0, 0]) {
     const w = this.world(p[0], p[1], p[2])
     this.pos.push(w[0], w[1], w[2])
+    this.uv.push(uv[0], uv[1])
     this.col.push(color[0], color[1], color[2])
     const { bones, ankle, toeZ } = this.ff
     // Delante de los dedos se dobla con el hueso de los dedos; por encima del tobillo, con la pierna
@@ -329,10 +338,10 @@ class Builder {
     return this.pos.length / 3 - 1
   }
   /** Malla de anillos (todos con los mismos puntos), cerrada en cada anillo; tapas opcionales en las puntas. */
-  loft(rings: { pts: V3[]; colors: Rgb[] }[], capStart = true, capEnd = true, closedRing = true) {
+  loft(rings: { pts: V3[]; colors: Rgb[]; uvs?: [number, number][] }[], capStart = true, capEnd = true, closedRing = true) {
     const m = rings[0].pts.length
     const base = this.pos.length / 3
-    for (const r of rings) r.pts.forEach((p, k) => this.vertex(p, r.colors[k]))
+    for (const r of rings) r.pts.forEach((p, k) => this.vertex(p, r.colors[k], r.uvs?.[k]))
     const segs = closedRing ? m : m - 1
     for (let r = 0; r < rings.length - 1; r++) {
       for (let k = 0; k < segs; k++) {
@@ -388,6 +397,7 @@ class Builder {
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3))
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3))
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2))
     g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(this.skinI, 4))
     g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(this.skinW, 4))
     g.setIndex(this.idx)
@@ -403,8 +413,8 @@ const se = (phi: number, p: number) => {
   return [Math.sign(c) * Math.abs(c) ** (2 / p), Math.sign(s) * Math.abs(s) ** (2 / p)] as const
 }
 
-const SECTIONS = 56
-const AROUND = 40
+const SECTIONS = 110
+const AROUND = 84
 
 function buildShoe(ff: FootFrame, st: StyleDef) {
   const upper = new Builder(ff)
@@ -456,35 +466,56 @@ function buildShoe(ff: FootFrame, st: StyleDef) {
   }
 
   // --- Corte ---
-  const rings: { pts: V3[]; colors: Rgb[] }[] = []
-  for (let i = 0; i <= SECTIONS; i++) {
-    const s = i / SECTIONS
+  // Cada tramo (s) del talón a la puntera: centro, media anchura, alto y la cúpula de la puntera
+  const column = (s: number) => {
     const a = half(s)
     const yt = topAt(s)
-    const z = zAt(s)
-    const c0 = cx(s)
+    // La puntera se cierra como una cúpula (alto y ancho a la vez), con la punta cerca de la suela y algo levantada
+    const tip = s > 0.8 ? Math.sqrt(Math.max(0, 1 - ((s - 0.8) / 0.2) ** 2)) : 1
+    const spring = smoothstep(0.8, 1, s) * 1.1
+    return { a, yt, z: zAt(s), c0: cx(s), tip, spring }
+  }
+  /** Punto del corte en (s, ángulo) y lo que hay ahí: color, si es ante y si es forro. */
+  const upperAt = (col: ReturnType<typeof column>, s: number, phi: number) => {
+    const { a, yt, z, c0, tip, spring } = col
+    const [u, w] = se(phi, 2.3)
+    // Más ancho abajo (el pie se apoya) que arriba (el empeine)
+    const x = c0 + a * u * (1 - 0.13 * Math.max(0, w))
+    const mid = THREE.MathUtils.lerp(yb + 0.38 * (yt - yb), (yb + yt) / 2, tip)
+    let y = mid + ((yt - yb) / 2) * tip * w + spring
+    const v = THREE.MathUtils.clamp((y - yb - spring) / Math.max(0.1, yt - yb), 0, 1)
+    const spot = { s, v, lace: Math.abs(x - c0) }
+    let color = C.upper(spot)
+    let lining = 0
+    // Dentro de la boca, la parte de arriba se hunde hasta el pie y se ve el forro
+    const r = openAt(x, z)
+    if (r < 1.05 && w > 0) {
+      const k2 = (1 - smoothstep(0.82, 1.02, r)) * w
+      y = THREE.MathUtils.lerp(y, Math.max(yb + 1, footTop(s) - 1.5), k2)
+      lining = smoothstep(0.1, 0.5, k2)
+      color = mix(color, rgb(C.lining), lining)
+    }
+    return { p: [x, y, z] as V3, color, suede: st.suede(spot) * (1 - lining), lining }
+  }
+  const rings: { pts: V3[]; colors: Rgb[]; uvs: [number, number][] }[] = []
+  for (let i = 0; i <= SECTIONS; i++) {
+    const s = i / SECTIONS
+    const col = column(s)
     const pts: V3[] = []
     const colors: Rgb[] = []
-    for (let k = 0; k < AROUND; k++) {
-      const phi = (k / AROUND) * Math.PI * 2 - Math.PI / 2
-      const [u, w] = se(phi, 2.3)
-      const x = c0 + a * u
-      let y = yb + (yt - yb) * (0.5 + 0.5 * w)
-      const v = (y - yb) / Math.max(0.1, yt - yb)
-      let color = C.upper({ s, v, lace: Math.abs(x - c0) })
-      // Dentro de la boca, la parte de arriba se hunde hasta el pie y se ve el forro
-      const r = openAt(x, z)
-      if (r < 1.05 && w > 0) {
-        const k2 = (1 - smoothstep(0.82, 1.02, r)) * w
-        y = THREE.MathUtils.lerp(y, Math.max(yb + 1, footTop(s) - 1.5), k2)
-        color = mix(color, rgb(C.lining), smoothstep(0.1, 0.5, k2))
-      }
-      pts.push([x, y, z])
-      colors.push(color)
+    const uvs: [number, number][] = []
+    // El anillo repite su primer punto al final (la textura no se corta)
+    for (let k = 0; k <= AROUND; k++) {
+      const q = upperAt(col, s, (k / AROUND) * Math.PI * 2 - Math.PI / 2)
+      pts.push(q.p)
+      colors.push([1, 1, 1])
+      uvs.push([s, k / AROUND])
     }
-    rings.push({ pts, colors })
+    rings.push({ pts, colors, uvs })
   }
-  upper.loft(rings)
+  const skin = new Builder(ff)
+  skin.loft(rings, true, true, false)
+  const textures = paintUpper(column, upperAt, L)
 
   // --- Suela: canto casi recto, algo más ancha que el corte, puntera que sube un poco y talón biselado ---
   const soleRings: { pts: V3[]; colors: Rgb[] }[] = []
@@ -537,13 +568,14 @@ function buildShoe(ff: FootFrame, st: StyleDef) {
     const s = (z + heelPad) / L
     return topAt(Math.min(0.99, Math.max(0, s))) * (0.92 + 0.08 * Math.abs(Math.cos(th))) - 0.6
   }
-  const N = 48
+  const N = 96
   let collarPath: V3[]
   if (st.shaft) {
     // Caña: de la boca a lo alto, ciñéndose al tobillo y con el frente abierto para la lengüeta y los cordones
-    const top = { rx: ff.legR[0] + 1.2 + st.puff * 0.4, rz: ff.legR[1] + 1.4 + st.puff * 0.4, cz: ankleLocal.z - 0.4 }
+    // Arriba se ciñe a la pierna (el radio medido desde el tobillo se pasa un poco: se recorta)
+    const top = { rx: ff.legR[0] * 0.82 + 0.7 + st.puff * 0.3, rz: ff.legR[1] * 0.82 + 0.9 + st.puff * 0.3, cz: ankleLocal.z - 0.4 }
     const shaftRings: { pts: V3[]; colors: Rgb[] }[] = []
-    const rows = 14
+    const rows = 30
     for (let j = 0; j <= rows; j++) {
       const f = j / rows
       const pts: V3[] = []
@@ -557,7 +589,7 @@ function buildShoe(ff: FootFrame, st: StyleDef) {
         const e = smoothstep(0, 1, f)
         const p: V3 = [lo[0] + (hi[0] - lo[0]) * e, lo[1] + (hi[1] - lo[1]) * f, lo[2] + (hi[2] - lo[2]) * e]
         // Abomba un poco a media altura (el acolchado del tobillo)
-        const bulge = Math.sin(f * Math.PI) * (0.4 + st.puff * 0.4)
+        const bulge = Math.sin(f * Math.PI) * (0.15 + st.puff * 0.25)
         const dx = p[0] - open.x
         const dz = p[2] - (lo[2] + hi[2]) / 2
         const len = Math.hypot(dx, dz) || 1
@@ -678,7 +710,104 @@ function buildShoe(ff: FootFrame, st: StyleDef) {
       6,
     )
   }
-  return { upper: upper.geometry(), sole: sole.geometry() }
+  return { skin: skin.geometry(), textures, upper: upper.geometry(), sole: sole.geometry() }
+}
+
+const TW = 1024
+const TH = 512
+// Ruido de valor (suave) para el grano de la piel y el pelo del ante
+const hash = (x: number, y: number) => {
+  const h = Math.sin(x * 127.1 + y * 311.7) * 43758.5453
+  return h - Math.floor(h)
+}
+const vnoise = (x: number, y: number) => {
+  const xi = Math.floor(x)
+  const yi = Math.floor(y)
+  const fx = x - xi
+  const fy = y - yi
+  const sx = fx * fx * (3 - 2 * fx)
+  const sy = fy * fy * (3 - 2 * fy)
+  const a = hash(xi, yi)
+  const b = hash(xi + 1, yi)
+  const c = hash(xi, yi + 1)
+  const d = hash(xi + 1, yi + 1)
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy
+}
+const toSrgb = (v: number) => Math.round(255 * Math.min(1, v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055))
+
+/**
+ * Pinta el corte en tres imágenes (en las mismas coordenadas que sus UV: a lo largo y alrededor): el color con sus
+ * paneles y pespuntes, la rugosidad (piel satinada, ante mate, forro) y el relieve (grano de la piel en pequeños
+ * bultos, pelo fino del ante). Así los bordes de los paneles salen limpios aunque la malla sea más gruesa.
+ */
+function paintUpper(
+  column: (s: number) => { a: number; yt: number },
+  upperAt: (col: never, s: number, phi: number) => { color: Rgb; suede: number; lining: number },
+  length: number,
+) {
+  const make = () => {
+    const c = document.createElement('canvas')
+    c.width = TW
+    c.height = TH
+    return c
+  }
+  const color = make()
+  const rough = make()
+  const normal = make()
+  const cImg = new ImageData(TW, TH)
+  const rImg = new ImageData(TW, TH)
+  const height = new Float32Array(TW * TH)
+  for (let i = 0; i < TW; i++) {
+    const s = (i + 0.5) / TW
+    const col = column(s)
+    // Medidas reales (cm) para el grano: a lo largo y alrededor
+    const uCm = s * length
+    const around = Math.PI * (col.a + col.yt / 2)
+    for (let j = 0; j < TH; j++) {
+      const t = (j + 0.5) / TH
+      const q = upperAt(col as never, s, t * Math.PI * 2 - Math.PI / 2)
+      const vCm = t * around
+      const o = (j * TW + i) * 4
+      // Variación suave del tono (la piel nunca es de un color plano)
+      const tone = 1 + (vnoise(uCm * 0.6, vCm * 0.6) - 0.5) * (q.suede ? 0.1 : 0.05)
+      cImg.data[o] = toSrgb(q.color[0] * tone)
+      cImg.data[o + 1] = toSrgb(q.color[1] * tone)
+      cImg.data[o + 2] = toSrgb(q.color[2] * tone)
+      cImg.data[o + 3] = 255
+      const r = q.lining ? 0.85 : 0.42 + 0.5 * q.suede
+      rImg.data[o] = rImg.data[o + 1] = rImg.data[o + 2] = Math.round(255 * r)
+      rImg.data[o + 3] = 255
+      // Relieve: piel con grano (bultitos de ~1,5 mm) o ante con pelo fino
+      const pebble = 0.35 * smoothstep(0.3, 0.7, vnoise(uCm * 11, vCm * 11) * 0.65 + vnoise(uCm * 23, vCm * 23) * 0.35)
+      const nap = vnoise(uCm * 30, vCm * 30) * 0.5 + vnoise(uCm * 9, vCm * 9) * 0.5
+      height[j * TW + i] = q.lining ? vnoise(uCm * 20, vCm * 20) * 0.3 : THREE.MathUtils.lerp(pebble, nap * 0.6, q.suede)
+    }
+  }
+  const nImg = new ImageData(TW, TH)
+  const k = 2.2
+  for (let j = 0; j < TH; j++)
+    for (let i = 0; i < TW; i++) {
+      const h = (ii: number, jj: number) => height[((jj + TH) % TH) * TW + Math.min(TW - 1, Math.max(0, ii))]
+      const dx = (h(i + 1, j) - h(i - 1, j)) * k
+      const dy = (h(i, j + 1) - h(i, j - 1)) * k
+      const len = Math.hypot(dx, dy, 1)
+      const o = (j * TW + i) * 4
+      nImg.data[o] = Math.round(((-dx / len) * 0.5 + 0.5) * 255)
+      nImg.data[o + 1] = Math.round(((-dy / len) * 0.5 + 0.5) * 255)
+      nImg.data[o + 2] = Math.round(((1 / len) * 0.5 + 0.5) * 255)
+      nImg.data[o + 3] = 255
+    }
+  color.getContext('2d')!.putImageData(cImg, 0, 0)
+  rough.getContext('2d')!.putImageData(rImg, 0, 0)
+  normal.getContext('2d')!.putImageData(nImg, 0, 0)
+  const tex = (c: HTMLCanvasElement, srgb: boolean) => {
+    const t = new THREE.CanvasTexture(c)
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace
+    t.anisotropy = 8
+    t.wrapT = THREE.RepeatWrapping
+    return t
+  }
+  return { map: tex(color, true), roughnessMap: tex(rough, false), normalMap: tex(normal, false) }
 }
 
 const mid = (a: V3, b: V3): V3 => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2]
@@ -696,13 +825,34 @@ export function Shoes({ model, cloud, style }: { model: Model; cloud: Cloud; sty
   const materials = useMemo(
     () => ({
       upper: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: st.roughness, side: THREE.DoubleSide }),
-      sole: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, side: THREE.DoubleSide }),
+      sole: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, side: THREE.DoubleSide }),
     }),
     [st],
   )
+  // El corte de cada zapato, con su color, rugosidad y relieve pintados (piel, ante, forro)
+  const skins = useMemo(
+    () =>
+      parts.map(
+        ({ textures }) =>
+          new THREE.MeshPhysicalMaterial({
+            ...textures,
+            roughness: 1,
+            normalScale: new THREE.Vector2(0.18, 0.18),
+            // Un poco de brillo de piel; el ante, con su pelo, refleja de lado
+            sheen: style === 'baloncesto' ? 0.08 : 0.25,
+            sheenRoughness: 0.8,
+            sheenColor: new THREE.Color('#ffffff'),
+            clearcoat: style === 'baloncesto' ? 0.25 : 0,
+            clearcoatRoughness: 0.5,
+            side: THREE.DoubleSide,
+          }),
+      ),
+    [parts, style],
+  )
   useEffect(() => {
-    const meshes = parts.flatMap(({ upper, sole }) =>
+    const meshes = parts.flatMap(({ upper, sole, skin }, i) =>
       [
+        [skin, skins[i]],
         [upper, materials.upper],
         [sole, materials.sole],
       ].map(([g, m]) => {
@@ -716,7 +866,17 @@ export function Shoes({ model, cloud, style }: { model: Model; cloud: Cloud; sty
       }),
     )
     return () => meshes.forEach((m) => model.root.remove(m))
-  }, [parts, materials, model])
-  useEffect(() => () => parts.forEach((p) => (p.upper.dispose(), p.sole.dispose())), [parts])
+  }, [parts, materials, model, skins])
+  useEffect(
+    () => () =>
+      parts.forEach((p) => {
+        p.upper.dispose()
+        p.sole.dispose()
+        p.skin.dispose()
+        Object.values(p.textures).forEach((t) => t.dispose())
+      }),
+    [parts],
+  )
+  useEffect(() => () => skins.forEach((m) => m.dispose()), [skins])
   return null
 }
