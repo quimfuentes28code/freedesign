@@ -28,6 +28,7 @@ export function Probador() {
   const [bodyPick, setBodyPick] = useState<'auto' | 'hombre' | 'mujer'>('auto')
   const [topId, setTopId] = useState<string | null>(null)
   const [bottomId, setBottomId] = useState<string | null>(null)
+  const [hatId, setHatId] = useState<string | null>(null)
   const [hoodUp, setHoodUp] = useState(false)
   // Prenda de arriba abierta y camiseta básica debajo
   const [open, setOpen] = useState(false)
@@ -37,19 +38,21 @@ export function Probador() {
   const [animate, setAnimate] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
 
   const all = (designs.data ?? []).filter((d) => getTemplate(d.template))
-  // Gorros y gorras aún no tienen forma 3D: no salen en el Probador
   const tops = all.filter((d) => getTemplate(d.template)!.family === 'top')
+  const heads = all.filter((d) => getTemplate(d.template)!.family === 'head')
+  const hatDesign = heads.find((d) => d.id === hatId) ?? null
   const bottoms = all.filter((d) => isPants(getTemplate(d.template)!))
   const top = tops.find((d) => d.id === topId) ?? null
   const bottom = bottoms.find((d) => d.id === bottomId) ?? null
   const client = clients.data?.find((c) => c.id === clientId)
-  const auto = [top, bottom].some((d) => d && bodyKind(d.data) === 'mujer') ? 'mujer' : 'hombre'
+  const auto = [top, bottom, hatDesign].some((d) => d && bodyKind(d.data) === 'mujer') ? 'mujer' : 'hombre'
   const kind = bodyPick === 'auto' ? auto : bodyPick
   const body = useMemo(() => bodyOf(client, kind), [client, kind])
   const measurements = useMemo(() => mannequinMeasurements(client?.measurements, kind), [client, kind])
 
   const top3d = useDesign3D(top ? getTemplate(top.template) : null, top?.data, materials, body)
   const bottom3d = useDesign3D(bottom ? getTemplate(bottom.template) : null, bottom?.data, materials, body)
+  const hat3d = useDesign3D(hatDesign ? getTemplate(hatDesign.template) : null, hatDesign?.data, materials, body)
   // La prenda de arriba va por fuera; el pantalón, debajo
   const canOpen = !!top3d?.top?.closure?.full
   const tee = useMemo(() => (canOpen && teeColor ? basicTee(teeColor, kind === 'mujer') : null), [canOpen, teeColor, kind])
@@ -57,13 +60,14 @@ export function Probador() {
     const main = top3d ?? bottom3d
     return main ? outfitOf(main, top3d && bottom3d ? bottom3d : null, false, tee) : null
   }, [top3d, bottom3d, tee])
-  const shown = useMemo(() => (worn ? { ...worn.design, hoodUp, open: canOpen && open } : null), [worn, hoodUp, canOpen, open])
+  // Solo con el gorro o la gorra, el maniquí lleva eso (en la cabeza); con ropa, va además de ella
+  const shown = useMemo(() => (worn ? { ...worn.design, hoodUp, open: canOpen && open } : hat3d), [worn, hoodUp, canOpen, open, hat3d])
 
   return (
     <div className="studio probador">
       <main className="viewport">
         {shown ? (
-          <Scene measurements={measurements} design={shown} outfit={worn!.outfit} autoRotate={autoRotate} animate={animate} shoes={shoes} />
+          <Scene measurements={measurements} design={shown} outfit={worn?.outfit} autoRotate={autoRotate} animate={animate} shoes={shoes} hat={worn ? hat3d : null} />
         ) : (
           <div className="probador-empty">
             <p>Elige una prenda de arriba y un pantalón para vestir al maniquí.</p>
@@ -107,6 +111,7 @@ export function Probador() {
 
         <Picker title="Arriba" empty="Aún no hay sudaderas, camisetas ni chaquetas diseñadas." list={tops} selected={topId} onSelect={setTopId} materials={materials} />
         <Picker title="Abajo" empty="Aún no hay pantalones diseñados." list={bottoms} selected={bottomId} onSelect={setBottomId} materials={materials} />
+        <Picker title="Cabeza" empty="Aún no hay gorros ni gorras diseñados." list={heads} selected={hatId} onSelect={setHatId} materials={materials} />
 
         <section>
           <h2>Calzado</h2>

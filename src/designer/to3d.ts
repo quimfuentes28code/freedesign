@@ -1,10 +1,11 @@
 import type { DesignData } from '../shared/designs'
 import type { Material } from '../shared/library'
-import type { Design, Fit, GarmentSlot, GarmentType, Measurements, SlotStyle, TopShape, TopClosure, PantsShape, FemTopShape } from '../types'
+import type { Design, Fit, GarmentSlot, GarmentType, Measurements, SlotStyle, TopShape, TopClosure, PantsShape, FemTopShape, HatShape } from '../types'
 import type { Measurements as ClientMeasurements } from '../shared/clients'
 import type { Body } from '../production/measurements'
 import { resolveMaterial } from './materials'
 import { pieceTile } from './surfaces'
+import type { Knit } from '../three/cloth/textures'
 import { QUILT_SHAPES } from './quilt'
 import { UNITS_PER_CM } from './prints'
 import { drawScale } from './measures'
@@ -154,7 +155,7 @@ const hasHood = (t: GarmentTemplate, o: DesignData['options']) =>
 
 /** Prendas base que en 3D se ven con una forma aproximada (sin su cuello, tapeta, acolchado…). */
 export const hasOwn3D = (t: GarmentTemplate) =>
-  ['sudadera', 'camiseta', 'polo', 'camisa', 'bomber', 'puffer', 'cazadora', 'cortavientos', 'chaleco', 'top', 'pantalon', 'pantalon-ancho', 'pantalon-corto'].includes(t.id)
+  ['sudadera', 'camiseta', 'polo', 'camisa', 'bomber', 'puffer', 'cazadora', 'cortavientos', 'chaleco', 'top', 'pantalon', 'pantalon-ancho', 'pantalon-corto', 'gorro', 'gorra'].includes(t.id)
 
 /** Parte de la pierna que cubre el pantalón (de la entrepierna al tobillo). */
 const LEG_LENGTH: Record<string, number> = { mini: 0.2, corto: 0.32, bermuda: 0.55, tobillero: 0.93 }
@@ -170,6 +171,35 @@ const FIT: Record<string, Fit> = {
 }
 
 const BODY_LENGTH: Record<string, number> = { crop: 58, normal: 70, largo: 78 }
+
+/** Gorro o gorra en 3D. */
+function hatShapeOf(t: GarmentTemplate, o: DesignData['options']): HatShape {
+  if (t.id === 'gorro')
+    return { kind: 'gorro', tall: opt(t, o, 'alto') !== 'corto', cuff: opt<boolean>(t, o, 'vuelta') !== false, pompom: opt<boolean>(t, o, 'pompon') === true }
+  return {
+    kind: 'gorra',
+    panels: opt(t, o, 'paneles') === '5' ? 5 : 6,
+    brim: opt(t, o, 'visera') === 'plana' ? 'plana' : 'curva',
+    mesh: opt<boolean>(t, o, 'malla') === true,
+    closure: opt(t, o, 'cierre') as HatShape['closure'],
+  }
+}
+
+/**
+ * Pieza de un gorro o una gorra → zona 3D (las zonas son las de la ropa; aquí la copa es el «cuerpo», la vuelta el
+ * «bajo», la visera la «capucha», la trasera de malla las «mangas», el pompón los «cordones», el cierre los «ojales» y
+ * los ojetes el «cuello»).
+ */
+const HEAD_SLOT_OF: Record<string, GarmentSlot> = {
+  copa: 'cuerpo',
+  vuelta: 'bajo',
+  pompon: 'cordones',
+  visera: 'capucha',
+  trasera: 'mangas',
+  boton: 'botones',
+  cierre: 'ojales',
+  ojetes: 'cuello',
+}
 
 /** Pieza del Diseñador → zona de la prenda 3D. */
 const SLOT_OF: Record<string, GarmentSlot> = {
@@ -196,8 +226,9 @@ export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<s
   const s = drawScale(t, data, body)
   const active = t.activePieces(data.options)
   const pieces: Partial<Record<GarmentSlot, SlotStyle>> = {}
+  const head = t.family === 'head'
   for (const p of t.pieces) {
-    const slot = SLOT_OF[p.id]
+    const slot = head ? HEAD_SLOT_OF[p.id] : SLOT_OF[p.id]
     // Las fornituras (cremallera, remates) dan su metal a los ojales aunque no haya cremallera
     if (!slot || (!active.includes(p.id) && slot !== 'ojales') || pieces[slot]) continue
     const style = data.pieces[p.id]
@@ -212,6 +243,14 @@ export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<s
   pieces.bajo ??= pieces.cuerpo
   pieces.cuello ??= pieces.cuerpo
 
+  // Gorro de punto canalé o liso: el punto de la copa y la vuelta
+  if (t.id === 'gorro') {
+    const knit: Knit = opt(t, data.options, 'punto') === 'liso' ? 'punto' : 'canale'
+    for (const slot of ['cuerpo', 'bajo'] as const) {
+      const st = pieces[slot]
+      if (st && !st.tile) pieces[slot] = { ...st, look: { ...st.look, knit, knitDepth: Math.max(st.look.knitDepth, 0.8) } }
+    }
+  }
   const hood = hasHood(t, data.options)
   const top = t.family === 'top' ? topShapeOf(t, data.options) : undefined
   // Manga corta: del hombro a medio bíceps
@@ -228,6 +267,7 @@ export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<s
     hoodCollar: hood && opt<boolean>(t, data.options, 'cuelloAltoCapucha') === true,
     top,
     pants: isPants(t) ? pantsShapeOf(t, data.options) : undefined,
+    hat: head ? hatShapeOf(t, data.options) : undefined,
     femTop:
       t.id === 'top'
         ? {

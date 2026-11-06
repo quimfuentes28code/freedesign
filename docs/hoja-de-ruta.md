@@ -94,7 +94,7 @@ Lo que falta, por fases (pedido el 6/11/2026):
    cazadora, las pinzas del pantalón, el cuello en pico y el henley de la camiseta, el cubano y la solapa (salen como
    cuello de camisa), la balaclava y la lengüeta del cuello, el cierre del corsé, los canales de acolchado dibujados a
    mano y los estampados del lateral.
-5. **Gorros y gorras en 3D**.
+5. ✓ **Gorros y gorras en 3D** (gorro de punto con vuelta y pompón; gorra de 5 o 6 paneles, visera curva o plana, trucker y cierres; en el editor y en el Probador, «Cabeza»). Falta: sus estampados en 3D.
 6. **Zapatillas otra vez**: forma natural (sin la punta rara), malla fina (que no se vea pixelada) y materiales reales
    (piel, ante, goma).
 7. **Tejidos y texturas básicos** para todas las cuentas nuevas.

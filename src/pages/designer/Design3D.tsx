@@ -108,7 +108,7 @@ export function Design3D({ template, data, materials, client, designId }: Props)
   const designs = useApi(() => api.listDesigns(), [])
   const partners = (designs.data ?? []).filter((d) => {
     const t = d.id !== designId ? getTemplate(d.template) : undefined
-    return t && t.family !== 'head' && isPants(t) !== pants
+    return t && template.family !== 'head' && t.family !== 'head' && isPants(t) !== pants
   })
   const partner = partners.find((d) => d.id === withId)
   const partnerTemplate = partner ? getTemplate(partner.template) : null
@@ -136,26 +136,15 @@ export function Design3D({ template, data, materials, client, designId }: Props)
   const [autoRotate, setAutoRotate] = useState(false)
   const sidePrints = (data.prints ?? []).filter((p) => p.view === 'side').length
 
-  // Gorros y gorras aún no tienen forma 3D
-  if (template.family === 'head')
-    return (
-      <div className="design-3d studio">
-        <div className="probador-empty">
-          <p>
-            {template.name}: las prendas de cabeza aún no se ven en 3D.
-            <br />
-            El dibujo, la ficha técnica y la exportación sí funcionan.
-          </p>
-        </div>
-      </div>
-    )
-
   return (
     <div className="design-3d studio">
       <div className="viewport">
         {/* En el editor se ve solo la ropa, quieta en la postura de reposo (el maniquí y la animación salen en el Probador) */}
-        <Scene measurements={measurements} design={shown} outfit={outfit} autoRotate={autoRotate} animate={false} showBody={false} focus={outfit.length ? 0.5 : pants ? 0.3 : 0.66} />
+        <Scene measurements={measurements} design={shown} outfit={outfit} autoRotate={autoRotate} animate={false} showBody={false} focus={template.family === 'head' ? 0.92 : outfit.length ? 0.5 : pants ? 0.3 : 0.66} />
         <div className="design-3d-bar">
+          {/* Un gorro o una gorra se ve solo (en el Probador, con la ropa) */}
+          {template.family !== 'head' && (
+            <>
           <label className="outfit-pick" title={pants ? 'Ver el pantalón con una prenda de arriba ya diseñada' : 'Ver la prenda con un pantalón ya diseñado'}>
             <span>Llevar con</span>
             <select value={partner ? partner.id : ''} onChange={(e) => choose(e.target.value)}>
@@ -167,6 +156,8 @@ export function Design3D({ template, data, materials, client, designId }: Props)
               ))}
             </select>
           </label>
+            </>
+          )}
           {shown.hood && (
             <label className="toggle">
               <input type="checkbox" checked={hoodUp} onChange={(e) => setHoodUp(e.target.checked)} />

@@ -5,6 +5,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Design, Measurements, ShoeStyle } from '../types'
 import { feminize, fitBody, measureModel, morphPositions, smoothNormals, type ModelInfo } from './body'
 import { Garment } from './Garment'
+import { Headwear } from './Headwear'
 import { Shoes } from './Shoes'
 import type { Cloud } from './wrap'
 
@@ -53,10 +54,12 @@ interface Props {
   showBody?: boolean
   /** Calzado (solo con el maniquí a la vista). */
   shoes?: ShoeStyle | null
+  /** Gorro o gorra que lleva además de la ropa. */
+  hat?: Design | null
 }
 
 /** Maniquí animado, ajustado a las medidas, con la prenda puesta. */
-export function Mannequin({ measurements, design, outfit = [], animate, showBody = true, shoes }: Props) {
+export function Mannequin({ measurements, design, outfit = [], animate, showBody = true, shoes, hat }: Props) {
   const gltf = useLoader(GLTFLoader, MODEL_URL)
   const base = useMemo(() => prepare(gltf.scene, gltf.animations), [gltf])
   const female = !!measurements.female
@@ -120,7 +123,13 @@ export function Mannequin({ measurements, design, outfit = [], animate, showBody
       {outfit.map((d, i) => (
         <Garment key={d.layer ?? i} model={model} fit={fit} cloud={cloud} measurements={measurements} design={d} />
       ))}
-      <Garment model={model} fit={fit} cloud={cloud} measurements={measurements} design={design} />
+      {/* Un gorro o una gorra va en la cabeza; el resto, en el cuerpo */}
+      {design.hat ? (
+        <Headwear model={model} cloud={cloud} design={design} height={measurements.height} />
+      ) : (
+        <Garment model={model} fit={fit} cloud={cloud} measurements={measurements} design={design} />
+      )}
+      {hat?.hat && <Headwear model={model} cloud={cloud} design={hat} height={measurements.height} />}
       {shoes && showBody && <Shoes model={model} cloud={cloud} style={shoes} />}
     </group>
   )

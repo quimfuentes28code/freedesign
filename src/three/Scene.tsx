@@ -18,6 +18,8 @@ interface Props {
   showBody?: boolean
   /** Altura a la que mira la cámara, como fracción de la estatura (por defecto, el centro del cuerpo). */
   focus?: number
+  /** Gorro o gorra que lleva además de la ropa. */
+  hat?: Design | null
   /** Decorado: el estudio claro de siempre o el plató de fotos oscuro con fondo blanco y focos (portada). */
   stage?: 'neutral' | 'studio'
   /** Calzado del maniquí. */
@@ -55,7 +57,7 @@ function DevHandle() {
 }
 
 /** Escena 3D: maniquí con la prenda, en un estudio con luces suaves y cámara orbital para verlo en 360°. */
-export function Scene({ measurements, design, outfit, autoRotate, animate, showBody = true, focus = 0.53, stage = 'neutral', shoes, frameloop = 'always', interactive = true }: Props) {
+export function Scene({ measurements, design, outfit, autoRotate, animate, showBody = true, focus = 0.53, stage = 'neutral', shoes, frameloop = 'always', interactive = true, hat }: Props) {
   const studio = stage === 'studio'
   const H = measurements.height / 100
   // Aviso de carga fuera de la escena 3D (el modelo pesa varios MB)
@@ -66,7 +68,7 @@ export function Scene({ measurements, design, outfit, autoRotate, animate, showB
     <>
       {design && active && <span className="loading">Cargando maniquí…</span>}
       {design && !active && dressing && <span className="busy">Ajustando prenda…</span>}
-      <Canvas frameloop={frameloop} shadows="soft" dpr={[1, 2]} camera={{ position: studio ? [-0.35, 1.38, 4.1] : showBody ? [0, 1.2, 3.6] : [0, H * focus + 0.1, 3.2], fov: studio ? 38 : 36 }}>
+      <Canvas frameloop={frameloop} shadows="soft" dpr={[1, 2]} camera={{ position: studio ? [-0.35, 1.38, 4.1] : showBody ? [0, 1.2, 3.6] : design?.hat ? [0.35, H * focus + 0.08, 0.95] : [0, H * focus + 0.1, 3.2], fov: studio ? 38 : 36 }}>
         {studio ? (
           <>
             <color attach="background" args={['#0b0907']} />
@@ -110,7 +112,7 @@ export function Scene({ measurements, design, outfit, autoRotate, animate, showB
         )}
 
         <Suspense fallback={null}>
-          {design && <Mannequin measurements={measurements} design={design} outfit={outfit} animate={animate} showBody={showBody} shoes={shoes} />}
+          {design && <Mannequin measurements={measurements} design={design} outfit={outfit} animate={animate} showBody={showBody} shoes={shoes} hat={hat} />}
         </Suspense>
 
         <ContactShadows position={[0, 0.002, 0]} opacity={studio ? 0.65 : 0.5} scale={4} blur={2.2} far={2} resolution={512} />
@@ -118,7 +120,7 @@ export function Scene({ measurements, design, outfit, autoRotate, animate, showB
           target={[0, studio ? H * 0.55 : H * focus, 0]}
           enablePan={false}
           // Se puede acercar mucho para ver costuras y pespuntes
-          minDistance={0.45}
+          minDistance={design?.hat ? 0.25 : 0.45}
           maxDistance={studio ? 7 : 6}
           // En el plató no se baja del suelo ni se pasa por detrás del fondo
           maxPolarAngle={studio ? Math.PI * 0.52 : Math.PI * 0.85}

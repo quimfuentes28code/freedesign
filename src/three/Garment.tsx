@@ -293,7 +293,7 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
 }
 
 /** Un material de Three.js por zona (en el orden de GARMENT_SLOTS), que solo se rehace si cambia algún color o tela. */
-function useSlotMaterials(design: Design) {
+export function useSlotMaterials(design: Design) {
   const styles = GARMENT_SLOTS.map((s) => slotStyle(design, s))
   const key = JSON.stringify([styles, isPattern(design)])
   const materials = useMemo(

@@ -32,6 +32,20 @@ export interface TopShape {
   sleevePocket?: boolean
 }
 
+/** Gorro de punto o gorra (ver three/Headwear.tsx). */
+export interface HatShape {
+  kind: 'gorro' | 'gorra'
+  /** Gorro: normal (más alto, cubre media oreja) o corto de pescador; vuelta y pompón. */
+  tall?: boolean
+  cuff?: boolean
+  pompom?: boolean
+  /** Gorra: paneles, visera, trasera de malla y cierre de atrás. */
+  panels?: 5 | 6
+  brim?: 'curva' | 'plana'
+  mesh?: boolean
+  closure?: 'snapback' | 'hebilla' | 'velcro' | 'cerrada'
+}
+
 /** Cierre delantero de una prenda de arriba. */
 export interface TopClosure {
   kind: 'botones' | 'cremallera'
@@ -152,6 +166,8 @@ export interface Design {
   legLength?: number
   /** Va debajo de otra prenda (el pantalón con una sudadera o camiseta): se ciñe a la cintura para no atravesarla. */
   under?: boolean
+  /** Gorro o gorra: se pone en la cabeza (no es una prenda de cuerpo). */
+  hat?: HatShape
   /** Prenda abierta por delante (solo las que tienen el cierre de arriba abajo). */
   open?: boolean
   /**
