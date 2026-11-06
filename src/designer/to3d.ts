@@ -5,6 +5,8 @@ import type { Measurements as ClientMeasurements } from '../shared/clients'
 import type { Body } from '../production/measurements'
 import { resolveMaterial } from './materials'
 import { pieceTile } from './surfaces'
+import { QUILT_SHAPES } from './quilt'
+import { UNITS_PER_CM } from './prints'
 import { drawScale } from './measures'
 import { isPants, opt, type GarmentTemplate } from './types'
 
@@ -42,10 +44,10 @@ function topShapeOf(t: GarmentTemplate, o: DesignData['options']): TopShape | un
     case 'camisa':
       return { hem: 'dobladillo', cuff: v('manga') === 'corta' ? 'dobladillo' : 'puno', neck: 'camisa' }
     case 'bomber':
-      return { hem: 'canale', cuff: 'canale', neck: v('cuello') === 'solapa' ? 'camisa' : v('cuello') === 'alto' ? 'alto' : 'canale' }
+      return { hem: 'canale', cuff: 'canale', neck: v('cuello') === 'solapa' ? 'camisa' : 'alto' }
     // El «ribete elástico» recoge la muñeca y el bajo, como un puño y una pretina finos
     case 'puffer':
-      return { hem: ribbed ? 'canale' : 'pretina', cuff: ribbed ? 'canale' : 'puno', neck: 'alto', padded: true }
+      return { hem: ribbed ? 'canale' : 'pretina', cuff: ribbed ? 'canale' : 'puno', neck: 'alto', padded: true, quilt: quiltOf(o, t) }
     case 'cazadora':
       return { hem: v('bajo') === 'pretina' ? 'pretina' : 'dobladillo', cuff: 'puno', neck: 'camisa' }
     case 'cortavientos':
@@ -62,6 +64,15 @@ function pantsShapeOf(t: GarmentTemplate, o: DesignData['options']): PantsShape 
   const cuff: PantsShape['cuff'] = v('bajo') === 'puno' ? 'puno' : v('bajo') === 'vuelto' ? 'vuelto' : 'recto'
   const waist: PantsShape['waist'] = v('cintura') === 'trabillas' ? 'trabillas' : 'elastica'
   return { leg, cuff, waist }
+}
+
+/** Canales del acolchado en 3D, con la forma y el ancho del Diseñador (los dibujados a mano aún no salen en 3D). */
+function quiltOf(o: DesignData['options'], t: GarmentTemplate) {
+  const shape = QUILT_SHAPES.findIndex((q) => q.id === opt(t, o, 'formaCanales'))
+  if (shape < 0 || QUILT_SHAPES[shape].id === 'libre') return undefined
+  // Separación de los canales del dibujo (unidades del lienzo) en cm
+  const step = ({ estrechos: 22, medios: 28, anchos: 34 }[String(opt(t, o, 'canales'))] ?? 34) / UNITS_PER_CM
+  return { shape, step }
 }
 
 /** Capucha en 3D: la sudadera con capucha y las chaquetas con el cuello «capucha». */

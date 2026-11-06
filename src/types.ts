@@ -14,6 +14,8 @@ export interface TopShape {
   neck: 'canale' | 'alto' | 'camisa'
   /** Acolchada (puffer): más separada del cuerpo, con más cuerpo y el cuello más alto. */
   padded?: boolean
+  /** Canales del acolchado en 3D: su forma (índice en QUILT_SHAPES del Diseñador) y su separación (cm). */
+  quilt?: { shape: number; step: number }
 }
 
 /** Corte y acabados de un pantalón con patrón. */

@@ -152,6 +152,33 @@ const NO_PRINT = (() => {
   return t
 })()
 
+/**
+ * Canales del acolchado, en el patrón plano (cm): las mismas formas que en el Diseñador (ver designer/quilt.ts) —
+ * rectos, en V, ondulados, rombos, cuadros, verticales y diagonales—. Devuelve el abombado (0 en el pespunte, 1 en
+ * medio del canal).
+ */
+const QUILT_GLSL = /* glsl */ `
+uniform vec4 uQuilt;
+varying vec2 vQuiltUv;
+float quiltBand(float d, float st) {
+  float s = fract(d / st);
+  return pow(max(sin(3.14159 * s), 0.0), 0.5);
+}
+float quiltHeight(vec2 p) {
+  float st = uQuilt.y;
+  int k = int(uQuilt.x + 0.5);
+  float x = p.x;
+  float y = p.y;
+  if (k == 0) return quiltBand(y, st);
+  if (k == 1) return quiltBand(y + abs(x) * 0.45, st);
+  if (k == 2) return quiltBand(y - st * 0.28 * sin(6.2832 * x / (st * 3.2)), st);
+  if (k == 3) return min(quiltBand(y - 0.65 * x, st * 1.25), quiltBand(y + 0.65 * x, st * 1.25));
+  if (k == 4) return min(quiltBand(y, st), quiltBand(x + st * 0.675, st * 1.35));
+  if (k == 5) return quiltBand(x + st * 0.45, st * 0.9);
+  return quiltBand(y - 0.55 * x, st);
+}
+`
+
 /** Prepara un material de tela con el detalle de confección (ver SEAM_GLSL) y, si `prints`, con los estampados (PRINT_GLSL). */
 function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = false) {
   const uniforms = {
@@ -167,8 +194,11 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
     uPrintReliefFront: { value: NO_PRINT as THREE.Texture },
     uPrintReliefBack: { value: NO_PRINT as THREE.Texture },
     uPrintRelief: { value: 0 },
+    // Acolchado: forma de los canales, separación (cm), relieve (cm) y si se ve (ver QUILT_GLSL)
+    uQuilt: { value: new THREE.Vector4(0, 14, 0, 0) },
   }
   m.userData.seams = uniforms.uSeams
+  m.userData.quilt = uniforms.uQuilt
   if (pocket) m.userData.pocket = uniforms.uPocket
   if (prints) m.userData.prints = uniforms
   m.defines = { ...m.defines, ...(pocket ? { POCKET: '' } : {}) }
@@ -177,14 +207,14 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
-        `#include <common>\nattribute vec3 edge;\nvarying vec2 vEdge;\nflat varying float vEdgeKind;${pocket ? '\nvarying vec2 vPocketUv;' : ''}${prints ? '\nvarying vec3 vRestPos;\nvarying vec2 vPrintUv;' : ''}`,
+        `#include <common>\nattribute vec3 edge;\nvarying vec2 vEdge;\nvarying vec2 vQuiltUv;\nflat varying float vEdgeKind;${pocket ? '\nvarying vec2 vPocketUv;' : ''}${prints ? '\nvarying vec3 vRestPos;\nvarying vec2 vPrintUv;' : ''}`,
       )
       .replace(
         '#include <uv_vertex>',
-        `#include <uv_vertex>\nvEdge = edge.xy;\nvEdgeKind = edge.z;${pocket ? '\nvPocketUv = uv;' : ''}${prints ? '\nvRestPos = position;\nvPrintUv = uv;' : ''}`,
+        `#include <uv_vertex>\nvEdge = edge.xy;\nvQuiltUv = uv;\nvEdgeKind = edge.z;${pocket ? '\nvPocketUv = uv;' : ''}${prints ? '\nvRestPos = position;\nvPrintUv = uv;' : ''}`,
       )
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${SEAM_GLSL}${prints ? PRINT_GLSL : ''}`)
+      .replace('#include <common>', `#include <common>\n${SEAM_GLSL}${QUILT_GLSL}${prints ? PRINT_GLSL : ''}`)
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
@@ -210,6 +240,12 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
         float seamH, seamThread, seamShade;
         seamDetail(seamEdge, seamH, seamThread, seamShade);
         seamH *= uSeams; seamThread *= uSeams; seamShade *= uSeams;
+        // Acolchado: cada canal abomba entre dos pespuntes; el fondo del pespunte queda en sombra
+        if (uQuilt.w > 0.5) {
+          float qh = quiltHeight(vQuiltUv);
+          seamH += qh * uQuilt.z;
+          diffuseColor.rgb *= 0.62 + 0.38 * qh;
+        }
         float seamLum = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
         // Hilo del mismo tono que la tela, un poco más claro (telas oscuras) o más oscuro (claras)
         vec3 threadColor = seamLum < 0.35 ? mix(diffuseColor.rgb, vec3(1.0), 0.09) : diffuseColor.rgb * 0.86;
@@ -221,7 +257,7 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
         `#include <normal_fragment_maps>
         // Solo donde hay relieve: si no, la fórmula puede dar una normal inválida en algunos píxeles (rayitas)
         vec2 seamDh = vec2(dFdx(seamH), dFdy(seamH)) * 0.01;
-        if (uSeams > 0.5 && dot(seamDh, seamDh) > 1e-14) normal = perturbSeamNormal(-vViewPosition, normal, seamDh, faceDirection);
+        if ((uSeams > 0.5 || uQuilt.w > 0.5) && dot(seamDh, seamDh) > 1e-14) normal = perturbSeamNormal(-vViewPosition, normal, seamDh, faceDirection);
         ${prints ? PRINT_RELIEF_NORMAL : ''}`,
       )
       // El interior de la prenda, algo más apagado (no mucho: en los pliegues del cuello salía a manchas)
@@ -441,6 +477,14 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
     if (shape && pocketUniform) pocketUniform.value.set(shape.y0, shape.h, shape.w0, shape.w1)
     // Costuras y rebordes solo en las prendas de patrón (las demás no saben dónde están sus bordes)
     for (const m of materials) if (m.userData.seams) (m.userData.seams as { value: number }).value = pattern ? 1 : 0
+    // Acolchado (puffer): canales en el cuerpo y las mangas, con su relieve
+    const quilt = pattern ? design.top?.quilt : undefined
+    GARMENT_SLOTS.forEach((slot, i) => {
+      const u = materials[i].userData.quilt as { value: THREE.Vector4 } | undefined
+      if (!u) return
+      const on = !!quilt && (slot === 'cuerpo' || slot === 'mangas')
+      u.value.set(quilt?.shape ?? 0, quilt?.step ?? 14, (quilt?.step ?? 14) * 0.09, on ? 1 : 0)
+    })
     const meshes = geometries.map(({ g, slot }) => {
       const mesh = new THREE.SkinnedMesh(g, slot ? materials[slotIndex(slot)] : materials)
       mesh.castShadow = true

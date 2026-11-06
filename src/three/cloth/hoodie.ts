@@ -359,6 +359,8 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const neckLen = Math.PI * 0.5 * (neckW / 2 + (frontDrop + backDrop) / 2) * 2
 
   const hoodPanels: Panel[] = []
+  // Puntos del cuello que se sujetan a su sitio (tira de canalé tumbada, cuello de camisa con su pala)
+  const neckPins: number[] = []
   const cordExits: number[] = []
   // Cabeza (para la capucha puesta): centro y radio con la holgura de la capucha
   const headY = info.neckY + (info.height - info.neckY) * 0.52
@@ -462,7 +464,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     const loop = [...halfNeck(1).slice(0, -1), ...halfNeck(-1).reverse().slice(0, -1)]
     const nn = grid(neckLen, 1.6)
     // Alto del cuello: tira de canalé (3 cm), de camisa (4 cm) o alto (cisne o cuello de chaqueta; más en la acolchada)
-    const collarH = (shape.neck === 'alto' ? (shape.padded ? 9 : 7) : shape.neck === 'camisa' ? 4 : 2.2) * s
+    const collarH = (shape.neck === 'alto' ? (shape.padded ? 9 : 7) : shape.neck === 'camisa' ? 3 : 2.2) * s
     const nr = Math.max(3, grid(collarH, 1.6))
     const ribCollar = shape.neck === 'canale' || (shape.neck === 'alto' && !shape.padded)
     const pts = loop.map((n) => new THREE.Vector3(cloth.pos[n * 3], cloth.pos[n * 3 + 1], cloth.pos[n * 3 + 2]))
@@ -478,9 +480,11 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
           const k = u * pts.length
           const i = Math.floor(k) % pts.length
           const p = pts[i].clone().lerp(pts[(i + 1) % pts.length], k - Math.floor(k))
-          // Sube recto y, si es alto, se cierra un poco hacia el cuello al subir
-          const k2 = 0.95 - (shape.neck === 'alto' ? 0.12 * v : 0)
-          out.set(p.x * k2, p.y + v * collarH * unit, cz + (p.z - cz) * k2)
+          // Sube recto y, si es alto, se cierra un poco hacia el cuello al subir. La tira de canalé de un cuello redondo
+          // se abre hacia fuera y queda tumbada sobre el escote (se sujeta a ese sitio: si no, el cuello la levantaba)
+          const crew = shape.neck === 'canale'
+          const k2 = shape.neck === 'alto' ? 0.95 - 0.12 * v : crew ? 0.97 + 0.22 * v : 0.95
+          out.set(p.x * k2, p.y + v * collarH * (crew ? 0.55 : 1) * unit, cz + (p.z - cz) * k2)
         },
       }),
       [Part.Torso, Part.Neck],
@@ -488,7 +492,58 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     )
     cloth.sew(collar.row(0), [...loop, loop[0]])
     cloth.sew(collar.col(0), collar.col(nn - 1))
-    rims.push({ verts: collar.row(nr - 1), slot: 'cuello', radius: 0.3 * s })
+    const collarAll = Array.from({ length: nn * nr }, (_, q) => collar.index(q % nn, Math.floor(q / nn)))
+    if (shape.neck === 'canale') neckPins.push(...collarAll.slice(nn))
+    if (shape.neck !== 'camisa') rims.push({ verts: collar.row(nr - 1), slot: 'cuello', radius: 0.3 * s })
+    else {
+      // Cuello de camisa o de polo: el pie (la tira de antes) y la pala, que sube un poco, se dobla hacia fuera por encima
+      // del pie y cae sobre los hombros. Abierto delante, con las puntas algo más largas y separadas
+      const top = Array.from({ length: nn }, (_, i) => {
+        const u = i / (nn - 1)
+        const k = u * pts.length
+        const j = Math.floor(k) % pts.length
+        const p = pts[j].clone().lerp(pts[(j + 1) % pts.length], k - Math.floor(k))
+        return new THREE.Vector3(p.x * 0.95, p.y + collarH * unit, cz + (p.z - cz) * 0.95)
+      })
+      const leafLen = (u: number) => THREE.MathUtils.lerp(5 * s, 7.5 * s, Math.abs(u - 0.5) * 2 ** 1 * Math.abs(u - 0.5) * 2)
+      const maxLen = 7.5 * s
+      const nl = Math.max(4, grid(maxLen, 1.3))
+      const r = 0.7 * s * unit
+      const leaf = add(
+        cloth.addPanel({
+          nu: nn,
+          nv: nl,
+          bend: 5,
+          edges: { v0: 'ninguno', v1: 'pespunte', u0: 'pespunte', u1: 'pespunte' },
+          flat: (u, v, out) => out.set(u * neckLen * 0.9, v * leafLen(u)),
+          place: (u, v, out) => {
+            const k = u * (nn - 1)
+            const i = Math.min(nn - 2, Math.floor(k))
+            const p = top[i].clone().lerp(top[i + 1], k - i)
+            const outDir = new THREE.Vector3(p.x, 0, p.z - cz).normalize()
+            const up = new THREE.Vector3(0, 1, 0)
+            // Las puntas de delante se abren un poco (el cuello no se cierra del todo)
+            const tip = Math.max(0, 1 - Math.min(u, 1 - u) / 0.08)
+            const d = v * leafLen(u) * unit
+            const arc = Math.PI * r
+            if (d < arc) {
+              const phi = d / r
+              out.copy(p).addScaledVector(up, r * Math.sin(phi)).addScaledVector(outDir, r * (1 - Math.cos(phi)))
+            } else {
+              const e = d - arc
+              const dir = up.clone().multiplyScalar(-0.82).addScaledVector(outDir, 0.55 + tip * 0.3).normalize()
+              out.copy(p).addScaledVector(outDir, 2 * r).addScaledVector(dir, e)
+            }
+            out.addScaledVector(new THREE.Vector3(Math.sign(p.x || 1), 0, 0), tip * 1.2 * s * unit * v)
+          },
+        }),
+        [Part.Torso, Part.Neck],
+        'cuello',
+      )
+      cloth.sew(leaf.row(0), collar.row(nr - 1))
+      neckPins.push(...collarAll, ...Array.from({ length: nn * nl }, (_, q) => leaf.index(q % nn, Math.floor(q / nn))))
+      rims.push({ verts: leaf.row(nl - 1), slot: 'cuello', radius: 0.18 * s })
+    }
   }
 
   // --- Bolsillo canguro (trapecio en el delantero, con las aberturas inclinadas a los lados) ---
@@ -540,9 +595,12 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const hemRows = Math.ceil((10 * s) / (L / (nv - 1)))
   const bodyOnly = [...(bandPanel ? all(bandPanel) : []), ...torsoAll.filter((_, k) => Math.floor((k % (nu * nv)) / nu) < hemRows)]
   // Capucha bajada: la zona de la abertura junto al cuello (cuello vuelto) se sujeta con suavidad a su sitio
-  const collarPins = design.hoodUp
-    ? []
-    : hoodPanels.flatMap((p) => all(p).filter((_, k) => (k % p.nu) / (p.nu - 1) < 0.35 && Math.floor(k / p.nu) / (p.nv - 1) < 0.45))
+  const collarPins = [
+    ...(design.hoodUp
+      ? []
+      : hoodPanels.flatMap((p) => all(p).filter((_, k) => (k % p.nu) / (p.nu - 1) < 0.35 && Math.floor(k / p.nu) / (p.nv - 1) < 0.45))),
+    ...neckPins,
+  ]
   const layers = { hood: hoodFree, hoodAll: hoodPanels.flatMap(all), torso: torsoAll, sleevesLow, torsoLow, sleeveCap, torsoArmhole, bodyOnly, collarPins }
 
   return { cloth, follows, slots, pocket, layers, cordExits, rims }
