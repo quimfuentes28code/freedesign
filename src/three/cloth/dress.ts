@@ -280,7 +280,7 @@ function withUnderlay(pose: PoseData, under: Underlay): PoseData {
 }
 
 /**
- * El cuerpo con zapatillas: los pies, hinchados unos cm hacia fuera (lo que abulta una zapatilla), para que el bajo
+ * El cuerpo con zapatillas: los pies, hinchados 3 cm hacia fuera (lo que abulta una zapatilla, con su lengüeta y cordones), para que el bajo
  * del pantalón caiga y se apile encima de ellas en vez de pegarse al pie.
  */
 function withShoes(pose: PoseData, unit: number): PoseData {
@@ -292,7 +292,7 @@ function withShoes(pose: PoseData, unit: number): PoseData {
     const part = pose.parts[i]
     if (part !== Part.FootL && part !== Part.FootR) continue
     for (let c = 0; c < 3; c++) {
-      extra.push(pose.points[i * 3 + c] + pose.normals[i * 3 + c] * 2 * unit)
+      extra.push(pose.points[i * 3 + c] + pose.normals[i * 3 + c] * 3 * unit)
       extraN.push(pose.normals[i * 3 + c])
     }
     extraP.push(part)
