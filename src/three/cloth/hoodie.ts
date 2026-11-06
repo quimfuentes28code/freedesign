@@ -101,7 +101,11 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const slope = 4 * s
   const armhole = 22 * s + ease * 0.25
   const sleeveTop = armhole * 2
-  const sleeveLen = design.sleeveLength - (hasCuff ? 6 : 1)
+  // Manga larga: acaba en la muñeca del maniquí (así las manos se ven siempre); lo que el diseño la alargue o la acorte
+  // por sus medidas se suma a eso. La corta mide lo que diga el diseño
+  const longSleeve = design.sleeveLength >= 45
+  const sleeveLenOf = (toWrist: number) => (longSleeve ? toWrist + (design.sleeveLength - 64) : design.sleeveLength) - (hasCuff ? 6 : 1)
+  const sleeveLen = sleeveLenOf(58 * s)
   // La manga se estrecha hacia la muñeca; la corta acaba ancha, a la altura del bíceps
   const sleeveEnd = THREE.MathUtils.lerp(sleeveTop, 25 * s + ease * 0.4, THREE.MathUtils.clamp(sleeveLen / 58, 0, 1))
   // Puño de canalé ceñido a la muñeca; el de camisa, algo más suelto
@@ -133,6 +137,12 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   }
   // Eje de cada brazo (se mide una vez)
   const arms = { [1]: armAxis(points, info, 1), [-1]: armAxis(points, info, -1) }
+  // Muñeca: la punta de los dedos menos el largo de la mano (≈ 10,8 % de la estatura), en la postura en T
+  const wristX = (side: 1 | -1) => {
+    let tip = 0
+    for (let i = 0; i < points.length; i += 3) tip = Math.max(tip, side * points[i])
+    return side * (tip - 0.108 * info.height)
+  }
   const arm = (side: 1 | -1) => arms[side]
 
   const grid = (length: number, step = 2.2) => Math.max(3, Math.round(length / step) + 1) | 1
@@ -223,6 +233,9 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     const frontEdge = front.col(edge).slice(armpitRow) // de la axila al hombro
     const backEdge = back.col(edge).slice(armpitRow).reverse() // del hombro a la axila
     const start = ax.at(side * a)
+    // Distancia de la costura de la sisa a la muñeca, por el eje del brazo (cm)
+    const toWrist = Math.abs(wristX(side) - start.x) / Math.abs(ax.dir.x) / unit - 1
+    const sleeveLen = sleeveLenOf(toWrist)
     const ns = grid(sleeveTop, 2)
     const nl = grid(sleeveLen)
     const up = new THREE.Vector3(0, 1, 0).addScaledVector(ax.dir, -ax.dir.y).normalize()
@@ -406,10 +419,17 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
             // de la espalda y se cierra hacia el centro, donde están la costura central y la de arriba (x = 0).
             const backward = THREE.MathUtils.smoothstep(u, 0.1, 0.9) // 0 junto a la abertura, 1 en la costura central
             // Separación del centro: la del escote, y junto a la abertura rodea el cuello por los lados
-            const lateral = Math.abs(p.x) * (1 - v) + (1 - u) * Math.sin(Math.PI * v) * (neckW / 2 + 4 * s) * unit
+            // Sobre la espalda, cada mitad se extiende desde la costura central (x = 0) hasta la abertura, con el ancho de
+            // su patrón: si todo se juntara en el centro, la tela quedaría comprimida y se arrugaría en un bulto
+            const lateral = Math.max(
+              Math.abs(p.x) * (1 - v) + (1 - u) * Math.sin(Math.PI * Math.min(v, 0.5)) * (neckW / 2 + 4 * s) * unit,
+              (1 - u) * width(v) * 0.78 * unit * THREE.MathUtils.smoothstep(v, 0.15, 0.6),
+            )
             // La parte de la abertura sube un poco (cuello vuelto); la de atrás cae por la espalda
             const rise = (1 - backward) * 3 * s * unit * Math.sin(Math.min(v / 0.4, 1) * Math.PI * 0.5)
-            const drop = v * hoodH * (0.1 + 0.6 * backward) * unit
+            // Cae por la espalda: la coronilla (arriba del patrón) es lo que queda más abajo, en U (desde media pieza hasta la
+            // costura central baja igual; si bajara más el centro, acabaría en pico). La abertura se queda alrededor del cuello
+            const drop = v * hoodH * THREE.MathUtils.lerp(0.1, 0.7, THREE.MathUtils.smoothstep(u, 0.05, 0.45)) * unit
             // De delante hacia atrás: todo acaba sobre la espalda, un poco separado de ella
             const z = THREE.MathUtils.lerp(p.z, backZ - 3.5 * s * unit, THREE.MathUtils.smoothstep(v, 0, 0.7))
             out.set(side * lateral, p.y + rise - drop, z)
@@ -456,8 +476,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
           const i = Math.floor(k) % pts.length
           const p = pts[i].clone().lerp(pts[(i + 1) % pts.length], k - Math.floor(k))
           // Sube recto y, si es alto, se cierra un poco hacia el cuello al subir
-          // (la tira de canalé de un cuello redondo, al contrario, se abre un poco y queda tumbada sobre el escote)
-          const k2 = shape.neck === 'alto' ? 0.95 - 0.12 * v : shape.neck === 'canale' ? 0.97 + 0.05 * v : 0.95
+          const k2 = 0.95 - (shape.neck === 'alto' ? 0.12 * v : 0)
           out.set(p.x * k2, p.y + v * collarH * unit, cz + (p.z - cz) * k2)
         },
       }),

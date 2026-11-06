@@ -66,7 +66,7 @@ export function Scene({ measurements, design, outfit, autoRotate, animate, showB
     <>
       {design && active && <span className="loading">Cargando maniquí…</span>}
       {design && !active && dressing && <span className="busy">Ajustando prenda…</span>}
-      <Canvas frameloop={frameloop} shadows={studio ? 'soft' : true} dpr={[1, 2]} camera={{ position: studio ? [-0.35, 1.38, 4.1] : showBody ? [0, 1.2, 3.6] : [0, H * focus + 0.1, 3.2], fov: studio ? 38 : 36 }}>
+      <Canvas frameloop={frameloop} shadows="soft" dpr={[1, 2]} camera={{ position: studio ? [-0.35, 1.38, 4.1] : showBody ? [0, 1.2, 3.6] : [0, H * focus + 0.1, 3.2], fov: studio ? 38 : 36 }}>
         {studio ? (
           <>
             <color attach="background" args={['#0b0907']} />
@@ -90,10 +90,11 @@ export function Scene({ measurements, design, outfit, autoRotate, animate, showB
           position={[2.5, 4.5, 3]}
           intensity={1.6}
           castShadow
-          shadow-mapSize={[2048, 2048]}
+          // Sombras finas y suaves: con menos resolución, la tela (capucha, pliegues) se manchaba con sombras dentadas
+          shadow-mapSize={[4096, 4096]}
           shadow-bias={-0.0002}
           // Evita el "acné" de sombra (rayas discontinuas en la tela donde la luz llega rasante)
-          shadow-normalBias={0.025}
+          shadow-normalBias={0.045}
         >
           <orthographicCamera attach="shadow-camera" args={[-1.5, 1.5, 2.5, -0.5, 0.1, 12]} />
         </directionalLight>

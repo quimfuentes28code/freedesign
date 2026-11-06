@@ -325,7 +325,7 @@ function addCords(
       p.y -= step
       // Cae casi recto (un cordón de verdad no se abre hacia los lados), con un vaivén muy suave
       p.x += dir * cm * (-0.04 + 0.04 * Math.sin(7 * t + side * 2))
-      const a = keepOutside(p, 0.35 * cm)
+      const a = keepOutside(p, 0.6 * cm)
       // Mantiene el largo de cada tramo tras el empujón
       const prev = path[path.length - 1]
       p.sub(prev).setLength(step).add(prev)
@@ -334,12 +334,12 @@ function addCords(
       anchors.push(a)
     }
 
-    // Cordón plano (como los de las sudaderas: ~9 mm de ancho), con un ligero giro; herrete redondo al final
+    // Cordón de ~8 mm, algo aplanado (como los tubulares de las sudaderas), con un ligero giro; herrete redondo al final
     const aglet = Math.round((2.8 * cm) / step)
     const cordEnd = path.length - aglet + 1
-    tube(out, path.slice(0, cordEnd), ups, anchors, { w: 0.45 * cm, h: 0.13 * cm, twist: 0.2 + side * 0.15 }, cm, 'cordones', skinIndex, skinWeight)
+    tube(out, path.slice(0, cordEnd), ups, anchors, { w: 0.42 * cm, h: 0.3 * cm, twist: 0.2 + side * 0.15 }, cm, 'cordones', skinIndex, skinWeight)
     const tip = path.slice(path.length - aglet)
-    tube(out, tip, ups.slice(path.length - aglet), anchors.slice(path.length - aglet), { w: 0.3 * cm, h: 0.3 * cm, twist: 0 }, cm, 'ojales', skinIndex, skinWeight)
+    tube(out, tip, ups.slice(path.length - aglet), anchors.slice(path.length - aglet), { w: 0.36 * cm, h: 0.36 * cm, twist: 0 }, cm, 'ojales', skinIndex, skinWeight)
     // Ojal metálico alrededor de la salida, apoyado en la tela
     ring(out, eyelet, normal0, 0.55 * cm, 0.14 * cm, exit, skinIndex, skinWeight)
   })

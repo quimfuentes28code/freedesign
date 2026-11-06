@@ -212,7 +212,7 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
         seamH *= uSeams; seamThread *= uSeams; seamShade *= uSeams;
         float seamLum = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
         // Hilo del mismo tono que la tela, un poco más claro (telas oscuras) o más oscuro (claras)
-        vec3 threadColor = seamLum < 0.35 ? mix(diffuseColor.rgb, vec3(1.0), 0.2) : diffuseColor.rgb * 0.8;
+        vec3 threadColor = seamLum < 0.35 ? mix(diffuseColor.rgb, vec3(1.0), 0.09) : diffuseColor.rgb * 0.86;
         diffuseColor.rgb *= 1.0 - seamShade * 0.35;
         diffuseColor.rgb = mix(diffuseColor.rgb, threadColor, clamp(seamThread, 0.0, 1.0));`,
       )
@@ -431,7 +431,9 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
     const meshes = geometries.map(({ g, slot }) => {
       const mesh = new THREE.SkinnedMesh(g, slot ? materials[slotIndex(slot)] : materials)
       mesh.castShadow = true
-      mesh.receiveShadow = true
+      // La prenda cosida no recibe sombras sobre sí misma: sus pliegues interiores (capucha, sisa) asoman un milímetro
+      // y la manchaban con sombras sueltas. Sí las echa sobre el cuerpo, la otra prenda y el suelo
+      mesh.receiveShadow = !pattern
       mesh.frustumCulled = false
       mesh.bind(model.body.skeleton, model.body.bindMatrix)
       model.root.add(mesh)
