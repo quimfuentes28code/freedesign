@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
-import { api } from '../../api/client'
+import { api, useApi } from '../../api/client'
 import { Field, PageHeader, Status } from '../../components/ui'
 import { EMPTY_CLIENT, MEASUREMENT_GROUPS, type ClientInput, type MeasurementKey } from '../../shared/clients'
+import { fileUrl } from '../../shared/library'
 
 /** Ficha de cliente: crear uno nuevo (/clientes/nuevo) o ver y editar uno existente (/clientes/:id). */
 export function ClientForm() {
@@ -175,6 +176,8 @@ export function ClientForm() {
         </section>
       </div>
 
+      {!isNew && <ClientPhotos clientId={id} />}
+
       {!isNew && (
         <div className="danger-zone">
           <button type="button" className="button danger" onClick={remove}>
@@ -183,5 +186,27 @@ export function ClientForm() {
         </div>
       )}
     </form>
+  )
+}
+
+/** Fotos de los proyectos del cliente (las del Lookbook y las que se suban como «Fotos» en cada proyecto). */
+function ClientPhotos({ clientId }: { clientId: string }) {
+  const { data } = useApi(async () => {
+    const list = await api.listProjects({ client: clientId })
+    const full = await Promise.all(list.map((p) => api.getProject(p.id)))
+    return full.flatMap((p) => p.files.filter((f) => f.category === 'foto').map((f) => ({ ...f, projectId: p.id, projectName: p.name })))
+  }, [clientId])
+  if (!data?.length) return null
+  return (
+    <section className="card client-photos">
+      <h2>Fotos</h2>
+      <div className="client-photos-grid">
+        {data.map((f) => (
+          <Link key={f.id} to={`/proyectos/${f.projectId}`} title={`${f.name} · ${f.projectName}`}>
+            <img src={fileUrl(f.file)} alt={f.name} loading="lazy" />
+          </Link>
+        ))}
+      </div>
+    </section>
   )
 }

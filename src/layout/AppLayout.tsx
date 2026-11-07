@@ -21,7 +21,7 @@ export function AppLayout() {
   const name = user ? displayName(user) : ''
   // En el editor de un diseño el menú se recoge a iconos
   const { pathname } = useLocation()
-  const compact = /^\/disenador\/(?!nuevo$|3d$|probador$)[^/]+$/.test(pathname)
+  const compact = /^\/disenador\/(?!nuevo$|3d$|probador$|lookbook$)[^/]+$/.test(pathname)
   // Inicio: el estudio de fotos 3D a pantalla completa, con el menú flotando encima
   const home = pathname === '/'
   return (

@@ -22,6 +22,9 @@ export function DesignsList() {
             <Link to="/disenador/probador" className="button">
               Probador 3D
             </Link>
+            <Link to="/disenador/lookbook" className="button">
+              Lookbook
+            </Link>
             <Link to="/disenador/nuevo" className="button primary">
               Nuevo diseño
             </Link>
