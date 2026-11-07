@@ -195,6 +195,25 @@ float quiltHeight(vec2 p) {
 }
 `
 
+/**
+ * Variación del tejido sobre las UV del patrón (cm): vetas finas a lo largo de la trama y manchas suaves de tono,
+ * muy leves (±4 %). Una tela de un color totalmente uniforme parece plástico.
+ */
+const FABRIC_GLSL = /* glsl */ `
+float fabricHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float fabricNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(fabricHash(i), fabricHash(i + vec2(1.0, 0.0)), f.x), mix(fabricHash(i + vec2(0.0, 1.0)), fabricHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float fabricVariation(vec2 uv) {
+  float blotch = fabricNoise(uv * 0.12) * 0.6 + fabricNoise(uv * 0.31) * 0.4;
+  float slub = fabricNoise(vec2(uv.x * 0.18, uv.y * 3.2));
+  return 0.965 + 0.045 * blotch + 0.025 * (slub - 0.5);
+}
+`
+
 /** Prepara un material de tela con el detalle de confección (ver SEAM_GLSL) y, si `prints`, con los estampados (PRINT_GLSL). */
 function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = false) {
   const uniforms = {
@@ -227,18 +246,20 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
-        `#include <common>\nattribute vec3 edge;\nvarying vec2 vEdge;\nvarying vec2 vQuiltUv;\nflat varying float vEdgeKind;${pocket ? '\nvarying vec2 vPocketUv;' : ''}${prints ? '\nvarying vec3 vRestPos;\nvarying vec2 vPrintUv;' : ''}`,
+        `#include <common>\nattribute vec3 edge;\nattribute float occlusion;\nvarying float vOcc;\nvarying vec2 vEdge;\nvarying vec2 vQuiltUv;\nflat varying float vEdgeKind;${pocket ? '\nvarying vec2 vPocketUv;' : ''}${prints ? '\nvarying vec3 vRestPos;\nvarying vec2 vPrintUv;' : ''}`,
       )
       .replace(
         '#include <uv_vertex>',
-        `#include <uv_vertex>\nvEdge = edge.xy;\nvQuiltUv = uv;\nvEdgeKind = edge.z;${pocket ? '\nvPocketUv = uv;' : ''}${prints ? '\nvRestPos = position;\nvPrintUv = uv;' : ''}`,
+        `#include <uv_vertex>\nvOcc = occlusion;\nvEdge = edge.xy;\nvQuiltUv = uv;\nvEdgeKind = edge.z;${pocket ? '\nvPocketUv = uv;' : ''}${prints ? '\nvRestPos = position;\nvPrintUv = uv;' : ''}`,
       )
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${SEAM_GLSL}${QUILT_GLSL}${prints ? PRINT_GLSL : ''}`)
+      .replace('#include <common>', `#include <common>\nvarying float vOcc;\n${FABRIC_GLSL}${SEAM_GLSL}${QUILT_GLSL}${prints ? PRINT_GLSL : ''}`)
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
         ${prints ? PRINT_APPLY : ''}
+        // Tejido: el hilo nunca es del todo igual (ligeras vetas a lo largo de la trama y manchitas de tono)
+        if (uSeams > 0.5) diffuseColor.rgb *= fabricVariation(vQuiltUv);
         vec3 seamEdge = vec3(vEdge, vEdgeKind);
         seamPxD = fwidth(vEdge.x);
         seamPxA = fwidth(vEdge.y);
@@ -287,7 +308,7 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
         ${prints ? PRINT_RELIEF_NORMAL : ''}`,
       )
       // El interior de la prenda, algo más apagado (no mucho: en los pliegues del cuello salía a manchas)
-      .replace('#include <opaque_fragment>', `outgoingLight *= gl_FrontFacing ? 1.0 : 0.84;\n#include <opaque_fragment>`)
+      .replace('#include <opaque_fragment>', `outgoingLight *= (gl_FrontFacing ? 1.0 : 0.84) * (1.0 - 0.62 * clamp(vOcc, 0.0, 1.0));\n#include <opaque_fragment>`)
   }
   m.customProgramCacheKey = () => (pocket ? 'tela-bolsillo' : 'tela') + (prints ? '-estampados' : '')
 }
@@ -308,6 +329,7 @@ export function useSlotMaterials(design: Design) {
           sheenColor: new THREE.Color(color).lerp(new THREE.Color('#ffffff'), 0.25),
           clearcoat: look.clearcoat,
           clearcoatRoughness: 0.3,
+          specularIntensity: THREE.MathUtils.lerp(1, 0.4, THREE.MathUtils.smoothstep(look.roughness, 0.55, 0.95)),
           normalMap: look.knitDepth > 0 ? knitNormalMap(look.knit) : null,
           normalScale: new THREE.Vector2(look.knitDepth, look.knitDepth),
           side: THREE.DoubleSide,

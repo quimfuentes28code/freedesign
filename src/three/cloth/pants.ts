@@ -17,9 +17,9 @@ import { rectShape, type Patch, type Tab } from './patches'
 /** Holgura (cm) en el muslo y la cadera, y contorno del bajo (cm), según el corte. */
 const CUT = {
   slim: { thigh: 6, seat: 4, hem: 36, stack: 1.5 },
-  regular: { thigh: 12, seat: 8, hem: 44, stack: 3 },
-  ancho: { thigh: 22, seat: 12, hem: 58, stack: 7 },
-  baggy: { thigh: 32, seat: 18, hem: 66, stack: 9 },
+  regular: { thigh: 12, seat: 8, hem: 44, stack: 2 },
+  ancho: { thigh: 22, seat: 12, hem: 58, stack: 4 },
+  baggy: { thigh: 32, seat: 18, hem: 66, stack: 6 },
 } as const
 
 export interface PantsResult {

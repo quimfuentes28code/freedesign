@@ -283,7 +283,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
       const phi = u * Math.PI * 2
       out.copy(center).addScaledVector(up, -Math.cos(phi) * r).addScaledVector(fwd, Math.sin(phi) * r)
     }
-    const circ = (v: number) => THREE.MathUtils.lerp(sleeveTop, sleeveEnd, v)
+    const circ = (v: number) => THREE.MathUtils.lerp(sleeveEnd, sleeveTop, Math.pow(1 - v, 1.7))
     const sleeve = add(
       cloth.addPanel({
         nu: ns,

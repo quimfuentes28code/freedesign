@@ -57,6 +57,8 @@ export interface DressOutput {
   timings: Record<string, number>
   /** Su superficie asentada, para que la prenda de encima se apoye en ella. */
   surface: Underlay
+  /** Sombra de cada punto (0 = al aire, 1 = tapado): fondo de los pliegues, axilas, bajo el cuello y las solapas. */
+  occlusion: Float32Array
 }
 
 /**
@@ -111,7 +113,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
       })
     : relax(cloth, input.underlay ? withUnderlay(pose, input.underlay) : pose, {
     seconds: input.seconds ?? 1.2,
-    thickness: 0.9 * unit,
+    thickness: 0.7 * unit,
     gravity: 980 * unit,
     cell: 2.2 * unit,
     // La tela no se atraviesa a sí misma: la capucha queda encima de la espalda y las mangas no se meten en el cuerpo
@@ -245,6 +247,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     start += tris.length
   })
   const normal = vertexNormals(position, Array.from(index))
+  const occlusion = clothOcclusion(position, normal, 5 * unit)
   lap('malla')
 
   // Normales iguales a ambos lados de cada costura, para que la prenda se vea de una pieza
@@ -267,6 +270,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     pocket: pocket?.shape ?? null,
     timings,
     surface,
+    occlusion,
   }
 }
 
@@ -999,4 +1003,59 @@ function vertexNormals(pos: Float32Array, index: number[]) {
   g.setIndex(index)
   g.computeVertexNormals()
   return g.attributes.normal.array as Float32Array
+}
+
+/**
+ * Sombra de los pliegues (oclusión ambiental): para cada punto se mira cuánta tela tiene delante, dentro de un radio.
+ * En una zona lisa o abombada no hay nada delante; en el fondo de un pliegue, en la axila, bajo el cuello o bajo una
+ * solapa, las paredes de alrededor sí lo están. La prenda no recibe sombras sobre sí misma (ver Garment.tsx): sin
+ * esto los pliegues se veían lisos, como de plástico.
+ */
+function clothOcclusion(pos: Float32Array, normal: Float32Array, radius: number) {
+  const n = pos.length / 3
+  const cell = radius
+  const key = (x: number, y: number, z: number) => `${x},${y},${z}`
+  const grid = new Map<string, number[]>()
+  for (let i = 0; i < n; i++) {
+    const k = key(Math.floor(pos[i * 3] / cell), Math.floor(pos[i * 3 + 1] / cell), Math.floor(pos[i * 3 + 2] / cell))
+    const list = grid.get(k)
+    if (list) list.push(i)
+    else grid.set(k, [i])
+  }
+  const occ = new Float32Array(n)
+  const r2 = radius * radius
+  for (let i = 0; i < n; i++) {
+    const px = pos[i * 3]
+    const py = pos[i * 3 + 1]
+    const pz = pos[i * 3 + 2]
+    const nx = normal[i * 3]
+    const ny = normal[i * 3 + 1]
+    const nz = normal[i * 3 + 2]
+    const cx = Math.floor(px / cell)
+    const cy = Math.floor(py / cell)
+    const cz = Math.floor(pz / cell)
+    let hit = 0
+    let total = 0
+    for (let a = -1; a <= 1; a++)
+      for (let b = -1; b <= 1; b++)
+        for (let c = -1; c <= 1; c++) {
+          const list = grid.get(key(cx + a, cy + b, cz + c))
+          if (!list) continue
+          for (const j of list) {
+            const dx = pos[j * 3] - px
+            const dy = pos[j * 3 + 1] - py
+            const dz = pos[j * 3 + 2] - pz
+            const d2 = dx * dx + dy * dy + dz * dz
+            if (d2 > r2 || d2 < 1e-10) continue
+            const d = Math.sqrt(d2)
+            const w = 1 - d / radius
+            total += w
+            // Cuánto está «delante» (hacia fuera de la tela) ese punto: 0 si está al lado o detrás
+            const up = (dx * nx + dy * ny + dz * nz) / d
+            if (up > 0.12) hit += w * (up - 0.12)
+          }
+        }
+    occ[i] = total > 0 ? Math.min(1, (hit / total) * 2.4) : 0
+  }
+  return occ
 }
