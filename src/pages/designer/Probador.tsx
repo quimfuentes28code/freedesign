@@ -11,6 +11,7 @@ import type { Material } from '../../shared/library'
 import { useDressing } from '../../three/cloth/dressClient'
 import { POSES, type PoseId } from '../../three/pose'
 import { Scene } from '../../three/Scene'
+import { REAL_SHOE_CREDIT } from '../../three/RealShoes'
 import { SHOE_STYLES } from '../../three/Shoes'
 import type { ShoeStyle } from '../../types'
 import { basicTee, bodyOf, outfitOf, useDesign3D, type TeeChoice } from './Design3D'
@@ -35,7 +36,8 @@ export function Probador() {
   // Prenda de arriba abierta y camiseta básica debajo
   const [open, setOpen] = useState(false)
   const [teeColor, setTeeColor] = useState<TeeChoice>('')
-  const [shoes, setShoes] = useState<ShoeStyle | null>('baloncesto')
+  const [shoes, setShoes] = useState<ShoeStyle | null>('deportiva')
+  const [shoeColor, setShoeColor] = useState('#1f5f8b')
   const [autoRotate, setAutoRotate] = useState(false)
   // Calidad alta: malla fina y pliegues finos (tarda unos segundos más)
   const [hq, setHq] = useState(true)
@@ -94,7 +96,7 @@ export function Probador() {
     <div className="studio probador">
       <main className="viewport">
         {shown ? (
-          <Scene measurements={measurements} design={shown} outfit={under} autoRotate={autoRotate} animate={false} pose={pose} shoes={shoes} hat={worn ? hat3d : null} />
+          <Scene measurements={measurements} design={shown} outfit={under} autoRotate={autoRotate} animate={false} pose={pose} shoes={shoes} shoeColor={shoeColor} hat={worn ? hat3d : null} />
         ) : (
           <div className="probador-empty">
             <p>Elige una prenda de arriba y un pantalón para vestir al maniquí.</p>
@@ -160,6 +162,15 @@ export function Probador() {
               </button>
             ))}
           </div>
+          {shoes === 'deportiva' && (
+            <>
+              <label className="toggle-row">
+                <span>Color</span>
+                <input type="color" value={shoeColor} onChange={(e) => setShoeColor(e.target.value)} aria-label="Color de la zapatilla" />
+              </label>
+              <p className="muted small">{REAL_SHOE_CREDIT}</p>
+            </>
+          )}
         </section>
 
         <section>

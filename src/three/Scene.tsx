@@ -33,6 +33,8 @@ interface Props {
   interactive?: boolean
   /** Pose del maniquí. */
   pose?: PoseId
+  /** Color de la zapatilla deportiva (modelo real). */
+  shoeColor?: string
 }
 
 /**
@@ -75,7 +77,7 @@ function NeutralEffects() {
 }
 
 /** Escena 3D: maniquí con la prenda, en un estudio con luces suaves y cámara orbital para verlo en 360°. */
-export function Scene({ measurements, design, outfit, autoRotate, animate, showBody = true, focus = 0.53, stage = 'neutral', shoes, frameloop = 'always', interactive = true, hat, pose }: Props) {
+export function Scene({ measurements, design, outfit, autoRotate, animate, showBody = true, focus = 0.53, stage = 'neutral', shoes, frameloop = 'always', interactive = true, hat, pose, shoeColor }: Props) {
   const studio = stage === 'studio'
   const H = measurements.height / 100
   // Aviso de carga fuera de la escena 3D (el modelo pesa varios MB)
@@ -132,7 +134,7 @@ export function Scene({ measurements, design, outfit, autoRotate, animate, showB
         )}
 
         <Suspense fallback={null}>
-          {design && <Mannequin measurements={measurements} design={design} outfit={outfit} animate={animate} showBody={showBody} shoes={shoes} hat={hat} pose={pose} />}
+          {design && <Mannequin measurements={measurements} design={design} outfit={outfit} animate={animate} showBody={showBody} shoes={shoes} hat={hat} pose={pose} shoeColor={shoeColor} />}
         </Suspense>
 
         <ContactShadows position={[0, 0.002, 0]} opacity={studio ? 0.65 : 0.5} scale={4} blur={2.2} far={2} resolution={512} />

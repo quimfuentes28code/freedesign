@@ -3,10 +3,11 @@ import { useEffect, useLayoutEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Design, Measurements, ShoeStyle } from '../types'
-import { feminize, fitBody, measureModel, morphPositions, smoothNormals, type ModelInfo } from './body'
+import { boneName, feminize, fitBody, measureModel, morphPositions, smoothNormals, type ModelInfo } from './body'
 import { Garment } from './Garment'
 import { setPose, type PoseId } from './pose'
 import { Headwear } from './Headwear'
+import { RealShoes } from './RealShoes'
 import { Shoes } from './Shoes'
 import type { Cloud } from './wrap'
 
@@ -18,6 +19,30 @@ const MODEL_URL = '/models/maniqui.glb'
 
 /** Acabado blanco mate, como un maniquí de tienda (y como en los programas de patronaje 3D). */
 const MATTE = new THREE.MeshStandardMaterial({ color: '#eceae6', roughness: 0.62, metalness: 0 })
+/**
+ * Con una zapatilla de modelo real puesta, los pies del maniquí no se pintan (como en los programas de patronaje 3D:
+ * el pie va dentro del zapato). Se esconde lo que mueven los huesos del pie y los dedos, así vale en cualquier pose.
+ */
+const FEET = { hide: { value: 0 }, bones: { value: new THREE.Vector4(-1, -1, -1, -1) } }
+MATTE.onBeforeCompile = (shader) => {
+  shader.uniforms.uHideFeet = FEET.hide
+  shader.uniforms.uFootBones = FEET.bones
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nuniform vec4 uFootBones;\nvarying float vFoot;')
+    .replace(
+      '#include <skinning_vertex>',
+      `#include <skinning_vertex>
+      vFoot = 0.0;
+      for (int k = 0; k < 4; k++) {
+        float b = skinIndex[k];
+        if (b == uFootBones.x || b == uFootBones.y || b == uFootBones.z || b == uFootBones.w) vFoot += skinWeight[k];
+      }`,
+    )
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform float uHideFeet;\nvarying float vFoot;')
+    .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nif (uHideFeet > 0.5 && vFoot > 0.5) discard;')
+}
+MATTE.customProgramCacheKey = () => 'maniqui'
 
 export interface Model {
   root: THREE.Group
@@ -32,6 +57,9 @@ export interface Model {
 function prepare(root: THREE.Group, animations: THREE.AnimationClip[]): Model {
   const body = root.getObjectByProperty('isSkinnedMesh', true) as THREE.SkinnedMesh
   body.material = MATTE
+  // Huesos de los pies (para esconderlos dentro de la zapatilla de modelo real)
+  const footIdx = ['LeftFoot', 'LeftToeBase', 'RightFoot', 'RightToeBase'].map((n) => body.skeleton.bones.findIndex((b) => boneName(b.name) === n))
+  FEET.bones.value.set(footIdx[0], footIdx[1], footIdx[2], footIdx[3])
   body.castShadow = true
   body.receiveShadow = true
   body.frustumCulled = false
@@ -59,10 +87,12 @@ interface Props {
   hat?: Design | null
   /** Pose del maniquí (ver POSES); la ropa cae como en ella. */
   pose?: PoseId
+  /** Color de la zapatilla deportiva (modelo real). */
+  shoeColor?: string
 }
 
 /** Maniquí animado, ajustado a las medidas, con la prenda puesta. */
-export function Mannequin({ measurements, design, outfit = [], animate, showBody = true, shoes, hat, pose = 'reposo' }: Props) {
+export function Mannequin({ measurements, design, outfit = [], animate, showBody = true, shoes, hat, pose = 'reposo', shoeColor = '#1f5f8b' }: Props) {
   const gltf = useLoader(GLTFLoader, MODEL_URL)
   const base = useMemo(() => prepare(gltf.scene, gltf.animations), [gltf])
   const female = !!measurements.female
@@ -135,7 +165,19 @@ export function Mannequin({ measurements, design, outfit = [], animate, showBody
         <Garment model={model} fit={fit} cloud={cloud} measurements={measurements} design={design} pose={pose} />
       )}
       {hat?.hat && <Headwear model={model} cloud={cloud} design={hat} height={measurements.height} />}
-      {shoes && showBody && <Shoes model={model} cloud={cloud} style={shoes} />}
+      <HideFeet on={!!showBody && shoes === 'deportiva'} />
+      {shoes && showBody && (shoes === 'deportiva' ? <RealShoes model={model} cloud={cloud} color={shoeColor} /> : <Shoes model={model} cloud={cloud} style={shoes} />)}
     </group>
   )
+}
+
+/** Esconde los pies del maniquí mientras lleva la zapatilla de modelo real. */
+function HideFeet({ on }: { on: boolean }) {
+  useLayoutEffect(() => {
+    FEET.hide.value = on ? 1 : 0
+    return () => {
+      FEET.hide.value = 0
+    }
+  }, [on])
+  return null
 }
