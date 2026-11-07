@@ -4,6 +4,8 @@ import { Suspense, useEffect } from 'react'
 import type { Design, Measurements, ShoeStyle } from '../types'
 import { Mannequin } from './Avatar'
 import { useDressing } from './cloth/dressClient'
+import { EffectComposer, N8AO, ToneMapping } from '@react-three/postprocessing'
+import { ToneMappingMode } from 'postprocessing'
 import { PhotoStudio, StudioEffects, WARM } from './PhotoStudio'
 
 interface Props {
@@ -56,6 +58,19 @@ function DevHandle() {
   return null
 }
 
+/**
+ * Revelado del estudio claro: sombra de contacto (oclusión ambiental) donde la ropa toca el cuerpo y otras prendas,
+ * bajo el cuello, en las axilas y entre los pliegues. Es lo que hace que la ropa parezca puesta y no pegada encima.
+ */
+function NeutralEffects() {
+  return (
+    <EffectComposer multisampling={4}>
+      <N8AO aoRadius={0.22} distanceFalloff={0.6} intensity={2.4} quality="medium" />
+      <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+    </EffectComposer>
+  )
+}
+
 /** Escena 3D: maniquí con la prenda, en un estudio con luces suaves y cámara orbital para verlo en 360°. */
 export function Scene({ measurements, design, outfit, autoRotate, animate, showBody = true, focus = 0.53, stage = 'neutral', shoes, frameloop = 'always', interactive = true, hat }: Props) {
   const studio = stage === 'studio'
@@ -84,8 +99,10 @@ export function Scene({ measurements, design, outfit, autoRotate, animate, showB
           </>
         ) : (
           <>
-        <color attach="background" args={['#e4dfd6']} />
-        <fog attach="fog" args={['#e4dfd6', 6, 14]} />
+        {/* Gris claro neutro, como un programa de patronaje 3D: la ropa y el maniquí blanco destacan sin dominar el color */}
+        <color attach="background" args={['#d9d9d7']} />
+        <fog attach="fog" args={['#d9d9d7', 6, 14]} />
+        <NeutralEffects />
 
         <hemisphereLight args={['#ffffff', '#b7ae9f', 0.7]} />
         <directionalLight

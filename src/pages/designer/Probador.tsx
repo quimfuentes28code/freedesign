@@ -35,7 +35,6 @@ export function Probador() {
   const [teeColor, setTeeColor] = useState<TeeChoice>('')
   const [shoes, setShoes] = useState<ShoeStyle | null>('baloncesto')
   const [autoRotate, setAutoRotate] = useState(false)
-  const [animate, setAnimate] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
 
   const all = (designs.data ?? []).filter((d) => getTemplate(d.template))
   const tops = all.filter((d) => getTemplate(d.template)!.family === 'top')
@@ -67,7 +66,7 @@ export function Probador() {
     <div className="studio probador">
       <main className="viewport">
         {shown ? (
-          <Scene measurements={measurements} design={shown} outfit={worn?.outfit} autoRotate={autoRotate} animate={animate} shoes={shoes} hat={worn ? hat3d : null} />
+          <Scene measurements={measurements} design={shown} outfit={worn?.outfit} autoRotate={autoRotate} animate={false} shoes={shoes} hat={worn ? hat3d : null} />
         ) : (
           <div className="probador-empty">
             <p>Elige una prenda de arriba y un pantalón para vestir al maniquí.</p>
@@ -148,10 +147,6 @@ export function Probador() {
               </label>
             </>
           )}
-          <label className="toggle-row">
-            <span>Animación</span>
-            <input type="checkbox" checked={animate} onChange={(e) => setAnimate(e.target.checked)} />
-          </label>
           <label className="toggle-row">
             <span>Girar 360°</span>
             <input type="checkbox" checked={autoRotate} onChange={(e) => setAutoRotate(e.target.checked)} />

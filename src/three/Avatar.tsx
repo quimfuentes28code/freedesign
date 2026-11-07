@@ -15,8 +15,8 @@ import type { Cloud } from './wrap'
  */
 const MODEL_URL = '/models/maniqui.glb'
 
-/** Acabado gris mate, como un maniquí de tienda. */
-const MATTE = new THREE.MeshStandardMaterial({ color: '#8f8f8f', roughness: 0.85, metalness: 0 })
+/** Acabado blanco mate, como un maniquí de tienda (y como en los programas de patronaje 3D). */
+const MATTE = new THREE.MeshStandardMaterial({ color: '#eceae6', roughness: 0.62, metalness: 0 })
 
 export interface Model {
   root: THREE.Group

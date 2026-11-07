@@ -85,7 +85,8 @@ export function StudioHome() {
   const top3d = useDesign3D(look?.top.template, look?.top.data, materials)
   const bottom3d = useDesign3D(look?.bottom?.template, look?.bottom?.data, materials)
   const worn = useMemo(() => (top3d ? outfitOf(top3d, bottom3d, false) : null), [top3d, bottom3d])
-  const animate = useMemo(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches, [])
+  // Quieto, en la pose en que se calcula la ropa (así le queda exactamente como se ha asentado)
+  const animate = false
   // El maniquí vive en el fondo de la app (ver layout/StudioBackdrop.tsx): se le pasa lo que lleva
   const setStage = useStage()
   useEffect(() => {
