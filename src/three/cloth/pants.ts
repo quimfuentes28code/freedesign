@@ -117,7 +117,8 @@ export function buildPants(body: Body, m: Measurements, design: Design): PantsRe
   const hips = slice(points, info.hipsY, 0)
   const waist = slice(points, info.waistY, 0)
   const seatC = m.hips + cut.seat
-  const waistC = (m.waist ?? m.hips * 0.8) + 4
+  // Cinturilla con poca holgura: con más, resbalaba hasta la cadera
+  const waistC = (m.waist ?? m.hips * 0.8) + 2
   const legTop = thighC + cut.thigh
   const kneeC = THREE.MathUtils.lerp(legTop, jogger ? 30 * s : cut.hem * s, 0.45)
   const hemC = jogger ? 30 * s : cut.hem * s
@@ -288,9 +289,16 @@ export function buildPants(body: Body, m: Measurements, design: Design): PantsRe
       [Part.Torso],
       'bajo',
     )
+    // La cinturilla se queda en la cintura (en un pantalón de verdad la sujetan el ajuste y el botón): sin esto,
+    // el peso de las perneras la bajaba a la cadera, se arrugaba y dejaba ver el cuerpo por encima
+    pins.push(...band.row(nr - 1), ...band.row(nr - 2))
     // u = 0,25 es el centro de delante y 0,75 el de detrás
     const at = (u: number, row: number) => band.index(Math.round((((u % 1) + 1) % 1) * (nb - 1)), row)
-    if (shape.waist === 'trabillas') {
+    // Con la prenda de arriba por encima de la cintura, las trabillas y el botón no se ven; además, como se añaden
+    // después de asentar la tela, la prenda de encima no los conoce y los atravesaba (se veía una raya en ella)
+    const hemOfTop = design.coveredBy ? info.neckY + 1.5 * unit - design.coveredBy * unit : -Infinity
+    const waistHidden = hemOfTop < topY - 3 * unit
+    if (shape.waist === 'trabillas' && !waistHidden) {
       // Trabillas repartidas por la cintura (dos delante, dos a los lados de detrás y una en el centro) y el botón
       for (const u of [0.25 - 0.13, 0.25 + 0.13, 0.04, 0.46, 0.75 - 0.1, 0.75, 0.75 + 0.1]) tabs.push({ vertex: at(u, 1), size: [1.1, bandH / s + 1.2, 0.3], slot: 'bajo' })
       // El botón, en el centro de delante (el punto de la cinturilla más centrado por delante)

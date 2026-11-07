@@ -122,6 +122,8 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     : relax(cloth, input.underlay ? withUnderlay(pose, input.underlay) : pose, {
     seconds: input.seconds ?? 1.2 + extra,
     iterations,
+    // Prenda ceñida (holgura negativa): punto elástico que se estira sobre el cuerpo y sobre el pantalón
+    stretch: (design.ease ?? 0) < 0 ? 0.35 : 1,
     // Sobre otra prenda, algo más de separación: con la malla fina, el relieve de la de debajo asomaba entre los puntos
     thickness: (input.underlay && fine ? 1.1 : 0.7) * unit,
     gravity: 980 * unit,

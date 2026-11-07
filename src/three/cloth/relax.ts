@@ -101,6 +101,8 @@ export interface RelaxOptions {
   floor?: number
   /** Pasadas de las distancias del patrón en cada paso (más = la tela se estira menos; hace falta con la malla fina). */
   iterations?: number
+  /** Cuánto se resiste la tela a estirarse (1 = casi nada; menos = punto elástico, que se estira sobre el cuerpo). */
+  stretch?: number
 }
 
 export interface Layer {
@@ -194,6 +196,7 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
     lr[i] = l.rest
     lk[i] = l.k
   })
+  const stretchK = opts.stretch ?? 1
   const sa = new Int32Array(cloth.seams.map((s) => s[0]))
   const sb = new Int32Array(cloth.seams.map((s) => s[1]))
 
@@ -319,8 +322,9 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
       const len = Math.sqrt(dx * dx + dy * dy + dz * dz)
       if (len < 1e-6) continue
       let diff = (len - lr[l]) / len
-      // La tela se estira poco pero se comprime (arruga) con facilidad
+      // La tela se estira poco pero se comprime (arruga) con facilidad; el punto elástico, además, se estira
       if (diff < 0) diff *= 0.3
+      else diff *= stretchK
       const corr = diff * 0.5 * lk[l]
       pos[a] += dx * corr
       pos[a + 1] += dy * corr

@@ -108,7 +108,8 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   const bandH = (shape.flatBand ? 5 : 7) * s
   // --- Medidas del patrón (cm) ---
   // El relleno de una acolchada la separa del cuerpo como una holgura más
-  const ease = EASE[design.fit] + (shape.padded ? 9 : 0)
+  // La de la ficha técnica si la trae el diseño (ceñida: negativa, la tela de punto se estira sobre el cuerpo)
+  const ease = (design.ease ?? EASE[design.fit]) + (shape.padded ? 9 : 0)
   // La tela acolchada es gruesa y rígida: mantiene el volumen en vez de colgar
   const panelBend = shape.padded ? 7 : 1
   const bodyC = (m.chest + ease) * (design.chestScale ?? 1)

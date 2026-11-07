@@ -170,6 +170,8 @@ export interface Design {
   hat?: HatShape
   /** Prenda abierta por delante (solo las que tienen el cierre de arriba abajo). */
   open?: boolean
+  /** Holgura de pecho en cm (la de la ficha técnica según el corte); sin ella, la de `fit`. Negativa = ceñida. */
+  ease?: number
   /**
    * Calidad del cálculo de la tela: «alta» usa una malla mucho más fina y más pasadas (pliegues finos, como un
    * programa de patronaje 3D) a cambio de tardar unos segundos. Por defecto, la rápida.

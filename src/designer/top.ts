@@ -27,7 +27,7 @@ import type { Shape, View } from './types'
  * Las medidas están en unidades del lienzo (≈ 0,5 cm reales en una talla M).
  */
 export interface TopCfg {
-  fit: 'ajustado' | 'regular' | 'boxy' | 'oversize'
+  fit: 'cenido' | 'ajustado' | 'regular' | 'boxy' | 'oversize'
   length: 'crop' | 'normal' | 'largo'
   /** `sin`: chaleco (sisa ribeteada, sin mangas). */
   sleeve: 'corta' | 'larga' | 'sin'
@@ -100,6 +100,7 @@ export const TOP_PIECES = {
 } as const
 
 const FIT = {
+  cenido: { half: 56, drop: 0, arm: 54, cuffW: 34 },
   ajustado: { half: 62, drop: 0, arm: 62, cuffW: 40 },
   regular: { half: 70, drop: 8, arm: 70, cuffW: 44 },
   boxy: { half: 80, drop: 14, arm: 76, cuffW: 50 },
@@ -135,7 +136,7 @@ function frame(c: TopCfg) {
   const cuffH = c.cuff === 'canale' ? (long ? 16 : 10) * rib : long && c.cuff === 'camisero' ? 18 : 0
   const endW = long ? F.cuffW + (c.cuff === 'recto' ? 6 : 0) : len(sub(S, U)) * 0.82 * k.cuff
   // Mujer: el costado entra en la cintura y vuelve a abrirse en la cadera (menos cuanto más holgado el corte)
-  const waistK = c.fem && !c.quilt ? ({ ajustado: 0.84, regular: 0.89, boxy: 0.95, oversize: 0.98 })[c.fit] : 1
+  const waistK = c.fem && !c.quilt ? ({ cenido: 0.8, ajustado: 0.84, regular: 0.89, boxy: 0.95, oversize: 0.98 })[c.fit] : 1
   const waistY = Math.min(U[1] + 64, hemTop - 8)
   const hasWaist = waistK < 1 && waistY > U[1] + 20
   const hemHalf = !hasWaist ? F.half * (waistK < 1 ? waistK : 1) : F.half * (hemTop - waistY > 30 ? 0.99 : waistK + (0.99 - waistK) * ((hemTop - waistY) / 30))

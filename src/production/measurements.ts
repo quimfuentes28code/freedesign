@@ -86,11 +86,17 @@ export function garmentPoms(t: GarmentTemplate, o: Options): Pom[] {
 
 type Get = <T extends string | boolean>(id: string) => T
 
+/**
+ * Holgura de pecho (cm) de cada corte de prenda de arriba: la de la ficha técnica y la del 3D (ver to3d.ts).
+ * El ceñido es de punto elástico: la prenda mide algo menos que el cuerpo y se pega a él.
+ */
+export const TOP_EASE: Record<string, number> = { cenido: -4, ajustado: 8, regular: 14, boxy: 22, oversize: 30 }
+
 function topPoms(id: string, get: Get): Pom[] {
   const fit = get<string>('corte')
-  const chestEase = { ajustado: 8, regular: 14, boxy: 22, oversize: 30 }[fit] ?? 14
-  const drop = { ajustado: 0, regular: 1.5, boxy: 4, oversize: 8 }[fit] ?? 1.5
-  const bicepsEase = { ajustado: 5, regular: 8, boxy: 12, oversize: 16 }[fit] ?? 8
+  const chestEase = TOP_EASE[fit] ?? 14
+  const drop = { cenido: 0, ajustado: 0, regular: 1.5, boxy: 4, oversize: 8 }[fit] ?? 1.5
+  const bicepsEase = { cenido: 0, ajustado: 5, regular: 8, boxy: 12, oversize: 16 }[fit] ?? 8
   const lengthAdd = { crop: 2, normal: 20, largo: 28 }[get<string>('largo') ?? 'normal'] ?? 20
   // Se leen de las opciones de cada prenda (las que no la tienen dan undefined)
   const shortSleeve = get('manga') === 'corta'

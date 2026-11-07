@@ -10,6 +10,7 @@ import { QUILT_SHAPES } from './quilt'
 import { UNITS_PER_CM } from './prints'
 import { drawScale } from './measures'
 import { isPants, opt, type GarmentTemplate } from './types'
+import { TOP_EASE } from '../production/measurements'
 
 /**
  * Convierte un diseño del Diseñador (plano 2D) en la prenda de la vista 3D: prenda base, corte, largos,
@@ -161,6 +162,7 @@ export const hasOwn3D = (t: GarmentTemplate) =>
 const LEG_LENGTH: Record<string, number> = { mini: 0.2, corto: 0.32, bermuda: 0.55, tobillero: 0.93 }
 
 const FIT: Record<string, Fit> = {
+  cenido: 'ajustado',
   ajustado: 'ajustado',
   slim: 'ajustado',
   regular: 'normal',
@@ -258,6 +260,8 @@ export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<s
   return {
     garment: garmentOf(t, data),
     fit: FIT[String(opt(t, data.options, 'corte'))] ?? 'normal',
+    // Prendas de arriba: la misma holgura que la ficha técnica (el boxy no es tan ancho como el oversize)
+    ease: t.family === 'top' && t.id !== 'top' ? TOP_EASE[String(opt(t, data.options, 'corte'))] : undefined,
     fabric: 'felpa',
     color: pieces.cuerpo?.color ?? '#cccccc',
     hood,

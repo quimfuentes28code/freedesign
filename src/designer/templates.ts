@@ -72,7 +72,7 @@ const channelShape = choice('formaCanales', 'Forma de los canales', 'detalles', 
 const stitchOption = choice('costuras', 'Pespuntes', 'acabados', [['simple', 'Simple'], ['doble', 'Doble']], 'simple')
 const lengthOption = choice('largo', 'Largo', 'corte', [['crop', 'Crop'], ['normal', 'Normal'], ['largo', 'Largo']], 'normal')
 const topFit = (def: string, ids = ['ajustado', 'regular', 'boxy', 'oversize']) =>
-  choice('corte', 'Corte', 'corte', ids.map((i) => [i, { ajustado: 'Ajustado', regular: 'Regular', boxy: 'Boxy', oversize: 'Oversize' }[i]!]), def)
+  choice('corte', 'Corte', 'corte', ids.map((i) => [i, { cenido: 'Ceñido (pegado al cuerpo)', ajustado: 'Ajustado', regular: 'Regular', boxy: 'Boxy', oversize: 'Oversize' }[i]!]), def)
 const pantsFit = (def: string, ids = ['slim', 'regular', 'ancho', 'baggy']) =>
   choice('corte', 'Corte', 'corte', ids.map((i) => [i, { slim: 'Slim', regular: 'Regular', ancho: 'Ancho', baggy: 'Baggy' }[i]!]), def)
 /** Cuello alto (cisne, chaquetas): pegado al cuello o separado de él. */
@@ -228,7 +228,7 @@ const camiseta: GarmentTemplate = {
     { id: T.pocket, label: 'Bolsillo', defaultColor: '#f2efe8', materials: FABRIC },
   ],
   options: [
-    topFit('boxy'),
+    topFit('boxy', ['cenido', 'ajustado', 'regular', 'boxy', 'oversize']),
     lengthOption,
     sleeveOption('corta'),
     choice('cuello', 'Cuello', 'detalles', [['redondo', 'Redondo'], ['pico', 'Pico'], ['alto', 'Cisne'], ['henley', 'Henley']], 'redondo'),
