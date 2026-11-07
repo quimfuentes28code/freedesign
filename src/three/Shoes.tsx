@@ -73,12 +73,13 @@ interface StyleDef {
   }
 }
 
-const RED = rgb('#b3202a')
 const WHITE = rgb('#f3f0e9')
 const BLACK = rgb('#161616')
+/** Gris claro de los paneles superpuestos de la zapatilla blanca. */
+const PANEL = rgb('#d6d4cf')
 
 const STYLES: Record<ShoeStyle, StyleDef> = {
-  // Alta de baloncesto: piel blanca con puntera, ojaleras, talón y caña en rojo; cuello negro; suela de taza blanca
+  // Alta de baloncesto: piel blanca con puntera, ojaleras y talón en gris claro; suela de taza blanca
   baloncesto: {
     sole: 2.7,
     soleOut: 0.3,
@@ -90,11 +91,11 @@ const STYLES: Record<ShoeStyle, StyleDef> = {
     shaft: 15.5,
     collar: 0.6,
     tongue: 0.7,
-    tongueUp: 2.5,
-    lace: 0.24,
+    tongueUp: 0.8,
+    lace: 0.2,
     footRows: 5,
     shaftRows: 3,
-    roughness: 0.42,
+    roughness: 0.6,
     suede: () => 0,
     colors: {
       upper: ({ s, v, lace }) => {
@@ -103,18 +104,18 @@ const STYLES: Record<ShoeStyle, StyleDef> = {
         const eyestay = inBand(s, 0.38, 0.8) * (1 - smoothstep(2.1, 2.5, lace))
         const heel = inBand(s, -1, 0.24) * (1 - smoothstep(0.75, 0.82, v))
         const red = Math.max(toeCap, eyestay, heel)
-        let c = mix(WHITE, RED, red)
+        let c = mix(WHITE, PANEL, red)
         const stitch = Math.max(line(s, 0.785, 0.004), line(s, 0.245, 0.004), line(lace, 2.55, 0.06) * inBand(s, 0.38, 0.8))
         c = mix(c, shade(c, 0.6), stitch * 0.8)
         return c
       },
-      sole: (v) => (v < 0.28 ? RED : mix(WHITE, shade(WHITE, 0.8), line(v, 0.62, 0.05))),
-      lining: '#262626',
-      collar: '#161616',
+      sole: (v) => (v < 0.28 ? shade(WHITE, 0.9) : mix(WHITE, shade(WHITE, 0.82), line(v, 0.62, 0.05))),
+      lining: '#cfcbc3',
+      collar: '#ebe8e2',
       tongue: '#f3f0e9',
-      laces: '#f3f0e9',
+      laces: '#f6f4ef',
       eyelets: '#d9d6cf',
-      tab: '#161616',
+      tab: '#d6d4cf',
     },
   },
   // Bota de trabajo: nobuk color trigo, cuello acolchado marrón, ganchos dorados y suela gruesa de tacos
@@ -660,7 +661,7 @@ function buildShoe(ff: FootFrame, st: StyleDef) {
   const laceC = rgb(C.laces)
   const eyeC = rgb(C.eyelets)
   const gap = 1.25 + st.puff * 0.2
-  const lift = 0.25 + st.lace
+  const lift = 0.08 + st.lace
   const eyes: { l: V3; r: V3 }[] = []
   // En el empeine: de cerca de la puntera a la garganta
   for (let i = 0; i < st.footRows; i++) {
@@ -679,7 +680,7 @@ function buildShoe(ff: FootFrame, st: StyleDef) {
   for (let i = 1; i <= shaftRows; i++) {
     const f = i / (shaftRows + (st.shaft ? 0.6 : 1.5))
     const p = tongue[Math.min(tongue.length - 1, Math.round(f * (tongue.length - 1)))]
-    eyes.push({ l: [p[0] - gap, p[1], p[2] + 0.2 + st.tongue * 0.4], r: [p[0] + gap, p[1], p[2] + 0.2 + st.tongue * 0.4] })
+    eyes.push({ l: [p[0] - gap, p[1], p[2] + st.tongue * 0.45], r: [p[0] + gap, p[1], p[2] + st.tongue * 0.45] })
   }
   for (const e of eyes) {
     for (const p of [e.l, e.r]) upper.tube([[p[0], p[1] - 0.2, p[2]], [p[0], p[1] + 0.05, p[2]]], 0.42, eyeC, false, 10)
@@ -689,21 +690,21 @@ function buildShoe(ff: FootFrame, st: StyleDef) {
     const a = eyes[i]
     const b = eyes[i + 1]
     // Dos cordones que se cruzan por encima de la lengüeta (uno encima del otro)
-    upper.tube([a.l, raise(mid(a.l, b.r), 0.25), b.r], st.lace, laceC, false, 6)
-    upper.tube([a.r, raise(mid(a.r, b.l), 0.45), b.l], st.lace, laceC, false, 6)
+    upper.tube([a.l, raise(mid(a.l, b.r), 0.06), b.r], st.lace, laceC, false, 6)
+    upper.tube([a.r, raise(mid(a.r, b.l), 0.06 + st.lace * 2), b.l], st.lace, laceC, false, 6)
   }
   // Primera pasada recta, en la fila de abajo
-  upper.tube([eyes[0].l, raise(mid(eyes[0].l, eyes[0].r), 0.2), eyes[0].r], st.lace, laceC, false, 6)
+  upper.tube([eyes[0].l, raise(mid(eyes[0].l, eyes[0].r), 0.05), eyes[0].r], st.lace, laceC, false, 6)
   // Lazada arriba: dos lazos y dos cabos que cuelgan
-  const knot = raise(mid(eyes[eyes.length - 1].l, eyes[eyes.length - 1].r), 0.5)
+  const knot = raise(mid(eyes[eyes.length - 1].l, eyes[eyes.length - 1].r), 0.15)
   for (const sx of [-1, 1]) {
     const loop: V3[] = Array.from({ length: 13 }, (_, k) => {
       const a = (k / 12) * Math.PI * 2
-      return [knot[0] + sx * (1.6 + Math.cos(a) * 1.5), knot[1] + Math.sin(a) * 0.9 + 0.2, knot[2] + 0.4 + (1 - Math.cos(a)) * 0.3]
+      return [knot[0] + sx * (1.05 + Math.cos(a) * 0.95), knot[1] + Math.sin(a) * 0.55, knot[2] + 0.25 + (1 - Math.cos(a)) * 0.15]
     })
     upper.tube(loop, st.lace * 0.9, laceC, true, 6)
     upper.tube(
-      [knot, [knot[0] + sx * 0.8, knot[1] - 2, knot[2] + 1], [knot[0] + sx * 1.2, knot[1] - 4.5, knot[2] + 1.6]],
+      [knot, [knot[0] + sx * 0.6, knot[1] - 1.4, knot[2] + 0.45], [knot[0] + sx * 0.9, knot[1] - 3, knot[2] + 0.7]],
       st.lace * 0.9,
       laceC,
       false,
@@ -842,7 +843,7 @@ export function Shoes({ model, cloud, style }: { model: Model; cloud: Cloud; sty
             sheen: style === 'baloncesto' ? 0.08 : 0.25,
             sheenRoughness: 0.8,
             sheenColor: new THREE.Color('#ffffff'),
-            clearcoat: style === 'baloncesto' ? 0.25 : 0,
+            clearcoat: style === 'baloncesto' ? 0.06 : 0,
             clearcoatRoughness: 0.5,
             side: THREE.DoubleSide,
           }),
