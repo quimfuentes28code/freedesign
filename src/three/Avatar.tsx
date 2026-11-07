@@ -5,6 +5,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Design, Measurements, ShoeStyle } from '../types'
 import { feminize, fitBody, measureModel, morphPositions, smoothNormals, type ModelInfo } from './body'
 import { Garment } from './Garment'
+import { setPose, type PoseId } from './pose'
 import { Headwear } from './Headwear'
 import { Shoes } from './Shoes'
 import type { Cloud } from './wrap'
@@ -56,10 +57,12 @@ interface Props {
   shoes?: ShoeStyle | null
   /** Gorro o gorra que lleva además de la ropa. */
   hat?: Design | null
+  /** Pose del maniquí (ver POSES); la ropa cae como en ella. */
+  pose?: PoseId
 }
 
 /** Maniquí animado, ajustado a las medidas, con la prenda puesta. */
-export function Mannequin({ measurements, design, outfit = [], animate, showBody = true, shoes, hat }: Props) {
+export function Mannequin({ measurements, design, outfit = [], animate, showBody = true, shoes, hat, pose = 'reposo' }: Props) {
   const gltf = useLoader(GLTFLoader, MODEL_URL)
   const base = useMemo(() => prepare(gltf.scene, gltf.animations), [gltf])
   const female = !!measurements.female
@@ -109,10 +112,12 @@ export function Mannequin({ measurements, design, outfit = [], animate, showBody
     const action = mixer.clipAction(model.clip)
     action.play()
     mixer.update(0)
+    // Quieto: en la pose elegida (la animación solo se usa si se pide)
+    if (!animate) setPose(model, pose)
     return () => {
       action.stop()
     }
-  }, [mixer, model])
+  }, [mixer, model, pose, animate])
   useFrame((_, dt) => {
     if (animate) mixer.update(Math.min(dt, 0.1))
   })
@@ -121,13 +126,13 @@ export function Mannequin({ measurements, design, outfit = [], animate, showBody
     <group scale={fit.scale}>
       <primitive object={model.root} />
       {outfit.map((d, i) => (
-        <Garment key={d.layer ?? i} model={model} fit={fit} cloud={cloud} measurements={measurements} design={d} />
+        <Garment key={d.layer ?? i} model={model} fit={fit} cloud={cloud} measurements={measurements} design={d} pose={pose} />
       ))}
       {/* Un gorro o una gorra va en la cabeza; el resto, en el cuerpo */}
       {design.hat ? (
         <Headwear model={model} cloud={cloud} design={design} height={measurements.height} />
       ) : (
-        <Garment model={model} fit={fit} cloud={cloud} measurements={measurements} design={design} />
+        <Garment model={model} fit={fit} cloud={cloud} measurements={measurements} design={design} pose={pose} />
       )}
       {hat?.hat && <Headwear model={model} cloud={cloud} design={hat} height={measurements.height} />}
       {shoes && showBody && <Shoes model={model} cloud={cloud} style={shoes} />}

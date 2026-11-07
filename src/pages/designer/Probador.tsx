@@ -9,6 +9,7 @@ import { isPants } from '../../designer/types'
 import { bodyKind, type Design as SavedDesign } from '../../shared/designs'
 import type { Material } from '../../shared/library'
 import { useDressing } from '../../three/cloth/dressClient'
+import { POSES, type PoseId } from '../../three/pose'
 import { Scene } from '../../three/Scene'
 import { SHOE_STYLES } from '../../three/Shoes'
 import type { ShoeStyle } from '../../types'
@@ -38,6 +39,8 @@ export function Probador() {
   const [autoRotate, setAutoRotate] = useState(false)
   // Calidad alta: malla fina y pliegues finos (tarda unos segundos más)
   const [hq, setHq] = useState(true)
+  // Pose del maniquí: la ropa se calcula en ella
+  const [pose, setPose] = useState<PoseId>('reposo')
 
   const all = (designs.data ?? []).filter((d) => getTemplate(d.template))
   const tops = all.filter((d) => getTemplate(d.template)!.family === 'top')
@@ -65,7 +68,7 @@ export function Probador() {
   // Solo con el gorro o la gorra, el maniquí lleva eso (en la cabeza); con ropa, va además de ella
   // Progresivo: primero la versión rápida (se ve en un momento) y, al terminar, se afina sola con la malla fina
   const dressing = useDressing()
-  const outfitKey = JSON.stringify([topId, bottomId, clientId, kind, open, hoodUp, teeColor])
+  const outfitKey = JSON.stringify([topId, bottomId, clientId, kind, open, hoodUp, teeColor, pose])
   const [refined, setRefined] = useState(false)
   const sawBusy = useRef(false)
   useEffect(() => {
@@ -91,7 +94,7 @@ export function Probador() {
     <div className="studio probador">
       <main className="viewport">
         {shown ? (
-          <Scene measurements={measurements} design={shown} outfit={under} autoRotate={autoRotate} animate={false} shoes={shoes} hat={worn ? hat3d : null} />
+          <Scene measurements={measurements} design={shown} outfit={under} autoRotate={autoRotate} animate={false} pose={pose} shoes={shoes} hat={worn ? hat3d : null} />
         ) : (
           <div className="probador-empty">
             <p>Elige una prenda de arriba y un pantalón para vestir al maniquí.</p>
@@ -136,6 +139,17 @@ export function Probador() {
         <Picker title="Arriba" empty="Aún no hay sudaderas, camisetas ni chaquetas diseñadas." list={tops} selected={topId} onSelect={setTopId} materials={materials} />
         <Picker title="Abajo" empty="Aún no hay pantalones diseñados." list={bottoms} selected={bottomId} onSelect={setBottomId} materials={materials} />
         <Picker title="Cabeza" empty="Aún no hay gorros ni gorras diseñados." list={heads} selected={hatId} onSelect={setHatId} materials={materials} />
+
+        <section>
+          <h2>Pose</h2>
+          <div className="chips">
+            {POSES.map((p) => (
+              <button key={p.id} className={pose === p.id ? 'chip active' : 'chip'} onClick={() => setPose(p.id)}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </section>
 
         <section>
           <h2>Calzado</h2>

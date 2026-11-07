@@ -6,7 +6,7 @@ import type { Model } from './Avatar'
 import { FIT_EASE, jointPosition, type BodyFit } from './body'
 import { dressInWorker, mergeUnderlays, setUnderlay, useUnderlays } from './cloth/dressClient'
 import { knitNormalMap } from './cloth/textures'
-import { Part, referencePose, type ReferencePose } from './pose'
+import { Part, referencePose, type PoseId, type ReferencePose } from './pose'
 import { CloudGrid, computeTubeNormals, skinFromCloud, wrapTube, type Cloud, type TubeSpec } from './wrap'
 
 /** Cordones (algodón crudo) y ojales (metal plateado) si el diseño no dice otra cosa. */
@@ -434,6 +434,8 @@ interface Props {
   cloud: Cloud
   measurements: Measurements
   design: Design
+  /** Pose del maniquí: la tela se asienta sobre el cuerpo en ella. */
+  pose?: PoseId
 }
 
 /**
@@ -447,7 +449,7 @@ const isPattern = isPatternDesign
  * - Sudadera: patrón de costura real (ver cloth/).
  * - Resto: tubos de tela que envuelven torso, mangas y perneras (versión sencilla, pendiente de pasar a patrón).
  */
-export function Garment({ model, fit, cloud, measurements, design }: Props) {
+export function Garment({ model, fit, cloud, measurements, design, pose: poseId = 'reposo' }: Props) {
   const materials = useSlotMaterials(design)
   // La caída depende solo de la tela del cuerpo: cambiar otros materiales o colores no recalcula la prenda
   const bodyLook = slotStyle(design, 'cuerpo').look
@@ -456,7 +458,7 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [bodyLook.stiffness, bodyLook.sheenRoughness],
   )
-  const pose = useMemo(() => referencePose(model, cloud), [model, cloud])
+  const pose = useMemo(() => referencePose(model, cloud, poseId), [model, cloud, poseId])
   const pattern = isPattern(design)
   // La prenda de encima se asienta sobre la de debajo (si esta es de patrón, espera a que termine)
   // Capa de la prenda en el conjunto y las de patrón que tiene debajo (se asienta sobre su tela cuando están)

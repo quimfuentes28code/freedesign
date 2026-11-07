@@ -93,6 +93,111 @@ export function unskinPoints(data: PoseData, pos: Float32Array, idx: ArrayLike<n
 }
 
 /**
+ * Poses del maniquí: giros de algunos huesos sobre la pose de reposo (primer fotograma de la animación), alrededor de
+ * los ejes del mundo (así no dependen de cómo esté orientado cada hueso). El maniquí mira hacia +Z; su izquierda es +X.
+ * - z: de lado (positivo sube el brazo izquierdo hacia fuera)  · x: adelante y atrás (negativo adelanta la pierna o el brazo)
+ * - y: girar sobre sí mismo
+ * Se aplican en orden (de la cadera hacia fuera). La ropa se calcula en la pose elegida, así cae como en ella.
+ */
+export const POSES = [
+  { id: 'reposo', label: 'De pie', bones: [] },
+  {
+    // Brazos separados del cuerpo (como en los programas de patronaje 3D): se ven bien los costados y las mangas
+    id: 'brazos',
+    label: 'Brazos abiertos',
+    bones: [
+      ['LeftArm', 'z', 24],
+      ['RightArm', 'z', -24],
+      ['LeftForeArm', 'z', 6],
+      ['RightForeArm', 'z', -6],
+    ],
+  },
+  {
+    id: 'paso',
+    label: 'Caminando',
+    bones: [
+      ['LeftUpLeg', 'x', -17],
+      ['LeftLeg', 'x', 10],
+      ['LeftFoot', 'x', -6],
+      ['RightUpLeg', 'x', 12],
+      ['RightLeg', 'x', 16],
+      ['RightFoot', 'x', 10],
+      ['Spine', 'y', 4],
+      ['LeftArm', 'x', 14],
+      ['RightArm', 'x', -16],
+      ['RightForeArm', 'x', -14],
+      ['LeftForeArm', 'x', -6],
+    ],
+  },
+  {
+    // Contraposto: el peso en la pierna derecha, la izquierda relajada y algo adelantada
+    id: 'apoyado',
+    label: 'Apoyado en una pierna',
+    bones: [
+      ['Hips', 'z', 4],
+      ['Spine', 'z', -3],
+      ['Spine1', 'z', -2],
+      ['RightUpLeg', 'z', -4],
+      ['LeftUpLeg', 'z', -3],
+      ['LeftUpLeg', 'x', -7],
+      ['LeftLeg', 'x', 14],
+      ['LeftFoot', 'x', -6],
+      ['Neck', 'y', 8],
+      ['Head', 'z', 3],
+      ['LeftArm', 'z', 4],
+      ['RightArm', 'z', -6],
+      ['RightForeArm', 'x', -10],
+    ],
+  },
+] as const satisfies readonly { id: string; label: string; bones: readonly (readonly [string, 'x' | 'y' | 'z', number])[] }[]
+export type PoseId = (typeof POSES)[number]['id']
+
+const AXES = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) }
+
+/**
+ * Deja el esqueleto en una pose: el primer fotograma de la animación más los giros de la pose. Después baja o sube la
+ * cadera para que el pie más bajo siga apoyado en el suelo (al adelantar una pierna, el pie se levanta).
+ */
+export function setPose(model: Model, id: PoseId | string = 'reposo') {
+  for (const track of model.clip?.tracks ?? []) {
+    const [nodeName, prop] = track.name.split('.')
+    const node = model.root.getObjectByName(nodeName)
+    if (!node) continue
+    const value = Array.from(track.values.subarray(0, track.getValueSize()))
+    if (prop === 'quaternion') node.quaternion.fromArray(value)
+    else if (prop === 'position') node.position.fromArray(value)
+  }
+  model.root.updateMatrixWorld(true)
+  const bones = model.body.skeleton.bones
+  const bone = (n: string) => bones.find((b) => boneName(b.name) === n)
+  const feet = ['LeftToeBase', 'RightToeBase', 'LeftFoot', 'RightFoot'].map(bone).filter((b): b is THREE.Bone => !!b)
+  const lowest = () => Math.min(...feet.map((b) => new THREE.Vector3().setFromMatrixPosition(b.matrixWorld).y))
+  const floor = lowest()
+  const pose = POSES.find((p) => p.id === id) ?? POSES[0]
+  const parentQ = new THREE.Quaternion()
+  const delta = new THREE.Quaternion()
+  for (const [name, axis, deg] of pose.bones) {
+    const b = bone(name)
+    if (!b?.parent) continue
+    // Giro en el mundo pasado al espacio del padre: local' = padre⁻¹ · giro · padre · local
+    b.parent.getWorldQuaternion(parentQ)
+    delta.setFromAxisAngle(AXES[axis], THREE.MathUtils.degToRad(deg))
+    b.quaternion.premultiply(parentQ.clone().invert().multiply(delta).multiply(parentQ))
+    b.updateMatrixWorld(true)
+  }
+  // Pies en el suelo
+  const hips = bone('Hips')
+  if (hips?.parent && pose.bones.length) {
+    const dy = floor - lowest()
+    const world = new THREE.Vector3().setFromMatrixPosition(hips.matrixWorld)
+    const target = hips.parent.worldToLocal(world.clone().add(new THREE.Vector3(0, dy, 0)))
+    hips.position.copy(target)
+  }
+  model.root.updateMatrixWorld(true)
+  model.body.skeleton.update()
+}
+
+/**
  * El cuerpo en la pose de reposo de la animación (primer fotograma): la ropa se construye aquí,
  * con los brazos abajo, para que caiga de forma natural. Luego `unskin` la devuelve a la postura en T
  * del esqueleto, que es donde la animación la vuelve a colocar.
@@ -104,26 +209,15 @@ export interface ReferencePose extends PoseData {
   unskin: (geom: THREE.BufferGeometry) => void
 }
 
-export function referencePose(model: Model, cloud: Cloud): ReferencePose {
+export function referencePose(model: Model, cloud: Cloud, poseId: PoseId | string = 'reposo'): ReferencePose {
   const mesh = model.body
   const skeleton = mesh.skeleton
   const bones = skeleton.bones
 
-  // Aplicamos el primer fotograma de la animación (guardando la pose actual) y calculamos las matrices.
-  // Buscamos cada nodo por nombre igual que hace el AnimationMixer.
-  const animated = (model.clip?.tracks ?? [])
-    .map((track) => {
-      const [nodeName, prop] = track.name.split('.')
-      return { node: model.root.getObjectByName(nodeName), prop, value: Array.from(track.values.subarray(0, track.getValueSize())) }
-    })
-    .filter((a): a is { node: THREE.Object3D; prop: string; value: number[] } => !!a.node)
+  // Ponemos el esqueleto en la pose (guardando la actual) y calculamos las matrices
+  const animated = bones.map((node) => ({ node }))
   const saved = animated.map(({ node }) => [node.position.clone(), node.quaternion.clone()] as const)
-  for (const { node, prop, value } of animated) {
-    if (prop === 'quaternion') node.quaternion.fromArray(value)
-    else if (prop === 'position') node.position.fromArray(value)
-  }
-  model.root.updateMatrixWorld(true)
-  skeleton.update()
+  setPose(model, poseId)
 
   const data: PoseData = {
     boneMatrices: new Float32Array(skeleton.boneMatrices!),
