@@ -46,6 +46,7 @@ function toGeometry(out: DressOutput) {
   g.setAttribute('uv', new THREE.BufferAttribute(out.uv, 2))
   g.setAttribute('edge', new THREE.BufferAttribute(out.edge, 3))
   g.setAttribute('occlusion', new THREE.BufferAttribute(out.occlusion, 1))
+  g.setAttribute('wrinkle', new THREE.BufferAttribute(out.wrinkle, 2))
   g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(out.skinIndex, 4))
   g.setAttribute('skinWeight', new THREE.BufferAttribute(out.skinWeight, 4))
   g.setIndex(new THREE.BufferAttribute(out.index, 1))

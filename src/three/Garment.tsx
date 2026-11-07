@@ -207,6 +207,25 @@ float fabricNoise(vec2 p) {
   f = f * f * (3.0 - 2.0 * f);
   return mix(mix(fabricHash(i), fabricHash(i + vec2(1.0, 0.0)), f.x), mix(fabricHash(i + vec2(0.0, 1.0)), fabricHash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
+/**
+ * Arruguitas: ondas algo irregulares perpendiculares a la dirección en que se ha recogido la tela. Recogida a lo ancho
+ * (el bajo que frunce el cuerpo) dan pliegues a lo largo; recogida a lo largo (sobre el puño, el codo), anillos.
+ * Devuelve una altura en cm (negativa en el fondo de la arruga).
+ */
+float fabricWrinkles(vec2 uv, vec2 g) {
+  float h = 0.0;
+  if (g.x > 0.02) {
+    float w = uv.x * 0.75 + (fabricNoise(uv * vec2(0.25, 0.12)) - 0.5) * 3.0;
+    float fade = 0.55 + 0.45 * fabricNoise(uv * vec2(0.4, 0.15) + 7.0);
+    h += g.x * fade * (sin(w * 3.14159) * 0.5 - 0.15);
+  }
+  if (g.y > 0.02) {
+    float w = uv.y * 0.7 + (fabricNoise(uv * vec2(0.12, 0.25) + 3.0) - 0.5) * 3.0;
+    float fade = 0.55 + 0.45 * fabricNoise(uv * vec2(0.15, 0.4) + 11.0);
+    h += g.y * fade * (sin(w * 3.14159) * 0.5 - 0.15);
+  }
+  return h * 0.7;
+}
 float fabricVariation(vec2 uv) {
   float blotch = fabricNoise(uv * 0.12) * 0.6 + fabricNoise(uv * 0.31) * 0.4;
   float slub = fabricNoise(vec2(uv.x * 0.18, uv.y * 3.2));
@@ -246,14 +265,14 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
-        `#include <common>\nattribute vec3 edge;\nattribute float occlusion;\nvarying float vOcc;\nvarying vec2 vEdge;\nvarying vec2 vQuiltUv;\nflat varying float vEdgeKind;${pocket ? '\nvarying vec2 vPocketUv;' : ''}${prints ? '\nvarying vec3 vRestPos;\nvarying vec2 vPrintUv;' : ''}`,
+        `#include <common>\nattribute vec3 edge;\nattribute float occlusion;\nattribute vec2 wrinkle;\nvarying float vOcc;\nvarying vec2 vWrinkle;\nvarying vec2 vEdge;\nvarying vec2 vQuiltUv;\nflat varying float vEdgeKind;${pocket ? '\nvarying vec2 vPocketUv;' : ''}${prints ? '\nvarying vec3 vRestPos;\nvarying vec2 vPrintUv;' : ''}`,
       )
       .replace(
         '#include <uv_vertex>',
-        `#include <uv_vertex>\nvOcc = occlusion;\nvEdge = edge.xy;\nvQuiltUv = uv;\nvEdgeKind = edge.z;${pocket ? '\nvPocketUv = uv;' : ''}${prints ? '\nvRestPos = position;\nvPrintUv = uv;' : ''}`,
+        `#include <uv_vertex>\nvOcc = occlusion;\nvWrinkle = wrinkle;\nvEdge = edge.xy;\nvQuiltUv = uv;\nvEdgeKind = edge.z;${pocket ? '\nvPocketUv = uv;' : ''}${prints ? '\nvRestPos = position;\nvPrintUv = uv;' : ''}`,
       )
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nvarying float vOcc;\n${FABRIC_GLSL}${SEAM_GLSL}${QUILT_GLSL}${prints ? PRINT_GLSL : ''}`)
+      .replace('#include <common>', `#include <common>\nvarying float vOcc;\nvarying vec2 vWrinkle;\n${FABRIC_GLSL}${SEAM_GLSL}${QUILT_GLSL}${prints ? PRINT_GLSL : ''}`)
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
@@ -293,6 +312,12 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
           seamH += qh * uQuilt.z;
           diffuseColor.rgb *= 0.62 + 0.38 * qh;
         }
+        // Arruguitas donde la tela se ha recogido (más finas que la malla)
+        if (uSeams > 0.5) {
+          float wr = fabricWrinkles(vQuiltUv, vWrinkle);
+          seamH += wr;
+          diffuseColor.rgb *= 1.0 - 0.18 * clamp(-wr, 0.0, 1.0);
+        }
         float seamLum = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
         // Hilo del mismo tono que la tela, un poco más claro (telas oscuras) o más oscuro (claras)
         vec3 threadColor = seamLum < 0.35 ? mix(diffuseColor.rgb, vec3(1.0), 0.09) : diffuseColor.rgb * 0.86;
@@ -308,7 +333,10 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
         ${prints ? PRINT_RELIEF_NORMAL : ''}`,
       )
       // El interior de la prenda, algo más apagado (no mucho: en los pliegues del cuello salía a manchas)
-      .replace('#include <opaque_fragment>', `outgoingLight *= (gl_FrontFacing ? 1.0 : 0.84) * (1.0 - 0.62 * clamp(vOcc, 0.0, 1.0));\n#include <opaque_fragment>`)
+      .replace('#include <opaque_fragment>', `outgoingLight *= (gl_FrontFacing ? 1.0 : 0.84) * (1.0 - 0.62 * clamp(vOcc, 0.0, 1.0));
+#ifdef USE_NORMALMAP_TANGENTSPACE
+  outgoingLight *= mix(0.8, 1.0, smoothstep(0.55, 0.98, mapN.z));
+#endif\n#include <opaque_fragment>`)
   }
   m.customProgramCacheKey = () => (pocket ? 'tela-bolsillo' : 'tela') + (prints ? '-estampados' : '')
 }
@@ -535,7 +563,8 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
     const shape = patternGeom?.userData.pocket as { y0: number; h: number; w0: number; w1: number; x0?: number; mirror?: boolean } | null | undefined
     const pocketUniform = materials[slotIndex('bolsillo')].userData.pocket as { value: THREE.Vector4 } | undefined
     const pocketX = materials[slotIndex('bolsillo')].userData.pocketX as { value: THREE.Vector3 } | undefined
-    if (shape && pocketUniform) pocketUniform.value.set(shape.y0, shape.h, shape.w0, shape.w1)
+    // Sin bolsillo canguro, forma vacía (si no, se quedaba la de la prenda anterior y recortaba los bolsillos de parche)
+    if (pocketUniform) pocketUniform.value.set(shape?.y0 ?? 0, shape?.h ?? 0, shape?.w0 ?? 0, shape?.w1 ?? 0)
     if (shape && pocketX) pocketX.value.set(shape.x0 ?? 0, shape.mirror ? 1 : 0, shape.x0 !== undefined ? 1 : 0)
     // Costuras y rebordes solo en las prendas de patrón (las demás no saben dónde están sus bordes)
     for (const m of materials) if (m.userData.seams) (m.userData.seams as { value: number }).value = pattern ? 1 : 0

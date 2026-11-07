@@ -4,7 +4,7 @@ import { GARMENT_SLOTS, slotIndex, type Design, type GarmentSlot, type Measureme
 import type { ModelInfo } from '../body'
 import { Part, skinPoints, unskinPoints, type PoseData } from '../pose'
 import { CloudGrid } from '../wrap'
-import { EDGE_CODES } from './Cloth'
+import { EDGE_CODES, type Cloth } from './Cloth'
 import { buildHoodie, type HoodieResult, type PocketShape } from './hoodie'
 import { buildPants } from './pants'
 import type { Patch, Tab } from './patches'
@@ -59,6 +59,8 @@ export interface DressOutput {
   surface: Underlay
   /** Sombra de cada punto (0 = al aire, 1 = tapado): fondo de los pliegues, axilas, bajo el cuello y las solapas. */
   occlusion: Float32Array
+  /** Cuánto se ha recogido la tela en cada punto, a lo ancho y a lo largo de su pieza (arruguitas, ver Garment.tsx). */
+  wrinkle: Float32Array
 }
 
 /**
@@ -248,6 +250,8 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   })
   const normal = vertexNormals(position, Array.from(index))
   const occlusion = clothOcclusion(position, normal, 5 * unit)
+  const wrinkle = new Float32Array((position.length / 3) * 2)
+  wrinkle.set(gathering(cloth, relaxed))
   lap('malla')
 
   // Normales iguales a ambos lados de cada costura, para que la prenda se vea de una pieza
@@ -271,6 +275,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     timings,
     surface,
     occlusion,
+    wrinkle,
   }
 }
 
@@ -1058,4 +1063,34 @@ function clothOcclusion(pos: Float32Array, normal: Float32Array, radius: number)
     occ[i] = total > 0 ? Math.min(1, (hit / total) * 2.4) : 0
   }
   return occ
+}
+
+/**
+ * Cuánto se ha recogido la tela asentada en cada punto, a lo ancho (x del patrón) y a lo largo (y): lo que mide cada
+ * hilo de la malla comparado con el patrón. Donde la tela se encoge (sobre el puño, en el codo, donde la pretina
+ * frunce el cuerpo) salen arruguitas más finas que la malla, dibujadas en el shader.
+ */
+function gathering(cloth: Cloth, pos: Float32Array) {
+  const n = cloth.panelOf.length
+  const sum = new Float32Array(n * 2)
+  const weight = new Float32Array(n * 2)
+  for (const { a, b, rest, k } of cloth.links) {
+    // Solo los hilos de la tela (los de flexión unen puntos más lejanos)
+    if (k < 0.5 || rest <= 0) continue
+    const fx = Math.abs(cloth.flat[a * 2] - cloth.flat[b * 2])
+    const fy = Math.abs(cloth.flat[a * 2 + 1] - cloth.flat[b * 2 + 1])
+    const f = fx + fy
+    if (f <= 0) continue
+    const len = Math.hypot(pos[b * 3] - pos[a * 3], pos[b * 3 + 1] - pos[a * 3 + 1], pos[b * 3 + 2] - pos[a * 3 + 2])
+    const shrink = Math.max(0, 1 - len / rest)
+    for (const v of [a, b]) {
+      sum[v * 2] += shrink * fx
+      weight[v * 2] += fx
+      sum[v * 2 + 1] += shrink * fy
+      weight[v * 2 + 1] += fy
+    }
+  }
+  // 0 = lisa (hasta un 6 % recogida, lo normal al asentarse), 1 = recogida un 30 % o más
+  for (let i = 0; i < n * 2; i++) sum[i] = weight[i] > 0 ? Math.min(1, Math.max(0, sum[i] / weight[i] - 0.06) / 0.24) : 0
+  return sum
 }

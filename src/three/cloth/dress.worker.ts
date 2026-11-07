@@ -6,7 +6,7 @@ self.onmessage = (e: MessageEvent<{ id: number; input: DressInput }>) => {
   const { id, input } = e.data
   try {
     const out = dressPatternGarment(input)
-    const buffers = [out.position, out.normal, out.uv, out.skinIndex, out.skinWeight, out.index, out.surface.points, out.surface.normals, out.occlusion].map((a) => a.buffer)
+    const buffers = [out.position, out.normal, out.uv, out.skinIndex, out.skinWeight, out.index, out.surface.points, out.surface.normals, out.occlusion, out.wrinkle].map((a) => a.buffer)
     self.postMessage({ id, out }, { transfer: buffers as ArrayBuffer[] })
   } catch (err) {
     self.postMessage({ id, error: String(err) })

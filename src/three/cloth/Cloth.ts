@@ -153,6 +153,20 @@ export class Cloth {
     b.forEach((v, i) => this.seams.push([nearest(pb[i], a, pa), v]))
   }
 
+  /**
+   * Pieza en tubo (manga, puño) cerrada cosiendo su primera columna con la última: rigidez a la flexión también a
+   * través de esa costura. Sin ella, la tela se doblaba justo ahí y salía una solapa (en el puño, junto a la muñeca).
+   */
+  bendAcross(panel: Panel, bend = 1) {
+    const { nu, nv, index } = panel
+    if (nu < 4) return
+    const d = (a: number, b: number) => Math.hypot(this.flat[a * 2] - this.flat[b * 2], this.flat[a * 2 + 1] - this.flat[b * 2 + 1])
+    for (let j = 0; j < nv; j++) {
+      const rest = (d(index(0, j), index(1, j)) + d(index(nu - 2, j), index(nu - 1, j))) * this.unit
+      this.links.push({ a: index(1, j), b: index(nu - 2, j), rest, k: 0.15 * bend })
+    }
+  }
+
   /** Posición relativa (0–1) de cada punto a lo largo de un borde, según el patrón plano. */
   private params(list: number[]) {
     const out = [0]

@@ -307,6 +307,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     cloth.sew(frontEdge, top.slice(0, mid + 1))
     cloth.sew(backEdge, top.slice(mid))
     cloth.sew(sleeve.col(0), sleeve.col(ns - 1)) // costura bajo el brazo
+    cloth.bendAcross(sleeve, panelBend)
 
     if (!hasCuff) {
       // Dobladillo: el borde de la manga lleva el grosor de la tela doblada
@@ -337,6 +338,7 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     )
     cloth.sew(sleeve.row(nl - 1), cuff.row(0))
     cloth.sew(cuff.col(0), cuff.col(nc - 1))
+    cloth.bendAcross(cuff, ribCuff ? RIB_BEND : 4)
     // Final del puño: canalé doblado (la fila ya da la vuelta entera: su primer y último punto están cosidos)
     rims.push({ verts: cuff.row(RIB_ROWS - 1), slot: 'punos', radius: 0.3 * s })
     // Puño de camisa: su botón, por fuera de la muñeca
