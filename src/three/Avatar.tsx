@@ -156,13 +156,13 @@ export function Mannequin({ measurements, design, outfit = [], animate, showBody
     <group scale={fit.scale}>
       <primitive object={model.root} />
       {outfit.map((d, i) => (
-        <Garment key={d.layer ?? i} model={model} fit={fit} cloud={cloud} measurements={measurements} design={d} pose={pose} />
+        <Garment key={d.layer ?? i} model={model} fit={fit} cloud={cloud} measurements={measurements} design={d} pose={pose} shoes={showBody ? shoes : null} />
       ))}
       {/* Un gorro o una gorra va en la cabeza; el resto, en el cuerpo */}
       {design.hat ? (
         <Headwear model={model} cloud={cloud} design={design} height={measurements.height} />
       ) : (
-        <Garment model={model} fit={fit} cloud={cloud} measurements={measurements} design={design} pose={pose} />
+        <Garment model={model} fit={fit} cloud={cloud} measurements={measurements} design={design} pose={pose} shoes={showBody ? shoes : null} />
       )}
       {hat?.hat && <Headwear model={model} cloud={cloud} design={hat} height={measurements.height} />}
       <HideFeet on={!!showBody && shoes === 'deportiva'} />

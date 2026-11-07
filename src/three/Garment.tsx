@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import * as THREE from 'three'
 import { FABRICS, type FabricLook } from '../data/fabrics'
-import { GARMENT_SLOTS, RIB_SLOTS, isPatternDesign, slotIndex, type Design, type GarmentSlot, type Measurements, type SlotStyle } from '../types'
+import { GARMENT_SLOTS, RIB_SLOTS, isPatternDesign, slotIndex, type Design, type GarmentSlot, type Measurements, type ShoeStyle, type SlotStyle } from '../types'
 import type { Model } from './Avatar'
 import { FIT_EASE, jointPosition, type BodyFit } from './body'
 import { dressInWorker, mergeUnderlays, setUnderlay, useUnderlays } from './cloth/dressClient'
 import { knitNormalMap } from './cloth/textures'
-import { Part, referencePose, type PoseId, type ReferencePose } from './pose'
+import { Part, referencePose, skinPoints, type PoseId, type ReferencePose } from './pose'
+import { useRealShoes } from './RealShoes'
 import { CloudGrid, computeTubeNormals, skinFromCloud, wrapTube, type Cloud, type TubeSpec } from './wrap'
 
 /** Cordones (algodón crudo) y ojales (metal plateado) si el diseño no dice otra cosa. */
@@ -436,6 +437,8 @@ interface Props {
   design: Design
   /** Pose del maniquí: la tela se asienta sobre el cuerpo en ella. */
   pose?: PoseId
+  /** Calzado puesto: con la zapatilla de modelo real, el pantalón cae sobre su forma. */
+  shoes?: ShoeStyle | null
 }
 
 /**
@@ -449,7 +452,7 @@ const isPattern = isPatternDesign
  * - Sudadera: patrón de costura real (ver cloth/).
  * - Resto: tubos de tela que envuelven torso, mangas y perneras (versión sencilla, pendiente de pasar a patrón).
  */
-export function Garment({ model, fit, cloud, measurements, design, pose: poseId = 'reposo' }: Props) {
+export function Garment({ model, fit, cloud, measurements, design, pose: poseId = 'reposo', shoes }: Props) {
   const materials = useSlotMaterials(design)
   // La caída depende solo de la tela del cuerpo: cambiar otros materiales o colores no recalcula la prenda
   const bodyLook = slotStyle(design, 'cuerpo').look
@@ -471,6 +474,47 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [belowKey, ...(belowKey ? belowKey.split(',').map((l) => unders.get(Number(l))) : [])],
   )
+  // Zapatilla real: su superficie en la pose (puntos y normales hacia fuera), para que el pantalón caiga encima
+  const realShoes = useRealShoes()
+  const needsShoes = pattern && design.garment === 'pantalon' && shoes === 'deportiva'
+  const shoeSurface = useMemo(() => {
+    if (!needsShoes || !realShoes) return null
+    const pts: number[] = []
+    const nrm: number[] = []
+    for (const g of realShoes) {
+      const pos = g.attributes.position.array as Float32Array
+      const nor = g.attributes.normal.array as Float32Array
+      const idx = g.attributes.skinIndex.array
+      const wts = g.attributes.skinWeight.array
+      // Uno de cada dos puntos basta (la zapatilla tiene muchos)
+      const step = 2
+      const p0 = new Float32Array(Math.ceil(pos.length / 3 / step) * 3)
+      const p1 = new Float32Array(p0.length)
+      const i4 = new Uint16Array((p0.length / 3) * 4)
+      const w4 = new Float32Array(i4.length)
+      for (let v = 0, k = 0; v < pos.length / 3; v += step, k++) {
+        for (let c = 0; c < 3; c++) {
+          p0[k * 3 + c] = pos[v * 3 + c]
+          p1[k * 3 + c] = pos[v * 3 + c] + nor[v * 3 + c]
+        }
+        for (let c = 0; c < 4; c++) {
+          i4[k * 4 + c] = idx[v * 4 + c]
+          w4[k * 4 + c] = wts[v * 4 + c]
+        }
+      }
+      const a = skinPoints(pose, p0, i4, w4)
+      const b = skinPoints(pose, p1, i4, w4)
+      for (let k = 0; k < a.length / 3; k++) {
+        const nx = b[k * 3] - a[k * 3]
+        const ny = b[k * 3 + 1] - a[k * 3 + 1]
+        const nz = b[k * 3 + 2] - a[k * 3 + 2]
+        const l = Math.hypot(nx, ny, nz) || 1
+        pts.push(a[k * 3], a[k * 3 + 1], a[k * 3 + 2])
+        nrm.push(nx / l, ny / l, nz / l)
+      }
+    }
+    return { points: new Float32Array(pts), normals: new Float32Array(nrm) }
+  }, [needsShoes, realShoes, pose])
   const topKey = JSON.stringify([design.top ?? null, design.open ?? false, design.femTop ?? null, design.pants ?? null, design.legLength ?? null, design.coveredBy ?? null])
 
   // Prendas de patrón: se calculan en segundo plano y se muestran al terminar (la anterior sigue visible mientras)
@@ -478,6 +522,8 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
   useEffect(() => {
     // Espera a que estén calculadas las prendas de debajo
     if (!pattern || underlay === undefined) return
+    // Con zapatilla real, espera a que esté puesta (el pantalón cae sobre ella)
+    if (needsShoes && !shoeSurface) return
     let alive = true
     dressInWorker({
       info: model.info,
@@ -496,6 +542,7 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
       design: { ...design, pieces: undefined, prints: undefined },
       fabric,
       underlay: underlay ?? undefined,
+      shoes: shoeSurface ?? undefined,
       },
       // Cada prenda puesta tiene su propio turno de cálculo (la de arriba y la de debajo van a la vez)
       layer !== undefined ? `capa-${layer}` : 'encima',
@@ -514,7 +561,7 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.hoodUp, design.pocket, design.cords, design.bodyLength, design.sleeveLength, design.chestScale, design.overBulk, design.quality, topKey, underlay, fabric])
+  }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.hoodUp, design.pocket, design.cords, design.bodyLength, design.sleeveLength, design.chestScale, design.overBulk, design.quality, topKey, underlay, fabric, shoeSurface])
   useEffect(() => () => patternGeom?.dispose(), [patternGeom])
   // Al quitarse la prenda de debajo, la de encima vuelve a asentarse solo sobre el cuerpo
   useEffect(() => (layer !== undefined ? () => setUnderlay(layer, null) : undefined), [layer])

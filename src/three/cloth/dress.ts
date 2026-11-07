@@ -31,6 +31,8 @@ export interface DressInput {
    * ella como si fuera parte del cuerpo (la sudadera sobre el pantalón, sin atravesarlo).
    */
   underlay?: Underlay
+  /** Zapatillas de modelo real (superficie en la pose): el pantalón cae y se apila encima de ellas. */
+  shoes?: Underlay
 }
 
 /** Superficie de una prenda asentada, para que otra se asiente encima. */
@@ -107,7 +109,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
         pins: femTop.pins,
       })
     : isPants
-    ? relax(cloth, withShoes(pose, unit), {
+    ? relax(cloth, input.shoes ? withUnderlay(pose, input.shoes) : withShoes(pose, unit), {
         // Un poco más de tiempo: la tela de más del bajo tiene que caer y apilarse sobre las zapatillas
         seconds: input.seconds ?? 1.6 + extra,
         iterations,

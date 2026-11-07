@@ -1,5 +1,5 @@
 import { useLoader } from '@react-three/fiber'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useSyncExternalStore } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Model } from './Avatar'
@@ -16,6 +16,24 @@ import type { Cloud } from './wrap'
  */
 const MODEL_URL = '/models/zapatilla.glb'
 export const REAL_SHOE_CREDIT = 'Zapatilla deportiva: © 2021 Shopify, CC BY 4.0'
+
+// Zapatillas puestas (geometría en la postura en T, con sus huesos): el pantalón las usa para caer encima de ellas
+let placed: THREE.BufferGeometry[] | null = null
+const listeners = new Set<() => void>()
+function publish(g: THREE.BufferGeometry[] | null) {
+  placed = g
+  listeners.forEach((l) => l())
+}
+/** Las zapatillas reales puestas (o null mientras no están). */
+export function useRealShoes() {
+  return useSyncExternalStore(
+    (cb) => {
+      listeners.add(cb)
+      return () => listeners.delete(cb)
+    },
+    () => placed,
+  )
+}
 
 interface Foot {
   bone: number
@@ -155,7 +173,11 @@ export function RealShoes({ model, cloud, color }: { model: Model; cloud: Cloud;
       model.root.add(mesh)
       return mesh
     })
-    return () => meshes.forEach((m) => model.root.remove(m))
+    publish(geoms)
+    return () => {
+      meshes.forEach((m) => model.root.remove(m))
+      publish(null)
+    }
   }, [geoms, look, model])
   useEffect(() => () => geoms.forEach((g) => g.dispose()), [geoms])
   useEffect(() => () => look?.material.dispose(), [look])
