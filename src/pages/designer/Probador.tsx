@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { api, useApi } from '../../api/client'
 import { Status } from '../../components/ui'
@@ -8,6 +8,7 @@ import { mannequinMeasurements } from '../../designer/to3d'
 import { isPants } from '../../designer/types'
 import { bodyKind, type Design as SavedDesign } from '../../shared/designs'
 import type { Material } from '../../shared/library'
+import { useDressing } from '../../three/cloth/dressClient'
 import { Scene } from '../../three/Scene'
 import { SHOE_STYLES } from '../../three/Shoes'
 import type { ShoeStyle } from '../../types'
@@ -35,6 +36,8 @@ export function Probador() {
   const [teeColor, setTeeColor] = useState<TeeChoice>('')
   const [shoes, setShoes] = useState<ShoeStyle | null>('baloncesto')
   const [autoRotate, setAutoRotate] = useState(false)
+  // Calidad alta: malla fina y pliegues finos (tarda unos segundos más)
+  const [hq, setHq] = useState(true)
 
   const all = (designs.data ?? []).filter((d) => getTemplate(d.template))
   const tops = all.filter((d) => getTemplate(d.template)!.family === 'top')
@@ -60,13 +63,35 @@ export function Probador() {
     return main ? outfitOf(main, top3d && bottom3d ? bottom3d : null, false, tee) : null
   }, [top3d, bottom3d, tee])
   // Solo con el gorro o la gorra, el maniquí lleva eso (en la cabeza); con ropa, va además de ella
-  const shown = useMemo(() => (worn ? { ...worn.design, hoodUp, open: canOpen && open } : hat3d), [worn, hoodUp, canOpen, open, hat3d])
+  // Progresivo: primero la versión rápida (se ve en un momento) y, al terminar, se afina sola con la malla fina
+  const dressing = useDressing()
+  const outfitKey = JSON.stringify([topId, bottomId, clientId, kind, open, hoodUp, teeColor])
+  const [refined, setRefined] = useState(false)
+  const sawBusy = useRef(false)
+  useEffect(() => {
+    setRefined(false)
+    sawBusy.current = false
+  }, [outfitKey])
+  useEffect(() => {
+    if (dressing) {
+      sawBusy.current = true
+      return
+    }
+    if (!sawBusy.current || refined) return
+    // Entre una prenda y la de encima (que espera a la de debajo) hay un momento sin cálculo: se espera un poco para
+    // afinar solo cuando todas tienen ya su versión rápida
+    const t = setTimeout(() => setRefined(true), 600)
+    return () => clearTimeout(t)
+  }, [dressing, refined])
+  const quality = hq && refined ? ('alta' as const) : undefined
+  const shown = useMemo(() => (worn ? { ...worn.design, hoodUp, open: canOpen && open, quality } : hat3d), [worn, hoodUp, canOpen, open, hat3d, quality])
+  const under = useMemo(() => worn?.outfit.map((d) => ({ ...d, quality })), [worn, quality])
 
   return (
     <div className="studio probador">
       <main className="viewport">
         {shown ? (
-          <Scene measurements={measurements} design={shown} outfit={worn?.outfit} autoRotate={autoRotate} animate={false} shoes={shoes} hat={worn ? hat3d : null} />
+          <Scene measurements={measurements} design={shown} outfit={under} autoRotate={autoRotate} animate={false} shoes={shoes} hat={worn ? hat3d : null} />
         ) : (
           <div className="probador-empty">
             <p>Elige una prenda de arriba y un pantalón para vestir al maniquí.</p>
@@ -147,6 +172,10 @@ export function Probador() {
               </label>
             </>
           )}
+          <label className="toggle-row" title="Malla más fina y pliegues naturales, como un programa de patronaje 3D (tarda unos segundos)">
+            <span>Calidad alta</span>
+            <input type="checkbox" checked={hq} onChange={(e) => setHq(e.target.checked)} />
+          </label>
           <label className="toggle-row">
             <span>Girar 360°</span>
             <input type="checkbox" checked={autoRotate} onChange={(e) => setAutoRotate(e.target.checked)} />

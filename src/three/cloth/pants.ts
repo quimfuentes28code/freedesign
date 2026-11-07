@@ -80,7 +80,9 @@ export function buildPants(body: Body, m: Measurements, design: Design): PantsRe
   const shape = design.pants ?? { leg: 'regular', cuff: 'recto', waist: 'elastica' }
   const cut = CUT[shape.leg]
   const jogger = shape.cuff === 'puno'
-  const grid = (length: number, step = 2.2) => Math.max(3, Math.round(length / step) + 1) | 1
+  // Calidad alta: malla más fina (los pasos se multiplican por este factor)
+  const res = design.quality === 'alta' ? 0.7 : 1
+  const grid = (length: number, step = 2.2) => Math.max(3, Math.round(length / (step * res)) + 1) | 1
 
   // --- Alturas (unidades del modelo, postura en T) ---
   const ground = 0

@@ -62,7 +62,9 @@ export function buildFemTop(body: Body, m: Measurements, design: Design): FemTop
     return panel
   }
   const shape = design.femTop ?? { kind: 'tirantes', neckline: 'recto', straps: 'finos', fit: 'ajustado' }
-  const grid = (length: number, step = 1.8) => Math.max(3, Math.round(length / step) + 1) | 1
+  // Calidad alta: malla más fina (los pasos se multiplican por este factor)
+  const res = design.quality === 'alta' ? 0.7 : 1
+  const grid = (length: number, step = 1.8) => Math.max(3, Math.round(length / (step * res)) + 1) | 1
   const easeR = EASE[shape.fit] / (2 * Math.PI)
 
   // --- Alturas: el borde de arriba, por encima del pecho y por debajo de la axila; el bajo, según el largo ---

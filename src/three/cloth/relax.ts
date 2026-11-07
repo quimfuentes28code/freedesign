@@ -99,6 +99,8 @@ export interface RelaxOptions {
   pins?: number[]
   /** Suelo (altura mínima de la tela): el bajo de un pantalón largo se apoya en él. */
   floor?: number
+  /** Pasadas de las distancias del patrón en cada paso (más = la tela se estira menos; hace falta con la malla fina). */
+  iterations?: number
 }
 
 export interface Layer {
@@ -267,7 +269,7 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
     }
 
     // 3. Distancias del patrón
-    satisfyLinks()
+    for (let k = 0; k < (opts.iterations ?? 1); k++) satisfyLinks()
 
     // Puntos sujetos: vuelven un poco hacia su sitio en cada paso
     if (pins) {

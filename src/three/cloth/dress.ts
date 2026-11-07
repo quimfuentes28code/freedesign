@@ -85,6 +85,10 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   const garment = pants ?? femTop ?? buildHoodie({ info, points: cloud.pos, unit }, measurements, design)
   const { cloth, follows, slots, pocket, layers, cordExits, rims, closure, cuffButtons, patches, tabs } = garment
 
+  // Calidad alta: malla fina, más pasadas y algo más de tiempo para que asiente
+  const fine = design.quality === 'alta'
+  const iterations = fine ? 2 : 1
+  const extra = fine ? 0.2 : 0
   // La rigidez a la flexión depende de la tela
   for (const l of cloth.links) if (l.k < 0.5) l.k = Math.min(1, l.k * fabric.stiffness)
 
@@ -94,7 +98,8 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   cloth.pos = Array.from(skinPoints(pose, cloth.pos, skinIndex, skinWeight))
   const relaxed = femTop
     ? relax(cloth, pose, {
-        seconds: input.seconds ?? 1.2,
+        seconds: input.seconds ?? 1.2 + extra,
+        iterations,
         thickness: 0.6 * unit,
         gravity: 980 * unit,
         cell: 2.2 * unit,
@@ -104,7 +109,8 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     : isPants
     ? relax(cloth, withShoes(pose, unit), {
         // Un poco más de tiempo: la tela de más del bajo tiene que caer y apilarse sobre las zapatillas
-        seconds: input.seconds ?? 1.6,
+        seconds: input.seconds ?? 1.6 + extra,
+        iterations,
         thickness: 0.9 * unit,
         gravity: 980 * unit,
         cell: 2.2 * unit,
@@ -114,8 +120,10 @@ export function dressPatternGarment(input: DressInput): DressOutput {
         pins: pants?.pins,
       })
     : relax(cloth, input.underlay ? withUnderlay(pose, input.underlay) : pose, {
-    seconds: input.seconds ?? 1.2,
-    thickness: 0.7 * unit,
+    seconds: input.seconds ?? 1.2 + extra,
+    iterations,
+    // Sobre otra prenda, algo más de separación: con la malla fina, el relieve de la de debajo asomaba entre los puntos
+    thickness: (input.underlay && fine ? 1.1 : 0.7) * unit,
     gravity: 980 * unit,
     cell: 2.2 * unit,
     // La tela no se atraviesa a sí misma: la capucha queda encima de la espalda y las mangas no se meten en el cuerpo

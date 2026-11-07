@@ -171,6 +171,11 @@ export interface Design {
   /** Prenda abierta por delante (solo las que tienen el cierre de arriba abajo). */
   open?: boolean
   /**
+   * Calidad del cálculo de la tela: «alta» usa una malla mucho más fina y más pasadas (pliegues finos, como un
+   * programa de patronaje 3D) a cambio de tardar unos segundos. Por defecto, la rápida.
+   */
+  quality?: 'alta'
+  /**
    * Capa de la prenda en un conjunto (0 = la de más adentro, p. ej. el pantalón; luego la camiseta y la chaqueta) y
    * capas de patrón que tiene debajo: se calcula después de ellas y se asienta sobre su tela.
    */

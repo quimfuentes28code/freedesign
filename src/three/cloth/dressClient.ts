@@ -11,31 +11,66 @@ const pending = new Set<number>()
 const listeners = new Set<() => void>()
 const notify = () => listeners.forEach((l) => l())
 
+/** Encargos esperando turno: el worker hace uno cada vez y solo se le manda el siguiente al terminar. */
+interface Job {
+  id: number
+  key: string
+  input: DressInput
+  resolve: (g: THREE.BufferGeometry | null) => void
+  reject: (e: Error) => void
+}
+const queue: Job[] = []
+let running: Job | null = null
+
+/** Manda al worker el siguiente encargo vigente; los que ya tienen uno más nuevo de la misma prenda se descartan sin calcular. */
+function runNext() {
+  if (running) return
+  while (queue.length) {
+    const job = queue.shift()!
+    if (latest.get(job.key) !== job.id) {
+      pending.delete(job.id)
+      job.resolve(null)
+      continue
+    }
+    running = job
+    worker ??= new Worker(new URL('./dress.worker.ts', import.meta.url), { type: 'module' })
+    const onMessage = (e: MessageEvent<{ id: number; out?: DressOutput; error?: string }>) => {
+      if (e.data.id !== job.id) return
+      worker!.removeEventListener('message', onMessage)
+      running = null
+      pending.delete(job.id)
+      if (e.data.error) job.reject(new Error(e.data.error))
+      else {
+        if (import.meta.env.DEV) console.info('Prenda calculada (ms):', e.data.out?.timings)
+        job.resolve(latest.get(job.key) === job.id ? toGeometry(e.data.out!) : null)
+      }
+      notify()
+      // Un momento antes del siguiente: al terminar una prenda de debajo, la de encima vuelve a pedir su cálculo sobre ella
+      // (tras repintar React); así el encargo que ha quedado viejo se descarta en vez de calcularse
+      setTimeout(runNext, 80)
+    }
+    worker.addEventListener('message', onMessage)
+    // Depuración: en la consola, window.__dressSeconds = 0 muestra la prenda sin asentar
+    const seconds = (globalThis as { __dressSeconds?: number }).__dressSeconds
+    worker.postMessage({ id: job.id, input: seconds === undefined ? job.input : { ...job.input, seconds } })
+    return
+  }
+  notify()
+}
+
 /**
  * Calcula la prenda en un Web Worker y devuelve su geometría. Cada prenda puesta (`key`: la de arriba, el pantalón…)
- * tiene su propio turno: si llega una petición nueva de la misma prenda antes de terminar, la anterior se descarta;
- * las de otras prendas siguen su curso (con la sudadera y el pantalón cosidos a la vez se calculan los dos).
+ * tiene su propio turno: si llega una petición nueva de la misma prenda antes de empezar, la anterior se descarta sin
+ * calcularla (con la calidad alta, cada cálculo tarda unos segundos); las de otras prendas siguen su curso.
  */
 export function dressInWorker(input: DressInput, key = 'prenda'): Promise<THREE.BufferGeometry | null> {
-  worker ??= new Worker(new URL('./dress.worker.ts', import.meta.url), { type: 'module' })
   const id = ++nextId
   latest.set(key, id)
   pending.add(id)
   notify()
   return new Promise((resolve, reject) => {
-    const onMessage = (e: MessageEvent<{ id: number; out?: DressOutput; error?: string }>) => {
-      if (e.data.id !== id) return
-      worker!.removeEventListener('message', onMessage)
-      pending.delete(id)
-      notify()
-      if (e.data.error) return reject(new Error(e.data.error))
-      if (import.meta.env.DEV) console.info('Prenda calculada (ms):', e.data.out?.timings)
-      resolve(latest.get(key) === id ? toGeometry(e.data.out!) : null)
-    }
-    worker!.addEventListener('message', onMessage)
-    // Depuración: en la consola, window.__dressSeconds = 0 muestra la prenda sin asentar
-    const seconds = (globalThis as { __dressSeconds?: number }).__dressSeconds
-    worker!.postMessage({ id, input: seconds === undefined ? input : { ...input, seconds } })
+    queue.push({ id, key, input, resolve, reject })
+    runNext()
   })
 }
 

@@ -175,6 +175,7 @@ const NO_PRINT = (() => {
  */
 const QUILT_GLSL = /* glsl */ `
 uniform vec4 uQuilt;
+uniform vec2 uWeave;
 varying vec2 vQuiltUv;
 float quiltBand(float d, float st) {
   float s = fract(d / st);
@@ -251,9 +252,12 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
     uPrintRelief: { value: 0 },
     // Acolchado: forma de los canales, separación (cm), relieve (cm) y si se ve (ver QUILT_GLSL)
     uQuilt: { value: new THREE.Vector4(0, 14, 0, 0) },
+    // Tejido en el color: cuánto se ve el hilo (x) y cuánto aclara la trama blanca del denim (y)
+    uWeave: { value: new THREE.Vector2(0, 0) },
   }
   m.userData.seams = uniforms.uSeams
   m.userData.quilt = uniforms.uQuilt
+  m.userData.weave = uniforms.uWeave
   if (pocket) {
     m.userData.pocket = uniforms.uPocket
     m.userData.pocketX = uniforms.uPocketX
@@ -336,6 +340,12 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
       .replace('#include <opaque_fragment>', `outgoingLight *= (gl_FrontFacing ? 1.0 : 0.84) * (1.0 - 0.62 * clamp(vOcc, 0.0, 1.0));
 #ifdef USE_NORMALMAP_TANGENTSPACE
   outgoingLight *= mix(0.8, 1.0, smoothstep(0.55, 0.98, mapN.z));
+  // El hilo también en el color: un lado de cada hilo más claro y el otro más oscuro (se ve la diagonal de la sarga,
+  // las columnas del punto…); en el denim, la trama blanca aclara las diagonales
+  float weaveRidge = clamp((mapN.x + mapN.y) * 1.6, -1.0, 1.0);
+  outgoingLight *= 1.0 + uWeave.x * 0.2 * weaveRidge;
+  vec3 weftColor = vec3(dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722))) * 1.25;
+  outgoingLight = mix(outgoingLight, weftColor, uWeave.y * 0.3 * max(weaveRidge, 0.0));
 #endif\n#include <opaque_fragment>`)
   }
   m.customProgramCacheKey = () => (pocket ? 'tela-bolsillo' : 'tela') + (prints ? '-estampados' : '')
@@ -391,7 +401,14 @@ export function useSlotMaterials(design: Design) {
           m.polygonOffsetFactor = -2
           m.polygonOffsetUnits = -6
         }
-        if (slot !== 'cordones' && slot !== 'ojales' && slot !== 'botones') withSeams(m, slot === 'bolsillo', slot === 'cuerpo' || slot === 'bolsillo')
+        if (slot !== 'cordones' && slot !== 'ojales' && slot !== 'botones') {
+          withSeams(m, slot === 'bolsillo', slot === 'cuerpo' || slot === 'bolsillo')
+          // Hilo visible en el color según el tejido; trama blanca solo en la sarga azul (denim)
+          const c = new THREE.Color(color)
+          const denim = look.knit === 'sarga' && c.b > c.r * 1.15 && !tile
+          const amount = look.knit === 'liso' || look.knitDepth <= 0 ? 0 : look.knit === 'sarga' ? 1 : 0.6
+          ;(m.userData.weave as { value: THREE.Vector2 }).value.set(amount, denim ? 1 : 0)
+        }
         // Bolsillos, solapas y bandas van encima de la tela: siempre por delante de ella
         if (slot === 'banda') {
           m.polygonOffset = true
@@ -495,7 +512,7 @@ export function Garment({ model, fit, cloud, measurements, design }: Props) {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.hoodUp, design.pocket, design.cords, design.bodyLength, design.sleeveLength, design.chestScale, design.overBulk, topKey, underlay, fabric])
+  }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.hoodUp, design.pocket, design.cords, design.bodyLength, design.sleeveLength, design.chestScale, design.overBulk, design.quality, topKey, underlay, fabric])
   useEffect(() => () => patternGeom?.dispose(), [patternGeom])
   // Al quitarse la prenda de debajo, la de encima vuelve a asentarse solo sobre el cuerpo
   useEffect(() => (layer !== undefined ? () => setUnderlay(layer, null) : undefined), [layer])

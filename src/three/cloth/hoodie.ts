@@ -170,7 +170,9 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
   }
   const arm = (side: 1 | -1) => arms[side]
 
-  const grid = (length: number, step = 2.2) => Math.max(3, Math.round(length / step) + 1) | 1
+  // Calidad alta: malla más fina (los pasos se multiplican por este factor)
+  const res = design.quality === 'alta' ? 0.7 : 1
+  const grid = (length: number, step = 2.2) => Math.max(3, Math.round(length / (step * res)) + 1) | 1
 
   // --- Delantero y espalda ---
   const nu = grid(W)
