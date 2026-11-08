@@ -20,6 +20,8 @@ import type { Cloud } from './wrap'
 export const REAL_SHOES: Record<RealShoeId, { label: string; url: string; credit: string; tint?: { color: string } }> = {
   // «Materials Variants Shoe» © 2021 Shopify, CC BY 4.0: su tejido azul se tiñe con el color elegido
   deportiva: { label: 'Deportiva (modelo real)', url: '/models/zapatilla.glb', credit: 'Zapatilla deportiva: © 2021 Shopify, CC BY 4.0', tint: { color: '#1f5f8b' } },
+  // Skate gruesa negra, generada con IA (TRELLIS, de Microsoft, licencia MIT) a partir de fotos
+  globe: { label: 'Skate gruesa (modelo real)', url: '/models/globe.glb', credit: 'Skate gruesa: modelo generado con IA a partir de fotos' },
 }
 export const isRealShoe = (s: ShoeStyle | null | undefined): s is RealShoeId => !!s && s in REAL_SHOES
 
@@ -149,6 +151,9 @@ function placeShoe(src: { geometry: THREE.BufferGeometry }[], box: THREE.Box3, f
 function tinted(base: THREE.Material, color: string | null) {
   const m = base.clone() as THREE.MeshStandardMaterial
   m.side = THREE.DoubleSide
+  // Una zapatilla no es de metal: los modelos hechos con IA suelen traerlo marcado y, sin reflejos, se veían negros
+  m.metalness = 0
+  m.metalnessMap = null
   if (!color) return m
   const uniform = { value: new THREE.Color(color) }
   m.onBeforeCompile = (shader) => {

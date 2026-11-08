@@ -3,7 +3,7 @@ import type { FabricId, FabricLook } from './data/fabrics'
 /** Medidas del cuerpo, en centímetros. */
 /** Calzado del maniquí (ver three/Shoes.tsx). */
 /** Zapatillas de modelo real (.glb, ver REAL_SHOES en three/RealShoes.tsx): añadir una = su id aquí y su entrada allí. */
-export type RealShoeId = 'deportiva'
+export type RealShoeId = 'deportiva' | 'globe'
 export type ShoeStyle = 'baloncesto' | 'bota' | 'skate' | RealShoeId
 
 /** Acabados de una prenda de arriba con patrón (ver three/cloth/hoodie.ts). */
