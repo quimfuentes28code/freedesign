@@ -7,7 +7,7 @@ import { FIT_EASE, jointPosition, type BodyFit } from './body'
 import { dressInWorker, mergeUnderlays, setUnderlay, useUnderlays } from './cloth/dressClient'
 import { knitNormalMap } from './cloth/textures'
 import { Part, referencePose, skinPoints, type PoseId, type ReferencePose } from './pose'
-import { useRealShoes } from './RealShoes'
+import { isRealShoe, useRealShoes } from './RealShoes'
 import { CloudGrid, computeTubeNormals, skinFromCloud, wrapTube, type Cloud, type TubeSpec } from './wrap'
 
 /** Cordones (algodón crudo) y ojales (metal plateado) si el diseño no dice otra cosa. */
@@ -476,7 +476,7 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
   )
   // Zapatilla real: su superficie en la pose (puntos y normales hacia fuera), para que el pantalón caiga encima
   const realShoes = useRealShoes()
-  const needsShoes = pattern && design.garment === 'pantalon' && shoes === 'deportiva'
+  const needsShoes = pattern && design.garment === 'pantalon' && isRealShoe(shoes)
   const shoeSurface = useMemo(() => {
     if (!needsShoes || !realShoes) return null
     const pts: number[] = []

@@ -11,7 +11,7 @@ import type { Material } from '../../shared/library'
 import { useDressing } from '../../three/cloth/dressClient'
 import { POSES, type PoseId } from '../../three/pose'
 import { Scene } from '../../three/Scene'
-import { REAL_SHOE_CREDIT } from '../../three/RealShoes'
+import { isRealShoe, REAL_SHOES } from '../../three/RealShoes'
 import { SHOE_STYLES } from '../../three/Shoes'
 import type { ShoeStyle } from '../../types'
 import { basicTee, bodyOf, outfitOf, useDesign3D, type TeeChoice } from './Design3D'
@@ -162,13 +162,15 @@ export function Probador() {
               </button>
             ))}
           </div>
-          {shoes === 'deportiva' && (
+          {isRealShoe(shoes) && (
             <>
-              <label className="toggle-row">
-                <span>Color</span>
-                <input type="color" value={shoeColor} onChange={(e) => setShoeColor(e.target.value)} aria-label="Color de la zapatilla" />
-              </label>
-              <p className="muted small">{REAL_SHOE_CREDIT}</p>
+              {REAL_SHOES[shoes].tint && (
+                <label className="toggle-row">
+                  <span>Color</span>
+                  <input type="color" value={shoeColor} onChange={(e) => setShoeColor(e.target.value)} aria-label="Color de la zapatilla" />
+                </label>
+              )}
+              <p className="muted small">{REAL_SHOES[shoes].credit}</p>
             </>
           )}
         </section>

@@ -7,7 +7,7 @@ import { boneName, feminize, fitBody, measureModel, morphPositions, smoothNormal
 import { Garment } from './Garment'
 import { setPose, type PoseId } from './pose'
 import { Headwear } from './Headwear'
-import { RealShoes } from './RealShoes'
+import { isRealShoe, RealShoes } from './RealShoes'
 import { Shoes } from './Shoes'
 import type { Cloud } from './wrap'
 
@@ -87,12 +87,12 @@ interface Props {
   hat?: Design | null
   /** Pose del maniquí (ver POSES); la ropa cae como en ella. */
   pose?: PoseId
-  /** Color de la zapatilla deportiva (modelo real). */
+  /** Color de la zapatilla de modelo real que se puede teñir (sin él, el suyo). */
   shoeColor?: string
 }
 
 /** Maniquí animado, ajustado a las medidas, con la prenda puesta. */
-export function Mannequin({ measurements, design, outfit = [], animate, showBody = true, shoes, hat, pose = 'reposo', shoeColor = '#1f5f8b' }: Props) {
+export function Mannequin({ measurements, design, outfit = [], animate, showBody = true, shoes, hat, pose = 'reposo', shoeColor }: Props) {
   const gltf = useLoader(GLTFLoader, MODEL_URL)
   const base = useMemo(() => prepare(gltf.scene, gltf.animations), [gltf])
   const female = !!measurements.female
@@ -165,8 +165,8 @@ export function Mannequin({ measurements, design, outfit = [], animate, showBody
         <Garment model={model} fit={fit} cloud={cloud} measurements={measurements} design={design} pose={pose} shoes={showBody ? shoes : null} />
       )}
       {hat?.hat && <Headwear model={model} cloud={cloud} design={hat} height={measurements.height} />}
-      <HideFeet on={!!showBody && shoes === 'deportiva'} />
-      {shoes && showBody && (shoes === 'deportiva' ? <RealShoes model={model} cloud={cloud} color={shoeColor} /> : <Shoes model={model} cloud={cloud} style={shoes} />)}
+      <HideFeet on={!!showBody && isRealShoe(shoes)} />
+      {shoes && showBody && (isRealShoe(shoes) ? <RealShoes model={model} cloud={cloud} shoe={shoes} color={shoeColor} /> : <Shoes model={model} cloud={cloud} style={shoes} />)}
     </group>
   )
 }

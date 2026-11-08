@@ -2,20 +2,26 @@ import { useLoader } from '@react-three/fiber'
 import { useEffect, useMemo, useSyncExternalStore } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import type { RealShoeId, ShoeStyle } from '../types'
 import type { Model } from './Avatar'
 import { boneName } from './body'
 import type { Cloud } from './wrap'
 
 /**
- * Zapatilla deportiva de modelo real: «Materials Variants Shoe» © 2021 Shopify, licencia CC-BY 4.0
- * (https://creativecommons.org/licenses/by/4.0/). Preparada con `scripts/convert-shoe.mjs`.
+ * Zapatillas de modelo real (.glb). Cada una se escala al largo del pie medido en el maniquí, se orienta como él, se
+ * apoya en el suelo y se une al hueso del pie (sigue las poses); el otro pie es la misma en espejo.
  *
- * El modelo es una sola zapatilla; se escala al largo del pie medido en el maniquí, se orienta como él, se apoya en
- * el suelo y se une al hueso del pie (así sigue las poses). El otro pie es la misma en espejo. Su tejido azul se tiñe
- * en el shader con el color elegido (conserva la luz y el relieve de la malla); la suela y los cordones no cambian.
+ * Añadir una (p. ej. generada con IA desde una foto, ver docs/zapatillas-ia.md):
+ * 1. `node scripts/convert-shoe.mjs <entrada.glb> public/models/<nombre>.glb`
+ * 2. su id en `RealShoeId` (src/types.ts) y una entrada aquí con su archivo, nombre y créditos.
+ * El modelo puede venir en cualquier orientación horizontal (largo en X o en Z, puntera a un lado u otro); se supone
+ * que «arriba» es +Y, como en todos los .glb.
  */
-const MODEL_URL = '/models/zapatilla.glb'
-export const REAL_SHOE_CREDIT = 'Zapatilla deportiva: © 2021 Shopify, CC BY 4.0'
+export const REAL_SHOES: Record<RealShoeId, { label: string; url: string; credit: string; tint?: { color: string } }> = {
+  // «Materials Variants Shoe» © 2021 Shopify, CC BY 4.0: su tejido azul se tiñe con el color elegido
+  deportiva: { label: 'Deportiva (modelo real)', url: '/models/zapatilla.glb', credit: 'Zapatilla deportiva: © 2021 Shopify, CC BY 4.0', tint: { color: '#1f5f8b' } },
+}
+export const isRealShoe = (s: ShoeStyle | null | undefined): s is RealShoeId => !!s && s in REAL_SHOES
 
 // Zapatillas puestas (geometría en la postura en T, con sus huesos): el pantalón las usa para caer encima de ellas
 let placed: THREE.BufferGeometry[] | null = null
@@ -40,8 +46,6 @@ interface Foot {
   heel: THREE.Vector3
   dir: THREE.Vector3
   length: number
-  /** Desplazamiento lateral del centro del pie respecto al talón. */
-  side: number
 }
 
 /** Talón, dirección y largo de cada pie, en la postura en T (unidades del modelo). */
@@ -71,56 +75,81 @@ function measureFeet(cloud: Cloud, skeleton: THREE.Skeleton): Foot[] {
     const t = avg(z1 - 4, z1)
     const dir = new THREE.Vector3(t.x - h.x, 0, t.z - h.z).normalize()
     const length = Math.max(...pts.map((p) => p.clone().sub(h).dot(dir)))
-    feet.push({ bone: ids[0], heel: new THREE.Vector3(h.x, floor, z0), dir, length, side: 0 })
+    feet.push({ bone: ids[0], heel: new THREE.Vector3(h.x, floor, z0), dir, length })
   }
   return feet
 }
 
-/** Geometría de la zapatilla colocada en un pie (en la postura en T), unida a su hueso. */
-function placeShoe(src: THREE.BufferGeometry, foot: Foot, mirror: boolean) {
-  const g = src.clone()
-  g.computeBoundingBox()
-  const box = g.boundingBox!
-  const pos = g.attributes.position as THREE.BufferAttribute
-  // Lado del talón: el extremo más alto (la boca y el contrafuerte); la puntera es baja
-  const topAt = (sign: number) => {
-    let top = -Infinity
-    for (let i = 0; i < pos.count; i++) if (sign * pos.getX(i) > 0.7) top = Math.max(top, pos.getY(i))
-    return top
+/**
+ * Cómo está puesta la zapatilla en su archivo: eje del largo (X o Z, el más largo en horizontal) y hacia dónde
+ * apunta la puntera (el talón es el extremo más alto: boca y contrafuerte; la puntera es baja).
+ */
+function orientationOf(geoms: THREE.BufferGeometry[], box: THREE.Box3) {
+  const size = box.getSize(new THREE.Vector3())
+  const axis = size.x >= size.z ? 0 : 2
+  const lo = axis === 0 ? box.min.x : box.min.z
+  const len = axis === 0 ? size.x : size.z
+  let topA = -Infinity
+  let topB = -Infinity
+  for (const g of geoms) {
+    const pos = g.attributes.position as THREE.BufferAttribute
+    for (let i = 0; i < pos.count; i++) {
+      const t = ((axis === 0 ? pos.getX(i) : pos.getZ(i)) - lo) / len
+      if (t < 0.15) topA = Math.max(topA, pos.getY(i))
+      else if (t > 0.85) topB = Math.max(topB, pos.getY(i))
+    }
   }
-  const toeSign = topAt(1) > topAt(-1) ? -1 : 1
-  // La zapatilla, algo más larga que el pie (unos 2,5 cm)
-  const shoeLen = box.max.x - box.min.x
-  const s = (foot.length + 2.5) / shoeLen
-  const heelX = toeSign > 0 ? box.min.x : box.max.x
-  const up = new THREE.Vector3(0, 1, 0)
-  const across = new THREE.Vector3().crossVectors(foot.dir, up)
-  const m = new THREE.Matrix4().makeBasis(foot.dir.clone().multiplyScalar(toeSign), up, across.multiplyScalar(toeSign * (mirror ? -1 : 1)))
-  const p = new THREE.Vector3()
-  for (let i = 0; i < pos.count; i++) {
-    p.set((pos.getX(i) - heelX) * s, (pos.getY(i) - box.min.y) * s, pos.getZ(i) * s).applyMatrix4(m)
-    // El talón de la zapatilla, 1 cm por detrás del pie; la suela, en el suelo
-    p.add(foot.heel).addScaledVector(foot.dir, -1)
-    pos.setXYZ(i, p.x, p.y, p.z)
-  }
-  // En espejo las caras quedan del revés: se da la vuelta a los triángulos
-  if (mirror && g.index) {
-    const idx = g.index.array as Uint16Array | Uint32Array
-    for (let i = 0; i < idx.length; i += 3) [idx[i + 1], idx[i + 2]] = [idx[i + 2], idx[i + 1]]
-    g.index.needsUpdate = true
-  }
-  g.computeVertexNormals()
-  // Toda la zapatilla sigue al hueso del pie
-  const n = pos.count
-  g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(new Uint16Array(n * 4).map((_, k) => (k % 4 === 0 ? foot.bone : 0)), 4))
-  g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(new Float32Array(n * 4).map((_, k) => (k % 4 === 0 ? 1 : 0)), 4))
-  return g
+  // Puntera hacia +eje si el extremo alto (talón) está en el lado bajo del eje
+  return { axis, toward: topA > topB ? 1 : -1, len }
 }
 
-/** Material del modelo con el tejido teñido del color elegido. */
-function tinted(base: THREE.MeshStandardMaterial, color: string) {
-  const m = base.clone()
+/** Piezas de la zapatilla colocadas en un pie (en la postura en T), unidas a su hueso. */
+function placeShoe(src: { geometry: THREE.BufferGeometry }[], box: THREE.Box3, foot: Foot, mirror: boolean) {
+  const { axis, toward, len } = orientationOf(
+    src.map((p) => p.geometry),
+    box,
+  )
+  // La zapatilla, algo más larga que el pie (unos 2,5 cm)
+  const s = (foot.length + 2.5) / len
+  const heelAt = toward > 0 ? (axis === 0 ? box.min.x : box.min.z) : axis === 0 ? box.max.x : box.max.z
+  const up = new THREE.Vector3(0, 1, 0)
+  const across = new THREE.Vector3().crossVectors(foot.dir, up)
+  const p = new THREE.Vector3()
+  return src.map(({ geometry }) => {
+    const g = geometry.clone()
+    const pos = g.attributes.position as THREE.BufferAttribute
+    for (let i = 0; i < pos.count; i++) {
+      const along = ((axis === 0 ? pos.getX(i) : pos.getZ(i)) - heelAt) * toward
+      // Lado: el otro eje horizontal, con el signo que conserva la orientación (en espejo, al revés)
+      const sideRaw = axis === 0 ? pos.getZ(i) : -pos.getX(i)
+      const side = sideRaw * toward * (mirror ? -1 : 1)
+      p.copy(foot.heel)
+        .addScaledVector(foot.dir, along * s - 1)
+        .addScaledVector(up, (pos.getY(i) - box.min.y) * s)
+        .addScaledVector(across, side * s)
+      pos.setXYZ(i, p.x, p.y, p.z)
+    }
+    // Solo el espejo invierte el espacio: en ese pie se da la vuelta a los triángulos para que miren hacia fuera
+    if (mirror) {
+      if (!g.index) g.setIndex(Array.from({ length: pos.count }, (_, i) => i))
+      const idx = g.index!.array as Uint16Array | Uint32Array
+      for (let i = 0; i < idx.length; i += 3) [idx[i + 1], idx[i + 2]] = [idx[i + 2], idx[i + 1]]
+      g.index!.needsUpdate = true
+    }
+    g.computeVertexNormals()
+    // Toda la zapatilla sigue al hueso del pie
+    const n = pos.count
+    g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(new Uint16Array(n * 4).map((_, k) => (k % 4 === 0 ? foot.bone : 0)), 4))
+    g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(new Float32Array(n * 4).map((_, k) => (k % 4 === 0 ? 1 : 0)), 4))
+    return g
+  })
+}
+
+/** Material del modelo, con el tejido azul teñido del color elegido (solo en los modelos preparados para ello). */
+function tinted(base: THREE.Material, color: string | null) {
+  const m = base.clone() as THREE.MeshStandardMaterial
   m.side = THREE.DoubleSide
+  if (!color) return m
   const uniform = { value: new THREE.Color(color) }
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uShoeColor = uniform
@@ -140,46 +169,54 @@ function tinted(base: THREE.MeshStandardMaterial, color: string) {
       )
   }
   m.customProgramCacheKey = () => 'zapatilla-real'
-  return { material: m, uniform }
+  return m
 }
 
-/** Zapatillas deportivas de modelo real en los dos pies. */
-export function RealShoes({ model, cloud, color }: { model: Model; cloud: Cloud; color: string }) {
-  const gltf = useLoader(GLTFLoader, MODEL_URL)
+/** Zapatillas de modelo real en los dos pies. */
+export function RealShoes({ model, cloud, shoe, color }: { model: Model; cloud: Cloud; shoe: RealShoeId; color?: string }) {
+  const def = REAL_SHOES[shoe]
+  const gltf = useLoader(GLTFLoader, def.url)
+  // Todas las piezas del archivo, con las transformaciones de sus nodos aplicadas
   const source = useMemo(() => {
-    let mesh: THREE.Mesh | null = null
+    const parts: { geometry: THREE.BufferGeometry; material: THREE.Material }[] = []
+    gltf.scene.updateMatrixWorld(true)
     gltf.scene.traverse((o) => {
-      if (!mesh && (o as THREE.Mesh).isMesh) mesh = o as THREE.Mesh
+      const mesh = o as THREE.Mesh
+      if (!mesh.isMesh) return
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      parts.push({ geometry: mesh.geometry.clone().applyMatrix4(mesh.matrixWorld), material: mats[0] })
     })
-    if (!mesh) return null
-    const found = mesh as THREE.Mesh
-    found.updateWorldMatrix(true, false)
-    // La geometría con las transformaciones de su nodo aplicadas
-    const g = found.geometry.clone().applyMatrix4(found.matrixWorld)
-    return { geometry: g, material: found.material as THREE.MeshStandardMaterial }
+    const box = new THREE.Box3()
+    for (const p of parts) {
+      p.geometry.computeBoundingBox()
+      box.union(p.geometry.boundingBox!)
+    }
+    return { parts, box }
   }, [gltf])
   const feet = useMemo(() => measureFeet(cloud, model.body.skeleton), [cloud, model])
-  const geoms = useMemo(() => (source ? feet.map((f, i) => placeShoe(source.geometry, f, i === 1)) : []), [source, feet])
-  const look = useMemo(() => (source ? tinted(source.material, color) : null), [source, color])
+  const geoms = useMemo(() => feet.map((f, i) => placeShoe(source.parts, source.box, f, i === 1)), [source, feet])
+  const tint = def.tint ? (color ?? def.tint.color) : null
+  const materials = useMemo(() => source.parts.map((p) => tinted(p.material, tint)), [source, tint])
 
   useEffect(() => {
-    if (!look) return
-    const meshes = geoms.map((g) => {
-      const mesh = new THREE.SkinnedMesh(g, look.material)
-      mesh.castShadow = true
-      mesh.receiveShadow = true
-      mesh.frustumCulled = false
-      mesh.bind(model.body.skeleton, model.body.bindMatrix)
-      model.root.add(mesh)
-      return mesh
-    })
-    publish(geoms)
+    const meshes = geoms.flatMap((foot) =>
+      foot.map((g, k) => {
+        const mesh = new THREE.SkinnedMesh(g, materials[k])
+        mesh.castShadow = true
+        mesh.receiveShadow = true
+        mesh.frustumCulled = false
+        mesh.bind(model.body.skeleton, model.body.bindMatrix)
+        model.root.add(mesh)
+        return mesh
+      }),
+    )
+    publish(geoms.flat())
     return () => {
       meshes.forEach((m) => model.root.remove(m))
       publish(null)
     }
-  }, [geoms, look, model])
-  useEffect(() => () => geoms.forEach((g) => g.dispose()), [geoms])
-  useEffect(() => () => look?.material.dispose(), [look])
+  }, [geoms, materials, model])
+  useEffect(() => () => geoms.flat().forEach((g) => g.dispose()), [geoms])
+  useEffect(() => () => materials.forEach((m) => m.dispose()), [materials])
   return null
 }

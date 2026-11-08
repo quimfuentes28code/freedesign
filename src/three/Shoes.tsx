@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
-import type { ShoeStyle } from '../types'
+import type { RealShoeId, ShoeStyle } from '../types'
+import { REAL_SHOES } from './RealShoes'
 import type { Model } from './Avatar'
 import { boneName, jointPosition } from './body'
 import type { Cloud } from './wrap'
@@ -78,7 +79,7 @@ const BLACK = rgb('#161616')
 /** Gris claro de los paneles superpuestos de la zapatilla blanca. */
 const PANEL = rgb('#d6d4cf')
 
-const STYLES: Record<Exclude<ShoeStyle, 'deportiva'>, StyleDef> = {
+const STYLES: Record<Exclude<ShoeStyle, RealShoeId>, StyleDef> = {
   // Alta de baloncesto: piel blanca con puntera, ojaleras y talón en gris claro; suela de taza blanca
   baloncesto: {
     sole: 2.7,
@@ -192,7 +193,8 @@ const STYLES: Record<Exclude<ShoeStyle, 'deportiva'>, StyleDef> = {
 }
 
 export const SHOE_STYLES: { id: ShoeStyle; label: string }[] = [
-  { id: 'deportiva', label: 'Deportiva (modelo real)' },
+  // Primero las de modelo real
+  ...(Object.entries(REAL_SHOES) as [RealShoeId, { label: string }][]).map(([id, s]) => ({ id, label: s.label })),
   { id: 'baloncesto', label: 'Alta de baloncesto' },
   { id: 'bota', label: 'Bota de trabajo' },
   { id: 'skate', label: 'Skate gruesa' },
@@ -815,7 +817,7 @@ function paintUpper(
 const mid = (a: V3, b: V3): V3 => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2]
 
 /** Zapatos puestos en el maniquí (se añaden a su esqueleto como la ropa). */
-export function Shoes({ model, cloud, style }: { model: Model; cloud: Cloud; style: Exclude<ShoeStyle, 'deportiva'> }) {
+export function Shoes({ model, cloud, style }: { model: Model; cloud: Cloud; style: Exclude<ShoeStyle, RealShoeId> }) {
   const st = STYLES[style]
   const parts = useMemo(() => {
     const skeleton = model.body.skeleton
