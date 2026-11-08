@@ -120,6 +120,10 @@ export function dressPatternGarment(input: DressInput): DressOutput {
         layers: pants ? [{ mode: 'apart', outer: pants.legs[0], inner: pants.legs[1], gap: 1.4 * unit }] : [],
         floor: 0.3 * unit,
         pins: pants?.pins,
+        // El pantalón no choca con brazos ni manos (van por fuera): la mano que cuelga junto a la cadera lo abollaba
+        // y el bolsillo trasero quedaba de canto
+        bodyOnly: Array.from({ length: cloth.panelOf.length }, (_, v) => v),
+        bodyParts: [Part.Torso, Part.LegL, Part.LegR, Part.FootL, Part.FootR],
       })
     : relax(cloth, input.underlay ? withUnderlay(pose, input.underlay) : pose, {
     seconds: input.seconds ?? 1.2 + extra,
@@ -134,7 +138,9 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     layers: [
       { mode: 'outside', outer: layers.hood, inner: layers.torso, gap: 0.9 * unit },
       // Separación algo mayor que la malla (2,2 cm): con menos, los triángulos se cruzaban entre punto y punto
-      { mode: 'apart', outer: layers.sleevesLow, inner: layers.torsoLow, gap: 3 * unit },
+      // Solo se aparta la manga: el cuerpo apoya en la cadera. Si se empujaban los dos, el puño que cuelga junto a la
+      // cadera (el izquierdo, en la pose de reposo) levantaba el bajo hacia fuera como un estante
+      { mode: 'apart', outer: layers.sleevesLow, inner: layers.torsoLow, gap: 3 * unit, fixedInner: true },
       // Junto a la sisa están más cerca (a un lado y otro de la costura): separación más corta
       { mode: 'apart', outer: layers.sleeveCap, inner: layers.torsoArmhole, gap: 1.5 * unit },
     ],
@@ -225,7 +231,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   // Superficie de esta prenda (para la que vaya encima): sus puntos asentados, un poco hacia fuera, con su normal
   const surfaceNormals = new Float32Array(relaxed.length)
   for (let v = 0; v < relaxed.length / 3; v++) surfaceNormals.set(normalOf(v).toArray(), v * 3)
-  const surface: Underlay = { points: Float32Array.from(relaxed), normals: surfaceNormals }
+  let surface: Underlay = { points: Float32Array.from(relaxed), normals: surfaceNormals }
   for (const rim of rims) {
     const path = rim.verts.map((v) => new THREE.Vector3().fromArray(relaxed, v * 3))
     const ups = rim.verts.map((v) => normalOf(v))
@@ -249,6 +255,22 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   if (closure || cuffButtons.length)
     addClosure({ positions, uvs, edges, idx, wts, bySlot }, relaxed, closure, cuffButtons, normalOf, unit, skinIndex, skinWeight)
 
+  // La superficie para la prenda de encima incluye también bolsillos, solapas, trabillas, botones y rebordes (se añaden
+  // después de asentar la tela): si no, la de encima se asentaba sin contar con ellos y la atravesaban (un bolsillo
+  // trasero asomando por el bajo de la chaqueta, el bajo levantado sobre él)
+  {
+    const extraFrom = relaxed.length / 3
+    const total = positions.length / 3
+    if (total > extraFrom) {
+      const allNormals = vertexNormals(Float32Array.from(positions), bySlot.flat())
+      const points = new Float32Array(positions.length)
+      points.set(positions)
+      const normals = new Float32Array(positions.length)
+      normals.set(surface.normals)
+      normals.set(allNormals.subarray(extraFrom * 3), extraFrom * 3)
+      surface = { points, normals }
+    }
+  }
   const position = new Float32Array(positions)
   const skinIdx = new Uint16Array(idx)
   const skinWts = new Float32Array(wts)

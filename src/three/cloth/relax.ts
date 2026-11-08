@@ -111,6 +111,8 @@ export interface Layer {
   inner: number[]
   /** Separación mínima (unidades del modelo). */
   gap: number
+  /** En «apart», solo se aparta `outer` (la manga), sin mover `inner` (el cuerpo, que apoya en la cadera). */
+  fixedInner?: boolean
 }
 
 /**
@@ -161,7 +163,8 @@ function separateLayers(
         if (len >= gap || len < 1e-6) continue
         const push = ((gap - len) / len) * 0.35
         move(p, ex * push, ey * push, ez * push)
-        move(q, -ex * push, -ey * push, -ez * push)
+        if (!layer.fixedInner) move(q, -ex * push, -ey * push, -ez * push)
+        else move(p, ex * push, ey * push, ez * push)
       }
     }
   }

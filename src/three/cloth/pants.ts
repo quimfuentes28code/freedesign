@@ -262,7 +262,6 @@ export function buildPants(body: Body, m: Measurements, design: Design): PantsRe
   cloth.sew(BL.col(nu - 1).slice(crotchRow), BR.col(nu - 1).slice(crotchRow))
 
   // --- Cinturilla (elástica o de la misma tela, con su pespunte) ---
-  const topLoop = [...FL.row(nv - 1), ...FR.row(nv - 1).reverse(), ...BR.row(nv - 1), ...BL.row(nv - 1).reverse()]
   // Sin cinturilla (va tapado por la prenda de arriba), nada lo sujetaría a la cintura y se caería
   const pins = hasBand ? [] : [0, 1, 2].flatMap((d) => [FL, FR, BL, BR].flatMap((P) => P.row(nv - 1 - d)))
   if (hasBand) {
@@ -291,13 +290,13 @@ export function buildPants(body: Body, m: Measurements, design: Design): PantsRe
     )
     // La cinturilla se queda en la cintura (en un pantalón de verdad la sujetan el ajuste y el botón): sin esto,
     // el peso de las perneras la bajaba a la cadera, se arrugaba y dejaba ver el cuerpo por encima
-    pins.push(...band.row(nr - 1), ...band.row(nr - 2))
+    pins.push(...band.row(nr - 1))
     // u = 0,25 es el centro de delante y 0,75 el de detrás
     const at = (u: number, row: number) => band.index(Math.round((((u % 1) + 1) % 1) * (nb - 1)), row)
     // Con la prenda de arriba por encima de la cintura, las trabillas y el botón no se ven; además, como se añaden
     // después de asentar la tela, la prenda de encima no los conoce y los atravesaba (se veía una raya en ella)
     const hemOfTop = design.coveredBy ? info.neckY + 1.5 * unit - design.coveredBy * unit : -Infinity
-    const waistHidden = hemOfTop < topY - 3 * unit
+    const waistHidden = Number.isFinite(hemOfTop) && hemOfTop < topY - 3 * unit
     if (shape.waist === 'trabillas' && !waistHidden) {
       // Trabillas repartidas por la cintura (dos delante, dos a los lados de detrás y una en el centro) y el botón
       for (const u of [0.25 - 0.13, 0.25 + 0.13, 0.04, 0.46, 0.75 - 0.1, 0.75, 0.75 + 0.1]) tabs.push({ vertex: at(u, 1), size: [1.1, bandH / s + 1.2, 0.3], slot: 'bajo' })
@@ -313,7 +312,24 @@ export function buildPants(body: Body, m: Measurements, design: Design): PantsRe
       const d = 1.6 / bandC
       cordExits.push(at(0.25 - d, 1), at(0.25 + d, 1))
     }
-    cloth.sew(band.row(0), topLoop)
+    // Cada pieza se cose en su tramo de la cinturilla, según su largo. Cosida de una vez a todo el borde, el reparto
+    // contaba un salto falso en el centro de delante y de detrás (las piezas de un lado están en espejo en el patrón)
+    // y la cinturilla se separaba del centro (un hueco en V)
+    {
+      const rows = [FL.row(nv - 1), FR.row(nv - 1).reverse(), BR.row(nv - 1), BL.row(nv - 1).reverse()]
+      const lengthOf = (r: number[]) => r.slice(1).reduce((t, v, k) => t + Math.hypot(cloth.flat[v * 2] - cloth.flat[r[k] * 2], cloth.flat[v * 2 + 1] - cloth.flat[r[k] * 2 + 1]), 0)
+      const lens = rows.map(lengthOf)
+      const total = lens.reduce((a, b) => a + b, 0)
+      const bandRow = band.row(0)
+      let acc = 0
+      let from = 0
+      rows.forEach((r, k) => {
+        acc += lens[k]
+        const to = k === rows.length - 1 ? nb - 1 : Math.round((acc / total) * (nb - 1))
+        cloth.sew(bandRow.slice(from, to + 1), r)
+        from = to
+      })
+    }
     cloth.sew(band.col(0), band.col(nb - 1))
     rims.push({ verts: band.row(nr - 1), slot: 'cuerpo', radius: 0.3 * s })
   }
