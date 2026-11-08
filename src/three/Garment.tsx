@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { FABRICS, type FabricLook } from '../data/fabrics'
 import { GARMENT_SLOTS, RIB_SLOTS, isPatternDesign, slotIndex, type Design, type GarmentSlot, type Measurements, type ShoeStyle, type SlotStyle } from '../types'
@@ -401,6 +401,13 @@ export function useSlotMaterials(design: Design) {
           m.polygonOffsetFactor = -0.5
           m.polygonOffsetUnits = -2
         }
+        // El cuello (la pala de camisa o de polo cae pegada al cuerpo) va encima de él: si no, el cuerpo la tapaba y solo
+        // asomaban sus puntas
+        if (slot === 'cuello') {
+          m.polygonOffset = true
+          m.polygonOffsetFactor = -2
+          m.polygonOffsetUnits = -6
+        }
         if (slot === 'bolsillo') {
           // El bolsillo va cosido encima del delantero: siempre por delante de él
           m.polygonOffset = true
@@ -473,12 +480,15 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
   const layer = design.layer
   const belowKey = (design.below ?? []).join(',')
   const unders = useUnderlays()
-  const underlay = useMemo(
-    () => mergeUnderlays(unders, belowKey ? belowKey.split(',').map(Number) : []),
-    // Solo cambia cuando cambia alguna de las capas de debajo
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [belowKey, ...(belowKey ? belowKey.split(',').map((l) => unders.get(Number(l))) : [])],
-  )
+  // Solo cambia cuando cambia alguna de las capas de debajo (no cuando se recalcula otra, p. ej. esta misma: si no,
+  // volvería a calcularse sin fin). Se guarda la anterior y se reutiliza si sus capas son las mismas
+  const belowRefs = belowKey ? belowKey.split(',').map((l) => unders.get(Number(l))) : []
+  const lastUnderlay = useRef<{ key: string; refs: unknown[]; value: ReturnType<typeof mergeUnderlays> } | null>(null)
+  const prevU = lastUnderlay.current
+  const underlay =
+    prevU && prevU.key === belowKey && prevU.refs.length === belowRefs.length && prevU.refs.every((r, i) => r === belowRefs[i])
+      ? prevU.value
+      : (lastUnderlay.current = { key: belowKey, refs: belowRefs, value: mergeUnderlays(unders, belowKey ? belowKey.split(',').map(Number) : []) }).value
   // Zapatilla real: su superficie en la pose (puntos y normales hacia fuera), para que el pantalón caiga encima
   const realShoes = useRealShoes()
   const needsShoes = pattern && design.garment === 'pantalon' && isRealShoe(shoes)
