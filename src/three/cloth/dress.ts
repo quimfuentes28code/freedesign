@@ -98,6 +98,10 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   const { skinIndex, skinWeight } = skinCloth(cloth, cloud, new CloudGrid(cloud.pos), pose.parts, follows)
   lap('pesos')
   cloth.pos = Array.from(skinPoints(pose, cloth.pos, skinIndex, skinWeight))
+  // La prenda de encima arranca por fuera de la de debajo: la tela que empezara metida dentro (un pantalón ancho
+  // abulta más que la holgura con que se coloca la camiseta) se quedaba atrapada, porque el cuerpo, más cerca, tapaba
+  // a la tela de debajo en los choques; la camiseta salía medio metida en el pantalón y arrugada
+  if (input.underlay && !isPants) pushOutOf(cloth.pos, input.underlay, 1.2 * unit, unit)
   const relaxed = femTop
     ? relax(cloth, pose, {
         seconds: input.seconds ?? 1.2 + extra,
@@ -1147,4 +1151,30 @@ function gathering(cloth: Cloth, pos: Float32Array) {
   // 0 = lisa (hasta un 6 % recogida, lo normal al asentarse), 1 = recogida un 30 % o más
   for (let i = 0; i < n * 2; i++) sum[i] = weight[i] > 0 ? Math.min(1, Math.max(0, sum[i] / weight[i] - 0.06) / 0.24) : 0
   return sum
+}
+
+/**
+ * Saca de la prenda de debajo los puntos que empiezan por dentro de ella (hasta 15 cm), dejándolos a `gap` de su
+ * superficie. Solo al empezar: después, la simulación los mantiene por fuera.
+ */
+function pushOutOf(pos: number[], under: Underlay, gap: number, unit: number) {
+  const cell = 7.5 * unit
+  const hash = new SpatialHash(under.points, cell)
+  for (let i = 0; i < pos.length; i += 3) {
+    const k = hash.nearest(pos[i], pos[i + 1], pos[i + 2])
+    if (k < 0) continue
+    const ex = pos[i] - under.points[k * 3]
+    const ey = pos[i + 1] - under.points[k * 3 + 1]
+    const ez = pos[i + 2] - under.points[k * 3 + 2]
+    const nx = under.normals[k * 3]
+    const ny = under.normals[k * 3 + 1]
+    const nz = under.normals[k * 3 + 2]
+    const d = ex * nx + ey * ny + ez * nz
+    // Por dentro (o pegado) y cerca de esa zona de la prenda: a su superficie
+    if (d >= gap || d < -15 * unit || ex * ex + ey * ey + ez * ez > (15 * unit) ** 2) continue
+    const push = gap - d
+    pos[i] += nx * push
+    pos[i + 1] += ny * push
+    pos[i + 2] += nz * push
+  }
 }

@@ -311,6 +311,9 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
         float seamH, seamThread, seamShade;
         seamDetail(seamEdge, seamH, seamThread, seamShade);
         seamH *= uSeams; seamThread *= uSeams; seamShade *= uSeams;
+        // De lejos (un píxel abarca más que la costura) el relieve se convierte en ruido: se suaviza con la distancia
+        float seamFar = clamp(0.25 / max(seamPxD, 1e-4), 0.0, 1.0);
+        seamH *= seamFar; seamShade *= mix(0.4, 1.0, seamFar);
         // Acolchado: cada canal abomba entre dos pespuntes; el fondo del pespunte queda en sombra
         if (uQuilt.w > 0.5) {
           float qh = quiltHeight(vQuiltUv);
@@ -395,8 +398,8 @@ export function useSlotMaterials(design: Design) {
         // En la sisa la manga y el cuerpo se tocan: el cuerpo se dibuja por delante para que no asomen trocitos de manga
         if (slot === 'cuerpo') {
           m.polygonOffset = true
-          m.polygonOffsetFactor = -1.5
-          m.polygonOffsetUnits = -6
+          m.polygonOffsetFactor = -0.5
+          m.polygonOffsetUnits = -2
         }
         if (slot === 'bolsillo') {
           // El bolsillo va cosido encima del delantero: siempre por delante de él

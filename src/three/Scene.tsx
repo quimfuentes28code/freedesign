@@ -33,7 +33,7 @@ interface Props {
   interactive?: boolean
   /** Pose del maniquí. */
   pose?: PoseId
-  /** Color de la zapatilla deportiva (modelo real). */
+  /** Color de la zapatilla de modelo real que se puede teñir (las que llevan `tint`). */
   shoeColor?: string
 }
 

@@ -36,7 +36,7 @@ export function Probador() {
   // Prenda de arriba abierta y camiseta básica debajo
   const [open, setOpen] = useState(false)
   const [teeColor, setTeeColor] = useState<TeeChoice>('')
-  const [shoes, setShoes] = useState<ShoeStyle | null>('deportiva')
+  const [shoes, setShoes] = useState<ShoeStyle | null>('globe')
   const [shoeColor, setShoeColor] = useState('#1f5f8b')
   const [autoRotate, setAutoRotate] = useState(false)
   // Calidad alta: malla fina y pliegues finos (tarda unos segundos más)

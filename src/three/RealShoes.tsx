@@ -31,8 +31,6 @@ export const REAL_SHOES: Record<
     light?: number
   }
 > = {
-  // «Materials Variants Shoe» © 2021 Shopify, CC BY 4.0: su tejido azul se tiñe con el color elegido
-  deportiva: { label: 'Deportiva (modelo real)', url: '/models/zapatilla.glb', credit: 'Zapatilla deportiva: © 2021 Shopify, CC BY 4.0', tint: { color: '#1f5f8b' } },
   // Skate gruesa negra, generada con IA (TRELLIS, de Microsoft, licencia MIT) a partir de fotos
   globe: { label: 'Skate gruesa (modelo real)', url: '/models/globe.glb', credit: 'Skate gruesa: modelo generado con IA a partir de fotos', extra: 5, light: 2.4 },
 }
