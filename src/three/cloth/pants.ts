@@ -88,7 +88,9 @@ export function buildPants(body: Body, m: Measurements, design: Design, realShoe
   // --- Alturas (unidades del modelo, postura en T) ---
   const ground = 0
   const crotchY = info.crotchY - (shape.leg === 'baggy' ? 4 * unit : 0)
-  const waistY = info.waistY + 2 * unit
+  // La cintura del pantalón: en el cuerpo de mujer la cintura natural queda más alta (casi en las costillas), y el
+  // pantalón se lleva más abajo, a la altura del ombligo
+  const waistY = info.waistY + (m.female ? -4 : 2) * unit
   // Debajo de otra prenda, lo que esta tapa no se construye (su tela se asienta contra el cuerpo, no contra esta):
   // empieza 14 cm por encima de su borde, bien escondido (en 3D la prenda de arriba queda algo más corta que su largo)
   // (Con la prenda de arriba asentada encima de este pantalón, ya no hace falta: se construye entero, con su cinturilla;

@@ -192,13 +192,11 @@ const STYLES: Record<Exclude<ShoeStyle, RealShoeId>, StyleDef> = {
   },
 }
 
-export const SHOE_STYLES: { id: ShoeStyle; label: string }[] = [
-  // Primero las de modelo real
-  ...(Object.entries(REAL_SHOES) as [RealShoeId, { label: string }][]).map(([id, s]) => ({ id, label: s.label })),
-  { id: 'baloncesto', label: 'Alta de baloncesto' },
-  { id: 'bota', label: 'Bota de trabajo' },
-  { id: 'skate', label: 'Skate gruesa' },
-]
+/**
+ * Calzado que se puede elegir: solo las zapatillas de modelo real. Las hechas por código (STYLES: alta, bota y skate)
+ * se quedan en el código pero no salen: al lado de las reales parecían de juguete.
+ */
+export const SHOE_STYLES: { id: ShoeStyle; label: string }[] = (Object.entries(REAL_SHOES) as [RealShoeId, { label: string }][]).map(([id, s]) => ({ id, label: s.label }))
 
 // --- Medir el pie ---
 
