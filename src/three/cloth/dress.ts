@@ -82,7 +82,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     t0 = now
   }
   const isPants = design.garment === 'pantalon'
-  const pants = isPants ? pantsGarment({ info, points: cloud.pos, unit }, measurements, design) : null
+  const pants = isPants ? pantsGarment({ info, points: cloud.pos, unit }, measurements, design, !!input.shoes) : null
   const femTop = !isPants && design.garment === 'top' ? femTopGarment({ info, points: cloud.pos, unit }, measurements, design) : null
   const garment = pants ?? femTop ?? buildHoodie({ info, points: cloud.pos, unit }, measurements, design)
   const { cloth, follows, slots, pocket, layers, cordExits, rims, closure, cuffButtons, patches, tabs } = garment
@@ -330,8 +330,8 @@ function femTopGarment(body: Parameters<typeof buildFemTop>[0], m: Measurements,
 }
 
 /** El pantalón con el mismo formato que la sudadera (sin capucha, bolsillo ni cordones). */
-function pantsGarment(body: Parameters<typeof buildPants>[0], m: Measurements, design: Design) {
-  const p = buildPants(body, m, design)
+function pantsGarment(body: Parameters<typeof buildPants>[0], m: Measurements, design: Design, realShoes = false) {
+  const p = buildPants(body, m, design, realShoes)
   const none: number[] = []
   return {
     ...p,

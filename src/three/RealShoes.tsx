@@ -17,11 +17,24 @@ import type { Cloud } from './wrap'
  * El modelo puede venir en cualquier orientación horizontal (largo en X o en Z, puntera a un lado u otro); se supone
  * que «arriba» es +Y, como en todos los .glb.
  */
-export const REAL_SHOES: Record<RealShoeId, { label: string; url: string; credit: string; tint?: { color: string } }> = {
+export const REAL_SHOES: Record<
+  RealShoeId,
+  {
+    label: string
+    url: string
+    credit: string
+    /** Su tejido azul se tiñe con el color elegido (este, por defecto). */
+    tint?: { color: string }
+    /** Cuánto más larga que el pie, en cm (por defecto 2,5; las gruesas abultan más). */
+    extra?: number
+    /** Aclarado de su color (1 = tal cual): las negras se veían como una mancha sin detalle. */
+    light?: number
+  }
+> = {
   // «Materials Variants Shoe» © 2021 Shopify, CC BY 4.0: su tejido azul se tiñe con el color elegido
   deportiva: { label: 'Deportiva (modelo real)', url: '/models/zapatilla.glb', credit: 'Zapatilla deportiva: © 2021 Shopify, CC BY 4.0', tint: { color: '#1f5f8b' } },
   // Skate gruesa negra, generada con IA (TRELLIS, de Microsoft, licencia MIT) a partir de fotos
-  globe: { label: 'Skate gruesa (modelo real)', url: '/models/globe.glb', credit: 'Skate gruesa: modelo generado con IA a partir de fotos' },
+  globe: { label: 'Skate gruesa (modelo real)', url: '/models/globe.glb', credit: 'Skate gruesa: modelo generado con IA a partir de fotos', extra: 5, light: 2.4 },
 }
 export const isRealShoe = (s: ShoeStyle | null | undefined): s is RealShoeId => !!s && s in REAL_SHOES
 
@@ -106,13 +119,13 @@ function orientationOf(geoms: THREE.BufferGeometry[], box: THREE.Box3) {
 }
 
 /** Piezas de la zapatilla colocadas en un pie (en la postura en T), unidas a su hueso. */
-function placeShoe(src: { geometry: THREE.BufferGeometry }[], box: THREE.Box3, foot: Foot, mirror: boolean) {
+function placeShoe(src: { geometry: THREE.BufferGeometry }[], box: THREE.Box3, foot: Foot, mirror: boolean, extra: number) {
   const { axis, toward, len } = orientationOf(
     src.map((p) => p.geometry),
     box,
   )
-  // La zapatilla, algo más larga que el pie (unos 2,5 cm)
-  const s = (foot.length + 2.5) / len
+  // La zapatilla, algo más larga que el pie (lo que diga el modelo; las gruesas abultan más)
+  const s = (foot.length + extra) / len
   const heelAt = toward > 0 ? (axis === 0 ? box.min.x : box.min.z) : axis === 0 ? box.max.x : box.max.z
   const up = new THREE.Vector3(0, 1, 0)
   const across = new THREE.Vector3().crossVectors(foot.dir, up)
@@ -148,14 +161,16 @@ function placeShoe(src: { geometry: THREE.BufferGeometry }[], box: THREE.Box3, f
 }
 
 /** Material del modelo, con el tejido azul teñido del color elegido (solo en los modelos preparados para ello). */
-function tinted(base: THREE.Material, color: string | null) {
+function tinted(base: THREE.Material, color: string | null, light = 1) {
   const m = base.clone() as THREE.MeshStandardMaterial
   m.side = THREE.DoubleSide
   // Una zapatilla no es de metal: los modelos hechos con IA suelen traerlo marcado y, sin reflejos, se veían negros
   m.metalness = 0
   m.metalnessMap = null
-  if (!color) return m
-  const uniform = { value: new THREE.Color(color) }
+  // Las oscuras, algo menos mates: un poco de brillo en la piel marca los paneles y las costuras
+  if (light > 1) m.roughness = Math.min(m.roughness, 0.7)
+  if (!color && light === 1) return m
+  const uniform = { value: new THREE.Color(color ?? '#ffffff') }
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uShoeColor = uniform
     shader.fragmentShader = shader.fragmentShader
@@ -163,17 +178,23 @@ function tinted(base: THREE.Material, color: string | null) {
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>
-        // El azul del tejido (y sus detalles en azul oscuro) pasa al color elegido, con su misma luz y relieve
+        ${
+          color
+            ? `// El azul del tejido (y sus detalles en azul oscuro) pasa al color elegido, con su misma luz y relieve
         {
           vec3 c = diffuseColor.rgb;
           float blue = smoothstep(0.02, 0.12, c.b - max(c.r, c.g * 0.9));
           float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
           vec3 t = uShoeColor * clamp(lum / 0.15, 0.0, 1.6);
           diffuseColor.rgb = mix(c, t, blue);
-        }`,
+        }`
+            : ''
+        }
+        // Aclarado: el negro sigue siendo negro, pero se distinguen sus tonos (paneles, cordones, suela)
+        diffuseColor.rgb = min(diffuseColor.rgb * ${light.toFixed(2)} + 0.006, vec3(1.0));`,
       )
   }
-  m.customProgramCacheKey = () => 'zapatilla-real'
+  m.customProgramCacheKey = () => `zapatilla-real-${color ? 'tinte' : 'sin'}-${light}`
   return m
 }
 
@@ -199,9 +220,9 @@ export function RealShoes({ model, cloud, shoe, color }: { model: Model; cloud: 
     return { parts, box }
   }, [gltf])
   const feet = useMemo(() => measureFeet(cloud, model.body.skeleton), [cloud, model])
-  const geoms = useMemo(() => feet.map((f, i) => placeShoe(source.parts, source.box, f, i === 1)), [source, feet])
+  const geoms = useMemo(() => feet.map((f, i) => placeShoe(source.parts, source.box, f, i === 1, def.extra ?? 2.5)), [source, feet, def])
   const tint = def.tint ? (color ?? def.tint.color) : null
-  const materials = useMemo(() => source.parts.map((p) => tinted(p.material, tint)), [source, tint])
+  const materials = useMemo(() => source.parts.map((p) => tinted(p.material, tint, def.light)), [source, tint, def])
 
   useEffect(() => {
     const meshes = geoms.flatMap((foot) =>

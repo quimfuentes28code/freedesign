@@ -65,7 +65,8 @@ function slice(points: Float32Array, y: number, side: 1 | -1 | 0, band = 1.2) {
 
 const ellipsePerimeter = (a: number, b: number) => Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b)))
 
-export function buildPants(body: Body, m: Measurements, design: Design): PantsResult {
+/** `realShoes`: lleva zapatillas de modelo real (abultan más que el pie hinchado): el bajo acaba algo más arriba y con menos tela de sobra. */
+export function buildPants(body: Body, m: Measurements, design: Design, realShoes = false): PantsResult {
   const { info, points, unit } = body
   const s = m.height / 172
   const cloth = new Cloth(unit)
@@ -105,10 +106,11 @@ export function buildPants(body: Body, m: Measurements, design: Design): PantsRe
         ? ankle + 1 * unit
         : legFrac < 0.97
           ? ankle + 3 * unit
-          : ground + 1.5 * unit
+          : // Con zapatillas reales, el bajo apoya en ellas: si llegara al suelo, toda la tela se amontonaba encima
+            ground + (realShoes ? 4 : 1.5) * unit
   const long = legFrac >= 0.97 && !jogger
   // Tela de más que se apila sobre la zapatilla (solo en los largos)
-  const stack = long ? cut.stack * s : jogger ? 3 * s : 0
+  const stack = long ? cut.stack * s * (realShoes ? 0.5 : 1) : jogger ? 3 * s : 0
   const cuffH = jogger ? 7 * s : 0
 
   // --- Contornos (cm) ---
