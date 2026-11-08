@@ -246,3 +246,73 @@ export function RealShoes({ model, cloud, shoe, color }: { model: Model; cloud: 
   useEffect(() => () => materials.forEach((m) => m.dispose()), [materials])
   return null
 }
+
+/**
+ * Funda lisa que envuelve cada zapatilla por fuera, para que la tela choque con ella (en la postura en T, unida al
+ * hueso del pie). Los modelos reales, y más los hechos con IA, tienen superficies por dentro (forro, plantilla, la
+ * cara interior de la lengüeta) cuyas normales miran hacia dentro: la tela que chocaba con ellas se metía en la
+ * zapatilla y salía a jirones. La funda sale de la forma de la zapatilla: en cada tramo a lo largo del pie, su ancho
+ * y su alto, y alrededor una bóveda de la suela hacia arriba.
+ */
+export function shoeEnvelope(geoms: THREE.BufferGeometry[]) {
+  // Las piezas de cada pie (van unidas al mismo hueso)
+  const feet = new Map<number, THREE.BufferGeometry[]>()
+  for (const g of geoms) {
+    const bone = (g.attributes.skinIndex.array as ArrayLike<number>)[0]
+    feet.set(bone, [...(feet.get(bone) ?? []), g])
+  }
+  const points: number[] = []
+  const normals: number[] = []
+  const bones: number[] = []
+  for (const [bone, parts] of feet) {
+    let z0 = Infinity
+    let z1 = -Infinity
+    for (const g of parts) {
+      const p = g.attributes.position.array as Float32Array
+      for (let i = 2; i < p.length; i += 3) {
+        z0 = Math.min(z0, p[i])
+        z1 = Math.max(z1, p[i])
+      }
+    }
+    // Tramos de 1 cm a lo largo del pie (el pie mira hacia +Z en la postura en T)
+    const n = Math.max(4, Math.ceil(z1 - z0))
+    const sl = Array.from({ length: n }, () => ({ x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity }))
+    for (const g of parts) {
+      const p = g.attributes.position.array as Float32Array
+      for (let i = 0; i < p.length; i += 3) {
+        const k = Math.min(n - 1, Math.floor(((p[i + 2] - z0) / (z1 - z0)) * n))
+        const e = sl[k]
+        e.x0 = Math.min(e.x0, p[i])
+        e.x1 = Math.max(e.x1, p[i])
+        e.y0 = Math.min(e.y0, p[i + 1])
+        e.y1 = Math.max(e.y1, p[i + 1])
+      }
+    }
+    // Tramos vacíos: los del lado
+    for (let k = 0; k < n; k++) if (sl[k].x0 === Infinity) sl[k] = { ...sl[k > 0 ? k - 1 : k + 1] }
+    for (let k = 0; k < n; k++) {
+      const e = sl[k]
+      if (e.x0 === Infinity) continue
+      const z = z0 + ((k + 0.5) / n) * (z1 - z0)
+      const xc = (e.x0 + e.x1) / 2
+      const rx = Math.max(1, (e.x1 - e.x0) / 2)
+      const ry = Math.max(1, e.y1 - e.y0)
+      // Inclinación de la funda hacia la puntera y el talón (para que la tela resbale por ellos)
+      const end = k < 2 ? -1 : k > n - 3 ? 1 : 0
+      const STEPS = 24
+      for (let a = 0; a <= STEPS; a++) {
+        const t = (a / STEPS) * Math.PI
+        const c = Math.cos(t)
+        const sn = Math.sin(t)
+        // Bóveda algo cuadrada (superelipse): la zapatilla es más plana por arriba que un tubo
+        const x = xc + rx * Math.sign(c) * Math.abs(c) ** 0.7
+        const y = e.y0 + ry * Math.abs(sn) ** 0.7
+        const nv = new THREE.Vector3(c / rx, sn / ry, end * 0.8 / Math.max(rx, ry)).normalize()
+        points.push(x, y, z)
+        normals.push(nv.x, nv.y, nv.z)
+        bones.push(bone)
+      }
+    }
+  }
+  return { points: new Float32Array(points), normals: new Float32Array(normals), bones }
+}

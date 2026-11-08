@@ -138,9 +138,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     layers: [
       { mode: 'outside', outer: layers.hood, inner: layers.torso, gap: 0.9 * unit },
       // Separación algo mayor que la malla (2,2 cm): con menos, los triángulos se cruzaban entre punto y punto
-      // Solo se aparta la manga: el cuerpo apoya en la cadera. Si se empujaban los dos, el puño que cuelga junto a la
-      // cadera (el izquierdo, en la pose de reposo) levantaba el bajo hacia fuera como un estante
-      { mode: 'apart', outer: layers.sleevesLow, inner: layers.torsoLow, gap: 3 * unit, fixedInner: true },
+      { mode: 'apart', outer: layers.sleevesLow, inner: layers.torsoLow, gap: 3 * unit },
       // Junto a la sisa están más cerca (a un lado y otro de la costura): separación más corta
       { mode: 'apart', outer: layers.sleeveCap, inner: layers.torsoArmhole, gap: 1.5 * unit },
     ],
@@ -399,7 +397,10 @@ function addPatches(
   }
 
   for (const patch of patches) {
-    const { nu, nv } = patch
+    // Tres veces más puntos que los que pide el parche: así sigue los pliegues de la tela (con la malla fina de la
+    // calidad alta, la tela asomaba entre sus puntos y lo atravesaba a jirones)
+    const nu = (patch.nu - 1) * 3 + 1
+    const nv = (patch.nv - 1) * 3 + 1
     const base = out.positions.length / 3
     const flat: [number, number][] = []
     const normals: THREE.Vector3[] = []

@@ -7,7 +7,7 @@ import { FIT_EASE, jointPosition, type BodyFit } from './body'
 import { dressInWorker, mergeUnderlays, setUnderlay, useUnderlays } from './cloth/dressClient'
 import { knitNormalMap } from './cloth/textures'
 import { Part, referencePose, skinPoints, type PoseId, type ReferencePose } from './pose'
-import { isRealShoe, useRealShoes } from './RealShoes'
+import { isRealShoe, shoeEnvelope, useRealShoes } from './RealShoes'
 import { CloudGrid, computeTubeNormals, skinFromCloud, wrapTube, type Cloud, type TubeSpec } from './wrap'
 
 /** Cordones (algodón crudo) y ojales (metal plateado) si el diseño no dice otra cosa. */
@@ -479,41 +479,29 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
   const needsShoes = pattern && design.garment === 'pantalon' && isRealShoe(shoes)
   const shoeSurface = useMemo(() => {
     if (!needsShoes || !realShoes) return null
-    const pts: number[] = []
-    const nrm: number[] = []
-    for (const g of realShoes) {
-      const pos = g.attributes.position.array as Float32Array
-      const nor = g.attributes.normal.array as Float32Array
-      const idx = g.attributes.skinIndex.array
-      const wts = g.attributes.skinWeight.array
-      // Uno de cada dos puntos basta (la zapatilla tiene muchos)
-      const step = 2
-      const p0 = new Float32Array(Math.ceil(pos.length / 3 / step) * 3)
-      const p1 = new Float32Array(p0.length)
-      const i4 = new Uint16Array((p0.length / 3) * 4)
-      const w4 = new Float32Array(i4.length)
-      for (let v = 0, k = 0; v < pos.length / 3; v += step, k++) {
-        for (let c = 0; c < 3; c++) {
-          p0[k * 3 + c] = pos[v * 3 + c]
-          p1[k * 3 + c] = pos[v * 3 + c] + nor[v * 3 + c]
-        }
-        for (let c = 0; c < 4; c++) {
-          i4[k * 4 + c] = idx[v * 4 + c]
-          w4[k * 4 + c] = wts[v * 4 + c]
-        }
-      }
-      const a = skinPoints(pose, p0, i4, w4)
-      const b = skinPoints(pose, p1, i4, w4)
-      for (let k = 0; k < a.length / 3; k++) {
-        const nx = b[k * 3] - a[k * 3]
-        const ny = b[k * 3 + 1] - a[k * 3 + 1]
-        const nz = b[k * 3 + 2] - a[k * 3 + 2]
-        const l = Math.hypot(nx, ny, nz) || 1
-        pts.push(a[k * 3], a[k * 3 + 1], a[k * 3 + 2])
-        nrm.push(nx / l, ny / l, nz / l)
-      }
+    // La funda lisa que envuelve cada zapatilla, llevada a la pose (sigue al hueso del pie)
+    const env = shoeEnvelope(realShoes)
+    const count = env.points.length / 3
+    const p0 = env.points
+    const p1 = new Float32Array(p0.length)
+    for (let i = 0; i < p0.length; i++) p1[i] = p0[i] + env.normals[i]
+    const i4 = new Uint16Array(count * 4)
+    const w4 = new Float32Array(count * 4)
+    for (let k = 0; k < count; k++) {
+      i4[k * 4] = env.bones[k]
+      w4[k * 4] = 1
     }
-    return { points: new Float32Array(pts), normals: new Float32Array(nrm) }
+    const a = skinPoints(pose, p0, i4, w4)
+    const b = skinPoints(pose, p1, i4, w4)
+    const nrm = new Float32Array(a.length)
+    for (let k = 0; k < count; k++) {
+      const nx = b[k * 3] - a[k * 3]
+      const ny = b[k * 3 + 1] - a[k * 3 + 1]
+      const nz = b[k * 3 + 2] - a[k * 3 + 2]
+      const l = Math.hypot(nx, ny, nz) || 1
+      nrm.set([nx / l, ny / l, nz / l], k * 3)
+    }
+    return { points: a, normals: nrm }
   }, [needsShoes, realShoes, pose])
   const topKey = JSON.stringify([design.top ?? null, design.open ?? false, design.femTop ?? null, design.pants ?? null, design.legLength ?? null, design.coveredBy ?? null])
 
