@@ -65,8 +65,13 @@ export function outfitOf(main: Design, other: Design | null, mainIsPants: boolea
 
 /** Camiseta básica (blanca o negra) para llevar debajo de una prenda abierta, con el cuerpo del maniquí. */
 export function basicTee(color: 'blanca' | 'negra', female: boolean): Design {
-  const t = getTemplate('camiseta')!
-  const data = defaultDesign(t, { corte: 'regular', manga: 'corta', ...(female ? { genero: 'mujer' } : {}) }) as DesignData
+  // Hombre: camiseta básica de manga corta, ajustada (bajo una chaqueta no abulta). Mujer: top básico de tirantes
+  const t = getTemplate(female ? 'top' : 'camiseta')!
+  const data = (
+    female
+      ? defaultDesign(t, { tipo: 'tirantes', corte: 'ajustado', largo: 'cintura', escote: 'recto', tirantes: 'finos', genero: 'mujer' })
+      : defaultDesign(t, { corte: 'ajustado', manga: 'corta', largo: 'normal' })
+  ) as DesignData
   const hex = color === 'blanca' ? '#f3f1ec' : '#1b1b1d'
   for (const p of Object.values(data.pieces)) p.color = hex
   return designTo3D(t, data)
@@ -74,6 +79,16 @@ export function basicTee(color: 'blanca' | 'negra', female: boolean): Design {
 
 /** Selector «Debajo» de una prenda que se puede llevar abierta. */
 export type TeeChoice = '' | 'blanca' | 'negra'
+
+/** Opciones de «Debajo» según el cuerpo: camiseta básica (hombre) o top básico (mujer). */
+export function underChoices(female: boolean): { id: TeeChoice; label: string }[] {
+  const what = female ? 'Top básico' : 'Camiseta básica'
+  return [
+    { id: '', label: 'Nada' },
+    { id: 'blanca', label: `${what} blanc${female ? 'o' : 'a'}` },
+    { id: 'negra', label: `${what} negr${female ? 'o' : 'a'}` },
+  ]
+}
 
 interface Props {
   template: GarmentTemplate
@@ -131,7 +146,10 @@ export function Design3D({ template, data, materials, client, designId }: Props)
   const [teeColor, setTeeColor] = useState<TeeChoice>('')
   const tee = useMemo(() => (canOpen && teeColor ? basicTee(teeColor, kind === 'mujer') : null), [canOpen, teeColor, kind])
   const { design, outfit } = useMemo(() => outfitOf(main, other, pants, tee), [main, other, pants, tee])
-  const shown = useMemo(() => ({ ...design, hoodUp, open: canOpen && open }), [design, hoodUp, canOpen, open])
+  // En el editor la prenda se ve sola y recta («fantasma»): sin maniquí y sin pliegues de caída (el Probador es el que
+  // la viste en el maniquí)
+  const shown = useMemo(() => ({ ...design, hoodUp, open: canOpen && open, ghost: true }), [design, hoodUp, canOpen, open])
+  const ghostOutfit = useMemo(() => outfit.map((d) => ({ ...d, ghost: true })), [outfit])
   const measurements = useMemo(() => mannequinMeasurements(client?.measurements, kind), [client, kind])
   const [autoRotate, setAutoRotate] = useState(false)
   const sidePrints = (data.prints ?? []).filter((p) => p.view === 'side').length
@@ -140,7 +158,7 @@ export function Design3D({ template, data, materials, client, designId }: Props)
     <div className="design-3d studio">
       <div className="viewport">
         {/* En el editor se ve solo la ropa, quieta en la postura de reposo (el maniquí y la animación salen en el Probador) */}
-        <Scene measurements={measurements} design={shown} outfit={outfit} autoRotate={autoRotate} animate={false} showBody={false} focus={template.family === 'head' ? 0.92 : outfit.length ? 0.5 : pants ? 0.3 : 0.66} />
+        <Scene measurements={measurements} design={shown} outfit={ghostOutfit} autoRotate={autoRotate} animate={false} showBody={false} pose="brazos" focus={template.family === 'head' ? 0.92 : outfit.length ? 0.5 : pants ? 0.3 : 0.66} />
         <div className="design-3d-bar">
           {/* Un gorro o una gorra se ve solo (en el Probador, con la ropa) */}
           {template.family !== 'head' && (
@@ -173,9 +191,11 @@ export function Design3D({ template, data, materials, client, designId }: Props)
               <label className="outfit-pick" title="Camiseta básica debajo de la prenda">
                 <span>Debajo</span>
                 <select value={teeColor} onChange={(e) => setTeeColor(e.target.value as TeeChoice)}>
-                  <option value="">Nada</option>
-                  <option value="blanca">Camiseta blanca</option>
-                  <option value="negra">Camiseta negra</option>
+                  {underChoices(kind === 'mujer').map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
               </label>
             </>

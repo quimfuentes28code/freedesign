@@ -564,7 +564,7 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.hoodUp, design.pocket, design.cords, design.bodyLength, design.sleeveLength, design.chestScale, design.overBulk, design.quality, topKey, underlay, fabric, shoeSurface])
+  }, [model, cloud, pose, fit, measurements, pattern, design.garment, design.fit, design.hood, design.hoodUp, design.pocket, design.cords, design.bodyLength, design.sleeveLength, design.chestScale, design.overBulk, design.quality, design.ghost, topKey, underlay, fabric, shoeSurface])
   useEffect(() => () => patternGeom?.dispose(), [patternGeom])
   // Al quitarse la prenda de debajo, la de encima vuelve a asentarse solo sobre el cuerpo
   useEffect(() => (layer !== undefined ? () => setUnderlay(layer, null) : undefined), [layer])

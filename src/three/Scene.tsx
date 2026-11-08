@@ -1,6 +1,6 @@
 import { ContactShadows, Environment, Lightformer, OrbitControls, useProgress } from '@react-three/drei'
 import { Canvas, useThree } from '@react-three/fiber'
-import { Suspense, useEffect } from 'react'
+import { Component, Suspense, useEffect, type ReactNode } from 'react'
 import type { Design, Measurements, ShoeStyle } from '../types'
 import { Mannequin } from './Avatar'
 import type { PoseId } from './pose'
@@ -77,7 +77,59 @@ function NeutralEffects() {
 }
 
 /** Escena 3D: maniquí con la prenda, en un estudio con luces suaves y cámara orbital para verlo en 360°. */
-export function Scene({ measurements, design, outfit, autoRotate, animate, showBody = true, focus = 0.53, stage = 'neutral', shoes, frameloop = 'always', interactive = true, hat, pose, shoeColor }: Props) {
+/** Si el navegador puede pintar 3D (WebGL). Se comprueba una vez. */
+let webglOk: boolean | null = null
+function hasWebGL() {
+  if (webglOk === null) {
+    try {
+      const c = document.createElement('canvas')
+      webglOk = !!(c.getContext('webgl2') || c.getContext('webgl'))
+    } catch {
+      webglOk = false
+    }
+  }
+  return webglOk
+}
+
+/** Aviso en lugar del 3D cuando el navegador no puede pintarlo (el resto de la aplicación sigue funcionando). */
+function No3D({ stage }: { stage: Props['stage'] }) {
+  // El plató de fondo, sin aviso: simplemente no se pinta
+  if (stage === 'studio') return null
+  return (
+    <div className="no-3d">
+      <p>
+        El 3D no está disponible en este navegador o equipo. Prueba a recargar la página, a activar la aceleración por hardware
+        o con otro navegador.
+      </p>
+    </div>
+  )
+}
+
+/** Atrapa los errores del 3D (p. ej. si el navegador pierde o bloquea WebGL) para que no se caiga toda la página. */
+class Safe3D extends Component<{ stage: Props['stage']; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+  componentDidCatch(error: unknown) {
+    console.error('El 3D ha fallado:', error)
+  }
+  render() {
+    return this.state.failed ? <No3D stage={this.props.stage} /> : this.props.children
+  }
+}
+
+/** Escena 3D protegida: sin WebGL o si falla, un aviso en su sitio en vez de romper la página. */
+export function Scene(props: Props) {
+  if (!hasWebGL()) return <No3D stage={props.stage} />
+  return (
+    <Safe3D stage={props.stage}>
+      <SceneInner {...props} />
+    </Safe3D>
+  )
+}
+
+function SceneInner({ measurements, design, outfit, autoRotate, animate, showBody = true, focus = 0.53, stage = 'neutral', shoes, frameloop = 'always', interactive = true, hat, pose, shoeColor }: Props) {
   const studio = stage === 'studio'
   const H = measurements.height / 100
   // Aviso de carga fuera de la escena 3D (el modelo pesa varios MB)

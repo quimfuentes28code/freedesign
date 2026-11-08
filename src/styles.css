@@ -1445,3 +1445,7 @@ textarea,
 .client-photos { margin-top: 16px; }
 .client-photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
 .client-photos-grid img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 8px; display: block; }
+
+/* Aviso cuando el navegador no puede pintar 3D */
+.no-3d { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; }
+.no-3d p { max-width: 340px; margin: 0; color: #5b5853; font-size: 14px; line-height: 1.5; }

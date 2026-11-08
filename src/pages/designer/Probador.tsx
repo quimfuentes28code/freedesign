@@ -14,7 +14,7 @@ import { Scene } from '../../three/Scene'
 import { isRealShoe, REAL_SHOES } from '../../three/RealShoes'
 import { SHOE_STYLES } from '../../three/Shoes'
 import type { ShoeStyle } from '../../types'
-import { basicTee, bodyOf, outfitOf, useDesign3D, type TeeChoice } from './Design3D'
+import { basicTee, bodyOf, outfitOf, underChoices, useDesign3D, type TeeChoice } from './Design3D'
 import './studio.css'
 
 /**
@@ -192,9 +192,11 @@ export function Probador() {
               <label className="toggle-row">
                 <span>Debajo</span>
                 <select value={teeColor} onChange={(e) => setTeeColor(e.target.value as TeeChoice)} aria-label="Camiseta debajo">
-                  <option value="">Nada</option>
-                  <option value="blanca">Camiseta blanca</option>
-                  <option value="negra">Camiseta negra</option>
+                  {underChoices(kind === 'mujer').map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
               </label>
             </>

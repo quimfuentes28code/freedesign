@@ -172,6 +172,11 @@ export interface Design {
   hat?: HatShape
   /** Prenda abierta por delante (solo las que tienen el cierre de arriba abajo). */
   open?: boolean
+  /**
+   * Prenda sola, «fantasma» (vista 3D del editor): se cosen las piezas y se asienta solo un instante y casi sin
+   * gravedad, así queda recta, con su forma y sin pliegues de caída; el maniquí no se ve.
+   */
+  ghost?: boolean
   /** Holgura de pecho en cm (la de la ficha técnica según el corte); sin ella, la de `fit`. Negativa = ceñida. */
   ease?: number
   /**

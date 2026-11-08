@@ -91,6 +91,10 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   const fine = design.quality === 'alta'
   const iterations = fine ? 2 : 1
   const extra = fine ? 0.2 : 0
+  // Prenda sola (editor): un instante y casi sin gravedad, para que quede recta, sin pliegues de caída
+  const ghost = !!design.ghost
+  const gravity = (ghost ? 450 : 980) * unit
+  const settle = (normal: number) => input.seconds ?? (ghost ? 0.9 : normal + extra)
   // La rigidez a la flexión depende de la tela
   for (const l of cloth.links) if (l.k < 0.5) l.k = Math.min(1, l.k * fabric.stiffness)
 
@@ -103,11 +107,11 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   // a la tela de debajo en los choques; la camiseta salía medio metida en el pantalón y arrugada
   if (input.underlay && !isPants) pushOutOf(cloth.pos, input.underlay, 1.2 * unit, unit)
   const relaxed = femTop
-    ? relax(cloth, pose, {
-        seconds: input.seconds ?? 1.2 + extra,
+    ? relax(cloth, input.underlay ? withUnderlay(pose, input.underlay) : pose, {
+        seconds: settle(1.2),
         iterations,
         thickness: 0.6 * unit,
-        gravity: 980 * unit,
+        gravity,
         cell: 2.2 * unit,
         // El borde de arriba se sujeta (un top sin tirantes no se escurre)
         pins: femTop.pins,
@@ -115,10 +119,10 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     : isPants
     ? relax(cloth, input.shoes ? withUnderlay(pose, input.shoes) : withShoes(pose, unit), {
         // Un poco más de tiempo: la tela de más del bajo tiene que caer y apilarse sobre las zapatillas
-        seconds: input.seconds ?? 1.6 + extra,
+        seconds: settle(1.6),
         iterations,
         thickness: 0.9 * unit,
-        gravity: 980 * unit,
+        gravity,
         cell: 2.2 * unit,
         // Una pernera no atraviesa la otra
         layers: pants ? [{ mode: 'apart', outer: pants.legs[0], inner: pants.legs[1], gap: 1.4 * unit }] : [],
@@ -130,13 +134,13 @@ export function dressPatternGarment(input: DressInput): DressOutput {
         bodyParts: [Part.Torso, Part.LegL, Part.LegR, Part.FootL, Part.FootR],
       })
     : relax(cloth, input.underlay ? withUnderlay(pose, input.underlay) : pose, {
-    seconds: input.seconds ?? 1.2 + extra,
+    seconds: settle(1.2),
     iterations,
     // Prenda ceñida (holgura negativa): punto elástico que se estira sobre el cuerpo y sobre el pantalón
     stretch: (design.ease ?? 0) < 0 ? 0.35 : 1,
     // Sobre otra prenda, algo más de separación: con la malla fina, el relieve de la de debajo asomaba entre los puntos
-    thickness: (input.underlay && fine ? 1.1 : 0.7) * unit,
-    gravity: 980 * unit,
+    thickness: (input.underlay ? 1.1 : 0.7) * unit,
+    gravity,
     cell: 2.2 * unit,
     // La tela no se atraviesa a sí misma: la capucha queda encima de la espalda y las mangas no se meten en el cuerpo
     layers: [
