@@ -231,18 +231,26 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   for (let v = 0; v < relaxed.length / 3; v++) surfaceNormals.set(normalOf(v).toArray(), v * 3)
   let surface: Underlay = { points: Float32Array.from(relaxed), normals: surfaceNormals }
   for (const rim of rims) {
-    const path = rim.verts.map((v) => new THREE.Vector3().fromArray(relaxed, v * 3))
-    const ups = rim.verts.map((v) => normalOf(v))
+    // Sin puntos repetidos: en cada costura el borde pasa por el punto de una pieza y el de la otra (en el mismo sitio)
+    // y el tubo se retorcía ahí
+    const verts = rim.verts.filter((v, i) => i === 0 || dist3(relaxed, v, rim.verts[i - 1]) > 0.05 * unit)
+    // Si da la vuelta entera (bajo, manga, puño), se cierra sobre sí mismo: abierto, su boca quedaba a la vista en la
+    // costura como una punta
+    const closed = verts.length > 3 && dist3(relaxed, verts[0], verts[verts.length - 1]) < 0.6 * unit
+    if (closed) verts.pop()
+    const path = verts.map((v) => new THREE.Vector3().fromArray(relaxed, v * 3))
+    const ups = verts.map((v) => normalOf(v))
     tube(
       { positions, uvs, edges, idx, wts, bySlot },
       path,
       ups,
-      rim.verts,
+      verts,
       { w: rim.radius * unit, h: rim.radius * unit, twist: 0 },
       unit,
       rim.slot,
       skinIndex,
       skinWeight,
+      closed,
     )
   }
 
@@ -890,6 +898,11 @@ function pushSkin(out: MeshBuffers, anchor: number, skinIndex: Uint16Array, skin
  * Tubo a lo largo de un recorrido, con las puntas cerradas. La sección es una elipse de semiejes `w` (de lado)
  * y `h` (hacia fuera, según `ups`): con `h` pequeño sale un cordón plano. `twist` gira la sección (vueltas en total).
  */
+/** Distancia entre dos puntos de un array de posiciones (x, y, z seguidos). */
+function dist3(pos: ArrayLike<number>, a: number, b: number) {
+  return Math.hypot(pos[a * 3] - pos[b * 3], pos[a * 3 + 1] - pos[b * 3 + 1], pos[a * 3 + 2] - pos[b * 3 + 2])
+}
+
 function tube(
   out: MeshBuffers,
   path: THREE.Vector3[],
@@ -901,14 +914,19 @@ function tube(
   slot: GarmentSlot,
   skinIndex: Uint16Array,
   skinWeight: Float32Array,
+  /** Da la vuelta entera: el último tramo une con el primero y no lleva tapas. */
+  closed = false,
 ) {
   const sides = 12
   const base = out.positions.length / 3
   const tris = out.bySlot[slotIndex(slot)]
   const perimeter = Math.PI * (3 * (section.w + section.h) - Math.sqrt((3 * section.w + section.h) * (section.w + 3 * section.h)))
   let along = 0
+  const N = path.length
   path.forEach((p, i) => {
-    const t = (path[Math.min(i + 1, path.length - 1)].clone().sub(path[Math.max(i - 1, 0)])).normalize()
+    const next = closed ? path[(i + 1) % N] : path[Math.min(i + 1, N - 1)]
+    const prev = closed ? path[(i - 1 + N) % N] : path[Math.max(i - 1, 0)]
+    const t = next.clone().sub(prev).normalize()
     // La cara plana del cordón mira hacia fuera del pecho, con un giro suave a lo largo
     const up = ups[Math.min(i, ups.length - 1)]
     const nrm0 = up.clone().sub(t.clone().multiplyScalar(up.dot(t))).normalize()
@@ -926,18 +944,19 @@ function tube(
       pushSkin(out, anchors[Math.min(i, anchors.length - 1)], skinIndex, skinWeight)
     }
   })
-  for (let i = 0; i < path.length - 1; i++) {
+  for (let i = 0; i < (closed ? N : N - 1); i++) {
+    const j = (i + 1) % N
     for (let k = 0; k < sides; k++) {
       const a = base + i * sides + k
       const b = base + i * sides + ((k + 1) % sides)
-      const c = a + sides
-      const d = b + sides
+      const c = base + j * sides + k
+      const d = base + j * sides + ((k + 1) % sides)
       // Caras hacia fuera del tubo
       tris.push(a, b, c, b, d, c)
     }
   }
-  // Tapas en las dos puntas
-  for (const [i, flip] of [[0, true], [path.length - 1, false]] as const) {
+  // Tapas en las dos puntas (si no da la vuelta entera)
+  if (!closed) for (const [i, flip] of [[0, true], [path.length - 1, false]] as const) {
     const center = out.positions.length / 3
     out.positions.push(path[i].x, path[i].y, path[i].z)
     out.uvs.push(0, 0)

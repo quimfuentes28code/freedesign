@@ -338,12 +338,14 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
         ${prints ? PRINT_RELIEF_NORMAL : ''}`,
       )
       // El interior de la prenda, algo más apagado (no mucho: en los pliegues del cuello salía a manchas)
-      .replace('#include <opaque_fragment>', `outgoingLight *= (gl_FrontFacing ? 1.0 : 0.84) * (1.0 - 0.62 * clamp(vOcc, 0.0, 1.0));
+      .replace('#include <opaque_fragment>', `outgoingLight *= (gl_FrontFacing ? 1.0 : 0.84) * (1.0 - 0.45 * smoothstep(0.0, 1.0, clamp(vOcc, 0.0, 1.0)));
 #ifdef USE_NORMALMAP_TANGENTSPACE
-  outgoingLight *= mix(0.8, 1.0, smoothstep(0.55, 0.98, mapN.z));
+  // Vista de canto, el hilo se vuelve ruido (puntitos oscuros en los costados): el efecto se apaga
+  float weaveFacing = smoothstep(0.15, 0.5, abs(dot(normalize(normal), normalize(vViewPosition))));
+  outgoingLight *= mix(1.0, mix(0.8, 1.0, smoothstep(0.55, 0.98, mapN.z)), weaveFacing);
   // El hilo también en el color: un lado de cada hilo más claro y el otro más oscuro (se ve la diagonal de la sarga,
   // las columnas del punto…); en el denim, la trama blanca aclara las diagonales
-  float weaveRidge = clamp((mapN.x + mapN.y) * 1.6, -1.0, 1.0);
+  float weaveRidge = clamp((mapN.x + mapN.y) * 1.6, -1.0, 1.0) * weaveFacing;
   outgoingLight *= 1.0 + uWeave.x * 0.2 * weaveRidge;
   vec3 weftColor = vec3(dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722))) * 1.25;
   outgoingLight = mix(outgoingLight, weftColor, uWeave.y * 0.3 * max(weaveRidge, 0.0));

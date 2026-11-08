@@ -70,7 +70,7 @@ function DevHandle() {
 function NeutralEffects() {
   return (
     <EffectComposer multisampling={4}>
-      <N8AO aoRadius={0.22} distanceFalloff={0.6} intensity={2.4} quality="medium" />
+      <N8AO aoRadius={0.18} distanceFalloff={0.6} intensity={1.7} quality="medium" />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
     </EffectComposer>
   )
