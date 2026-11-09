@@ -282,6 +282,9 @@ export function dressPatternGarment(input: DressInput): DressOutput {
       const normals = new Float32Array(positions.length)
       normals.set(surface.normals)
       normals.set(allNormals.subarray(extraFrom * 3), extraFrom * 3)
+      // Un poco hacia fuera: son rebordes finos y la tela de encima solo choca en sus puntos (cada 2 cm), así que
+      // entre punto y punto el reborde asomaba (la manga de la camiseta por la manga de la chaqueta)
+      for (let k = extraFrom * 3; k < points.length; k++) points[k] += normals[k] * 0.8 * unit
       surface = { points, normals }
     }
   }

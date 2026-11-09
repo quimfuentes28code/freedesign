@@ -1,6 +1,7 @@
 import { ContactShadows, Environment, Lightformer, OrbitControls, useProgress } from '@react-three/drei'
-import { Canvas, useThree } from '@react-three/fiber'
-import { Component, Suspense, useEffect, type ReactNode } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Component, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
+import * as THREE from 'three'
 import type { Design, Measurements, ShoeStyle } from '../types'
 import { Mannequin } from './Avatar'
 import type { PoseId } from './pose'
@@ -23,8 +24,11 @@ interface Props {
   focus?: number
   /** Gorro o gorra que lleva además de la ropa. */
   hat?: Design | null
-  /** Decorado: el estudio claro de siempre o el plató de fotos oscuro con fondo blanco y focos (portada). */
-  stage?: 'neutral' | 'studio'
+  /**
+   * Decorado: el estudio claro de siempre, el plató de fotos oscuro con fondo blanco y focos (portada) o «producto»:
+   * fondo casi blanco y luz suave de foto de catálogo, con la prenda sola centrada en el encuadre (editor).
+   */
+  stage?: 'neutral' | 'studio' | 'product'
   /** Calzado del maniquí. */
   shoes?: ShoeStyle | null
   /** «demand» pinta solo cuando algo cambia (el decorado de fondo de los apartados, que no se mueve). */
@@ -61,6 +65,112 @@ function DevHandle() {
     }
   }, [camera, controls, scene, invalidate])
   return null
+}
+
+/**
+ * Foto de producto (vista 3D del editor): encuadra la prenda sola y centrada cada vez que cambia de tamaño (otra
+ * prenda, otro largo…) y le pone debajo una sombra suave, como en las fotos de catálogo con maniquí invisible.
+ */
+function FrameGarment() {
+  const { camera, controls, scene, size, invalidate } = useThree()
+  const [floor, setFloor] = useState<{ y: number; x: number; z: number; w: number; d: number } | null>(null)
+  const last = useRef('')
+  const clock = useRef(0)
+  useFrame((_, dt) => {
+    clock.current += dt
+    if (clock.current < 0.4) return
+    clock.current = 0
+    // Caja de la ropa a la vista (el cuerpo del maniquí está, pero con el material oculto)
+    const box = new THREE.Box3()
+    const part = new THREE.Box3()
+    scene.traverse((o) => {
+      const m = o as THREE.Mesh
+      if (!m.isMesh || !m.visible) return
+      const mats = Array.isArray(m.material) ? m.material : [m.material]
+      if (!mats.some((x) => x.visible)) return
+      // Fuera los planos de la sombra y piezas diminutas
+      if (m.geometry.attributes.position.count < 50) return
+      if ((m as THREE.SkinnedMesh).isSkinnedMesh) {
+        const sm = m as THREE.SkinnedMesh
+        sm.computeBoundingBox()
+        part.copy(sm.boundingBox!).applyMatrix4(sm.matrixWorld)
+      } else part.setFromObject(m)
+      if (part.isEmpty() || !Number.isFinite(part.min.y)) return
+      box.union(part)
+    })
+    if (box.isEmpty()) return
+    const c = box.getCenter(new THREE.Vector3())
+    const s = box.getSize(new THREE.Vector3())
+    const key = [c.x, c.y, c.z, s.x, s.y, s.z].map((v) => Math.round(v * 40)).join(',') + ',' + size.width + 'x' + size.height
+    if (key === last.current) return
+    const first = !last.current
+    last.current = key
+    // Distancia para que quepa con aire alrededor, según el campo de visión y la forma del lienzo
+    const cam = camera as THREE.PerspectiveCamera
+    const t = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2))
+    const aspect = size.width / Math.max(1, size.height)
+    const r = Math.max(s.x, s.z) / 2
+    const d = Math.max(s.y / 2 / t, r / (t * aspect)) * 1.15 + r * 0.3
+    const ctl = controls as unknown as { target: THREE.Vector3; update: () => void } | null
+    const dir = first || !ctl ? new THREE.Vector3(0, 0.08, 1) : cam.position.clone().sub(ctl.target)
+    dir.normalize()
+    cam.position.copy(c).addScaledVector(dir, d)
+    ctl?.target.copy(c)
+    ctl?.update()
+    // La sombra, del ancho del cuerpo de la prenda (sin las mangas abiertas) y algo más profunda que ella
+    setFloor({ y: box.min.y - 0.02, x: c.x, z: c.z, w: Math.min(s.x * 0.8, s.y * 1.1, 0.9), d: s.z * 2 + 0.1 })
+    invalidate()
+  })
+  if (!floor) return null
+  // Sombra suave y difuminada justo bajo el bajo de la prenda (la de contacto dejaba un aro: la prenda es hueca)
+  return (
+    <mesh position={[floor.x, floor.y, floor.z]} rotation-x={-Math.PI / 2} scale={[floor.w, floor.d, 1]} renderOrder={-1}>
+      <planeGeometry args={[1.6, 1.6]} />
+      <meshBasicMaterial map={softShadow()} transparent depthWrite={false} toneMapped={false} />
+    </mesh>
+  )
+}
+
+/** Mancha de sombra redonda y difuminada (se crea una vez). */
+let shadowTex: THREE.Texture | null = null
+function softShadow() {
+  if (shadowTex) return shadowTex
+  const c = document.createElement('canvas')
+  c.width = c.height = 128
+  const g = c.getContext('2d')!
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64)
+  grad.addColorStop(0, 'rgba(40,34,28,0.32)')
+  grad.addColorStop(0.45, 'rgba(40,34,28,0.16)')
+  grad.addColorStop(1, 'rgba(40,34,28,0)')
+  g.fillStyle = grad
+  g.fillRect(0, 0, 128, 128)
+  shadowTex = new THREE.CanvasTexture(c)
+  return shadowTex
+}
+
+/** Luz de foto de producto: fondo casi blanco, luz grande y envolvente y pocos brillos, para que la tela se lea. */
+function ProductLights() {
+  return (
+    <>
+      <color attach="background" args={['#f4f3f1']} />
+      {/* Revelado neutro: el fondo se queda casi blanco (el de cine lo agrisaba) y los colores, como son */}
+      <EffectComposer multisampling={4}>
+        <N8AO aoRadius={0.12} distanceFalloff={0.5} intensity={1.4} quality="medium" />
+        <ToneMapping mode={ToneMappingMode.NEUTRAL} />
+      </EffectComposer>
+      <hemisphereLight args={['#ffffff', '#d8d2c8', 0.85]} />
+      <directionalLight position={[1.5, 3, 3.5]} intensity={1.15} />
+      <directionalLight position={[-2.5, 1.5, 2]} intensity={0.45} />
+      <directionalLight position={[0, 2, -3]} intensity={0.35} />
+      {/* Cajas de luz grandes: reflejos anchos y suaves (sin el brillo de plástico de los focos pequeños) */}
+      <Environment resolution={128} frames={1} environmentIntensity={0.75}>
+        <Lightformer intensity={1.1} position={[0, 4, 2]} rotation-x={Math.PI / 2.5} scale={[8, 4, 1]} />
+        <Lightformer intensity={0.9} position={[-4, 1.5, 2.5]} rotation-y={Math.PI / 3} scale={[3, 6, 1]} />
+        <Lightformer intensity={0.6} position={[4, 1.5, 2]} rotation-y={-Math.PI / 3} scale={[3, 6, 1]} />
+        <Lightformer intensity={0.4} position={[0, 1.5, -4]} scale={[8, 5, 1]} />
+      </Environment>
+    </>
+  )
 }
 
 /**
@@ -131,6 +241,7 @@ export function Scene(props: Props) {
 
 function SceneInner({ measurements, design, outfit, autoRotate, animate, showBody = true, focus = 0.53, stage = 'neutral', shoes, frameloop = 'always', interactive = true, hat, pose, shoeColor }: Props) {
   const studio = stage === 'studio'
+  const product = stage === 'product'
   const H = measurements.height / 100
   // Aviso de carga fuera de la escena 3D (el modelo pesa varios MB)
   const { active } = useProgress()
@@ -154,6 +265,8 @@ function SceneInner({ measurements, design, outfit, autoRotate, animate, showBod
               <Lightformer intensity={0.15} color="#ffffff" position={[0, 1.5, -3]} scale={[6, 4, 1]} />
             </Environment>
           </>
+        ) : product ? (
+          <ProductLights />
         ) : (
           <>
         {/* Gris claro neutro, como un programa de patronaje 3D: la ropa y el maniquí blanco destacan sin dominar el color */}
@@ -189,12 +302,12 @@ function SceneInner({ measurements, design, outfit, autoRotate, animate, showBod
           {design && <Mannequin measurements={measurements} design={design} outfit={outfit} animate={animate} showBody={showBody} shoes={shoes} hat={hat} pose={pose} shoeColor={shoeColor} />}
         </Suspense>
 
-        <ContactShadows position={[0, 0.002, 0]} opacity={studio ? 0.65 : 0.5} scale={4} blur={2.2} far={2} resolution={512} />
+        {product ? <FrameGarment /> : <ContactShadows position={[0, 0.002, 0]} opacity={studio ? 0.65 : 0.5} scale={4} blur={2.2} far={2} resolution={512} />}
         <OrbitControls
           target={[0, studio ? H * 0.55 : H * focus, 0]}
           enablePan={false}
           // Se puede acercar mucho para ver costuras y pespuntes
-          minDistance={design?.hat ? 0.25 : 0.45}
+          minDistance={design?.hat || product ? 0.25 : 0.45}
           maxDistance={studio ? 7 : 6}
           // En el plató no se baja del suelo ni se pasa por detrás del fondo
           maxPolarAngle={studio ? Math.PI * 0.52 : Math.PI * 0.85}
