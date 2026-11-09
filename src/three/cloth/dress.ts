@@ -827,17 +827,6 @@ function addCords(
   }
   const fabricNormal = fabricNormals(relaxed, fabricTris, pose, unit)
   /** Saca un punto por fuera de la tela (a `gap` de ella) y devuelve el punto de tela que tiene detrás. */
-  const keepOutside = (p: THREE.Vector3, gap: number) => {
-    const k = surfHash.nearest(p.x, p.y, p.z)
-    if (k < 0) return -1
-    const v = surface[k]
-    const q = new THREE.Vector3().fromArray(surfPos, k * 3)
-    const n = fabricNormal(v)
-    const d = p.clone().sub(q).dot(n)
-    if (d < gap) p.addScaledVector(n, gap - d)
-    return v
-  }
-
   exits.forEach((exit, side) => {
     const dir = side === 0 ? 1 : -1
     // El ojal va sobre la tela de la capucha, y el cordón sale de su centro
@@ -853,20 +842,39 @@ function addCords(
     const path = [start.clone()]
     const ups = [normal0.clone()]
     const anchors = [exit]
-    for (let s = step; s <= length; s += step) {
-      const t = s / length
-      const p = path[path.length - 1].clone()
+    // Baja recto y, a cada altura, va justo por delante de la tela que tiene detrás (el pecho, el bolsillo): así cuelga
+    // sobre la prenda aunque esté abultada. Antes se empujaba desde la tela más cercana y, en el hueco del escote,
+    // reptaba en zigzag o se quedaba corto
+    const frontAt = (x: number, y: number, z0: number) => {
+      let best = -Infinity
+      const r2 = (1.6 * cm) ** 2
+      for (let k = 0; k < surfPos.length; k += 3) {
+        const dx = surfPos[k] - x
+        const dy = surfPos[k + 1] - y
+        if (dx * dx + dy * dy > r2) continue
+        // Solo la tela de delante (no la espalda ni el interior de la capucha, detrás del ojal)
+        if (surfPos[k + 2] < z0 - 4 * cm) continue
+        best = Math.max(best, surfPos[k + 2])
+      }
+      return best
+    }
+    for (let used = step; used <= length; used += step) {
+      const t = used / length
+      const prev = path[path.length - 1]
+      const p = prev.clone()
       p.y -= step
       // Cae casi recto (un cordón de verdad no se abre hacia los lados), con un vaivén muy suave
       p.x += dir * cm * (-0.04 + 0.04 * Math.sin(7 * t + side * 2))
-      // Separado de la tela lo bastante para que no se vea incrustado entre dos puntos de la malla
-      const a = keepOutside(p, 0.95 * cm)
-      // Mantiene el largo de cada tramo tras el empujón
-      const prev = path[path.length - 1]
+      const fz = frontAt(p.x, p.y, start.z)
+      // Por delante de la tela (con su grosor); si la tela se aleja hacia dentro, el cordón la sigue poco a poco
+      if (Number.isFinite(fz)) p.z = Math.max(fz + 0.95 * cm, Math.min(p.z, prev.z) - 0.6 * cm)
+      // Mantiene el largo de cada tramo
       p.sub(prev).setLength(step).add(prev)
+      const a = surfHash.nearest(p.x, p.y, p.z)
+      const v = a >= 0 ? surface[a] : -1
       path.push(p)
-      ups.push(a >= 0 ? fabricNormal(a) : outward(p))
-      anchors.push(a)
+      ups.push(v >= 0 ? fabricNormal(v) : outward(p))
+      anchors.push(v)
     }
 
     // Cordón de ~8 mm, algo aplanado (como los tubulares de las sudaderas), con un ligero giro; herrete redondo al final
