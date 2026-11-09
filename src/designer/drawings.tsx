@@ -1,5 +1,6 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import type { Drawing, Tracing } from '../shared/designs'
+import type { DesignData, Drawing, Tracing } from '../shared/designs'
+import { withMirrors } from './geometry'
 import { fileUrl } from '../shared/library'
 import type { FlatContext } from './FlatView'
 import { Transformable } from './prints'
@@ -10,7 +11,10 @@ import type { View } from './types'
  * Todo en unidades del lienzo, encima del dibujo técnico.
  */
 
-export type DrawTool = 'free' | 'line' | 'rect' | 'ellipse'
+export type DrawTool = Drawing['kind']
+
+/** Formas cerradas (se pueden rellenar). */
+export const CLOSED_SHAPES: DrawTool[] = ['rect', 'ellipse', 'triangle', 'star', 'heart', 'diamond']
 
 export interface Brush {
   color: string
@@ -18,7 +22,14 @@ export interface Brush {
   dash: boolean
   /** Dibuja canales de acolchado (puffer, chaleco) en vez de líneas. */
   quilt?: boolean
+  /** Simétrico: el trazo se repite reflejado al otro lado del centro. */
+  mirror?: boolean
+  /** Relleno de las formas cerradas. */
+  fill?: string
 }
+
+/** Trazos con sus copias reflejadas (los que van en simétrico). */
+const mirrored = (drawings: Drawing[]) => withMirrors({ drawings } as DesignData).drawings ?? drawings
 
 /** Trazado SVG de un dibujo. El lápiz se suaviza con curvas entre los puntos medios. */
 export function drawingPath(d: Drawing) {
@@ -35,6 +46,29 @@ export function drawingPath(d: Drawing) {
       const rx = Math.abs(x1 - x0) / 2
       const ry = Math.abs(y1 - y0) / 2
       return `M${cx - rx} ${cy} A${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`
+    }
+    case 'triangle':
+    case 'star':
+    case 'heart':
+    case 'diamond': {
+      // En la caja de esquina a esquina (u, v de 0 a 1)
+      const L = Math.min(x0, x1)
+      const T = Math.min(y0, y1)
+      const W = Math.abs(x1 - x0)
+      const H = Math.abs(y1 - y0)
+      const at = (u: number, v: number) => `${(L + u * W).toFixed(1)} ${(T + v * H).toFixed(1)}`
+      if (d.kind === 'triangle') return `M${at(0.5, 0)} L${at(1, 1)} L${at(0, 1)} Z`
+      if (d.kind === 'diamond') return `M${at(0.5, 0)} L${at(1, 0.5)} L${at(0.5, 1)} L${at(0, 0.5)} Z`
+      if (d.kind === 'heart')
+        return `M${at(0.5, 0.28)} C${at(0.5, 0.05)} ${at(0, 0)} ${at(0, 0.32)} C${at(0, 0.6)} ${at(0.35, 0.78)} ${at(0.5, 1)} C${at(0.65, 0.78)} ${at(1, 0.6)} ${at(1, 0.32)} C${at(1, 0)} ${at(0.5, 0.05)} ${at(0.5, 0.28)} Z`
+      // Estrella de cinco puntas
+      let s = ''
+      for (let k = 0; k < 10; k++) {
+        const a = -Math.PI / 2 + (k * Math.PI) / 5
+        const r = k % 2 ? 0.2 : 0.5
+        s += (k ? ' L' : 'M') + at(0.5 + Math.cos(a) * r, 0.53 + Math.sin(a) * r * 1.05)
+      }
+      return s + ' Z'
     }
     default: {
       if (p.length < 6) return `M${x0} ${y0} L${x1} ${y1}`
@@ -55,8 +89,12 @@ const dashOf = (d: Pick<Drawing, 'dash' | 'width'>) => (d.dash ? `${Math.max(2.4
  * Un trazo pintado: línea normal o, si es un canal de acolchado, la hendidura del pespunte (sombra) con el relleno
  * abultado a los lados (brillo) y el pespunte encima.
  */
-function Stroke({ d, path }: { d: Drawing; path: string }) {
-  if (!d.quilt) return <path d={path} fill="none" stroke={d.color} strokeWidth={d.width} strokeDasharray={dashOf(d)} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
+function Stroke({ d, path: line }: { d: Drawing; path: string }) {
+  let path = line
+  // Con relleno, el trazo a mano se cierra (forma propia: un bolsillo, un parche…)
+  const fill = d.fill && (CLOSED_SHAPES.includes(d.kind) || d.kind === 'free') ? d.fill : 'none'
+  if (d.fill && d.kind === 'free') path += ' Z'
+  if (!d.quilt) return <path d={path} fill={fill} stroke={d.color} strokeWidth={d.width} strokeDasharray={dashOf(d)} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
   const w = Math.max(0.6, d.width)
   return (
     <g pointerEvents="none" strokeLinecap="round" strokeLinejoin="round" fill="none">
@@ -72,7 +110,7 @@ function Stroke({ d, path }: { d: Drawing; path: string }) {
 export function DrawingsView({ drawings, view }: { drawings: Drawing[]; view: View }) {
   return (
     <g pointerEvents="none">
-      {drawings
+      {mirrored(drawings)
         .filter((d) => d.view === view && !d.hidden)
         .map((d) => (
           <Stroke key={d.id} d={d} path={drawingPath(d)} />
@@ -127,6 +165,11 @@ export function DrawingsLayer({ ctx, drawings, view, selected, onSelect, tool, b
       // Un punto nuevo cada ~1,5 unidades: suficiente para que el trazo sea suave sin pesar mucho
       if (Math.hypot(x - p[p.length - 2], y - p[p.length - 1]) < 1.5) return
       setDraft({ ...draft, points: [...p, x, y] })
+    } else if (e.shiftKey && draft.kind !== 'line') {
+      // Con Mayús, proporción 1:1 (círculo, cuadrado, estrella regular…)
+      const [x0, y0] = draft.points
+      const side = Math.max(Math.abs(x - x0), Math.abs(y - y0))
+      setDraft({ ...draft, points: [x0, y0, x0 + Math.sign(x - x0 || 1) * side, y0 + Math.sign(y - y0 || 1) * side] })
     } else {
       setDraft({ ...draft, points: [draft.points[0], draft.points[1], x, y] })
     }
@@ -142,7 +185,7 @@ export function DrawingsLayer({ ctx, drawings, view, selected, onSelect, tool, b
 
   return (
     <g>
-      {drawings
+      {mirrored(drawings)
         .filter((d) => d.view === view && !d.hidden)
         .map((d) => {
           const path = drawingPath(d)
@@ -167,9 +210,7 @@ export function DrawingsLayer({ ctx, drawings, view, selected, onSelect, tool, b
             </g>
           )
         })}
-      {draft && (
-        <Stroke d={draft} path={drawingPath(draft)} />
-      )}
+      {draft && mirrored([draft]).map((d) => <Stroke key={d.id} d={d} path={drawingPath(d)} />)}
       {tool && (
         <rect
           x={ctx.box.x}

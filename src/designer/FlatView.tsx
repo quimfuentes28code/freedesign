@@ -1,11 +1,11 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, useMemo } from 'react'
 import { LONG_DETAILS, type DesignData, type Detail, type Print, type ZipStyle } from '../shared/designs'
 import { blockLine, halfPlane, onTilesChange, pieceTile, tileUrl, type Tile } from './surfaces'
 import { buttonPrims, DetailGraphic, detailAspect, PrimsView, shade, zipperPrims } from './details'
 import { useFontsVersion } from './fonts'
 import { reshapePockets } from './pocketShape'
 import { fileUrl, type Material } from '../shared/library'
-import { VIEW_H, VIEW_W } from './geometry'
+import { VIEW_H, VIEW_W, withMirrors } from './geometry'
 import type { Body } from '../production/measurements'
 import { resolveMaterial, type CatalogMaterial } from './materials'
 import { drawScale } from './measures'
@@ -97,7 +97,9 @@ function boxWithoutBlocks(el: SVGGraphicsElement): Box | null {
 
 /** Dibujo técnico (flat) de una prenda en una vista, con los colores y materiales de cada pieza y sus estampados. */
 export function FlatView(props: Props) {
-  const { template, data, view, materials, highlight, className, frame = 'ajustado', selectedPrint, onSelectPrint, onChangePrint } = props
+  const { template, view, materials, highlight, className, frame = 'ajustado', selectedPrint, onSelectPrint, onChangePrint } = props
+  // Con las copias reflejadas de lo que va en simétrico (bloqueadas: se mueven con su original)
+  const data = useMemo(() => withMirrors(props.data), [props.data])
   const { mode = 'color', selectedPiece, onPickPiece, overlay, pad = 12, body, selectedDetail, onSelectDetail, onChangeDetail, lockFrame } = props
   const line = mode === 'linea'
   const uid = useId().replace(/:/g, '')

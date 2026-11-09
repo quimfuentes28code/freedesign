@@ -20,7 +20,7 @@ export interface Tile {
 }
 
 /** Tamaño por defecto del dibujo que se repite (cm) en cada superficie. */
-export const DEFAULT_SIZE: Record<string, number> = { rayas: 2, cuadros: 3, lunares: 2, camuflaje: 40, tiedye: 55, logo: 8, degradado: 70 }
+export const DEFAULT_SIZE: Record<string, number> = { escoces: 12, patagallo: 1.2, diplomatica: 1.5, zigzag: 3, imagen: 20, rayas: 2, cuadros: 3, lunares: 2, camuflaje: 40, tiedye: 55, logo: 8, degradado: 70 }
 
 /** Generador de números pseudoaleatorios con semilla (el camuflaje sale siempre igual para la misma pieza). */
 function rng(seed: number) {
@@ -83,6 +83,61 @@ function drawSurface(ctx: CanvasRenderingContext2D, s: Surface, base: string, on
       ctx.fillRect(0, 0, W, W / 2)
       ctx.globalAlpha = 1
       break
+    case 'escoces': {
+      // Tartán: franjas anchas translúcidas del segundo color que se cruzan y rayas finas del tercero
+      ctx.globalAlpha = 0.5
+      ctx.fillRect(0, 0, W * 0.4, W)
+      ctx.fillRect(0, 0, W, W * 0.4)
+      ctx.globalAlpha = 0.85
+      ctx.fillStyle = s.color3
+      ctx.fillRect(W * 0.68, 0, W * 0.04, W)
+      ctx.fillRect(0, W * 0.68, W, W * 0.04)
+      ctx.globalAlpha = 0.6
+      ctx.fillRect(W * 0.18, 0, W * 0.02, W)
+      ctx.fillRect(0, W * 0.18, W, W * 0.02)
+      ctx.globalAlpha = 1
+      break
+    }
+    case 'patagallo': {
+      // Pata de gallo: cuadro con dos colas en diagonal (encaja con los azulejos de al lado)
+      const u = W / 4
+      ctx.fillRect(0, 2 * u, 2 * u, 2 * u)
+      ctx.beginPath()
+      ctx.moveTo(0, 2 * u)
+      ctx.lineTo(2 * u, 0)
+      ctx.lineTo(3 * u, 0)
+      ctx.lineTo(0, 3 * u)
+      ctx.closePath()
+      ctx.moveTo(2 * u, 4 * u)
+      ctx.lineTo(4 * u, 2 * u)
+      ctx.lineTo(4 * u, 3 * u)
+      ctx.lineTo(3 * u, 4 * u)
+      ctx.closePath()
+      ctx.fill()
+      break
+    }
+    case 'diplomatica':
+      // Raya fina sobre el fondo
+      ctx.fillRect(0, 0, W * 0.07, W)
+      break
+    case 'zigzag':
+      ctx.lineWidth = W * 0.1
+      ctx.lineJoin = 'miter'
+      for (const y of [0.35, 0.85]) {
+        ctx.beginPath()
+        ctx.moveTo(-W * 0.1, W * (y + 0.04))
+        ctx.lineTo(0, W * y)
+        ctx.lineTo(W / 2, W * (y - 0.2))
+        ctx.lineTo(W, W * y)
+        ctx.lineTo(W * 1.1, W * (y - 0.04))
+        ctx.stroke()
+      }
+      break
+    case 'imagen': {
+      const img = s.file ? artImage(s.file, onLoad) : null
+      if (img) ctx.drawImage(img, 0, 0, W, W)
+      break
+    }
     case 'lunares':
       for (const [x, y] of [[W / 4, W / 4], [(3 * W) / 4, (3 * W) / 4]]) {
         ctx.beginPath()

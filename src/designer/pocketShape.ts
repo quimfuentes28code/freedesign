@@ -1,5 +1,5 @@
 import type { DesignData } from '../shared/designs'
-import { pocketBody, POCKET_SHAPE_PARAMS } from './details'
+import { pocketBody, pocketFlap, pocketFreeOf, POCKET_SHAPE_PARAMS } from './details'
 import type { Shape } from './types'
 
 /**
@@ -38,8 +38,13 @@ export function reshapePockets(shapes: Shape[], data: Pick<DesignData, 'pieces'>
     const r = param(shape, 'esquinas') * b.w * 0.3
     const fondo = Math.round(param(shape, 'fondo'))
     const depth = param(shape, 'pico')
-    out.push({ ...s, d: pocketBody(b.x, b.y, b.w, h, r, fondo, 0, depth) })
-    out.push({ kind: 'stitch', piece: s.piece, d: pocketBody(b.x, b.y, b.w, h, r, fondo, 2.5, depth) })
+    const free = pocketFreeOf((id) => param(shape, id))
+    out.push({ ...s, d: pocketBody(b.x, b.y, b.w, h, r, fondo, 0, depth, free) })
+    out.push({ kind: 'stitch', piece: s.piece, d: pocketBody(b.x, b.y, b.w, h, r, fondo, 2.5, depth, free) })
+    // Solapa (con su pespunte y, si lleva, el botón) sobre la boca
+    const tw = b.w * free.boca
+    const flap = pocketFlap(b.x + (b.w - tw) / 2, b.y, tw, h * param(shape, 'solapaAlto'), Math.round(param(shape, 'solapa')), param(shape, 'boton') > 0.5, '#888888', '#888888')
+    for (const p of flap) if (p.t === 'path') out.push({ kind: p.dash ? 'stitch' : 'fill', piece: s.piece, d: p.d })
   }
   return out
 }

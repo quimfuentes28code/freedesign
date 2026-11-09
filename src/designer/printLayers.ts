@@ -2,11 +2,12 @@ import type { DesignData, Print } from '../shared/designs'
 import { fileUrl } from '../shared/library'
 import type { Body } from '../production/measurements'
 import { buttonPrims, detailFiles, detailPrims, drawPrims, zipperPrims, type Prim } from './details'
-import { CX } from './geometry'
+import { CX, withMirrors } from './geometry'
 import { blockLine, halfPlane } from './surfaces'
 import { drawScale } from './measures'
 import { reshapePockets } from './pocketShape'
 import { loadFont } from './fonts'
+import { CLOSED_SHAPES, drawingPath } from './drawings'
 import { printSize, textLayout } from './prints'
 import { isPants, type GarmentTemplate, type View } from './types'
 
@@ -71,7 +72,8 @@ export interface PrintLayer {
 }
 
 /** Imagen con los estampados, detalles y fornituras de una vista, o null si esa vista no tiene nada. */
-export async function printLayer(t: GarmentTemplate, data: DesignData, view: View, body?: Body): Promise<PrintLayer | null> {
+export async function printLayer(t: GarmentTemplate, raw: DesignData, view: View, body?: Body): Promise<PrintLayer | null> {
+  const data = withMirrors(raw)
   const prints = (data.prints ?? []).filter((p) => p.view === view && !p.hidden)
   const details = (data.details ?? []).filter((d) => d.view === view && !d.hidden)
   const hw = data.hardware ?? {}
@@ -82,8 +84,10 @@ export async function printLayer(t: GarmentTemplate, data: DesignData, view: Vie
   const shapes = real ? [] : all.filter((s) => s.role)
   // Bloques de color del cuerpo (los de mangas o capucha solo se ven en 2D)
   const blocks = (data.blocks ?? []).filter((b) => b.view === view && BODY_PIECES(t).includes(b.piece))
+  // Trazos y formas dibujados a mano (los canales de acolchado ya salen en el relieve de la tela)
+  const drawings = (data.drawings ?? []).filter((d) => d.view === view && !d.hidden && !d.quilt)
   const f = bodyFrame(t, data, view, body)
-  if ((!prints.length && !details.length && !shapes.length && !blocks.length) || !f) return null
+  if ((!prints.length && !details.length && !shapes.length && !blocks.length && !drawings.length) || !f) return null
   const k = HEIGHT / (f.bottom - f.top)
   const make = () => {
     const c = document.createElement('canvas')
@@ -126,6 +130,24 @@ export async function printLayer(t: GarmentTemplate, data: DesignData, view: Vie
     ctx.strokeStyle = 'rgba(0,0,0,0.45)'
     ctx.lineWidth = 0.8
     ctx.stroke(new Path2D(blockLine(b, 0)))
+    ctx.restore()
+  }
+
+  for (const d of drawings) {
+    const filled = !!d.fill && (CLOSED_SHAPES.includes(d.kind) || d.kind === 'free')
+    const path = new Path2D(drawingPath(d) + (filled && d.kind === 'free' ? ' Z' : ''))
+    ctx.save()
+    ctx.setTransform(k, 0, 0, k, -(CX - f.half) * k, -f.top * k)
+    if (filled) {
+      ctx.fillStyle = d.fill!
+      ctx.fill(path)
+    }
+    ctx.strokeStyle = d.color
+    ctx.lineWidth = d.width
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    if (d.dash) ctx.setLineDash([Math.max(2.4, d.width * 2.4), Math.max(1.8, d.width * 1.8)])
+    ctx.stroke(path)
     ctx.restore()
   }
 

@@ -1,3 +1,4 @@
+import type { DesignData } from '../shared/designs'
 /**
  * Geometría para los dibujos técnicos (flats). Lienzo de 400 × 480 con el eje de simetría en x = 200.
  */
@@ -93,4 +94,27 @@ export function ribLines(a1: Pt, a2: Pt, b1: Pt, b2: Pt, spacing = 4) {
     out.push(line(lerp(a1, a2, t), lerp(b1, b2, t)))
   }
   return out.join(' ')
+}
+
+/**
+ * Diseño con las copias reflejadas de lo que está en simétrico (estampados, detalles y trazos): cada uno se repite al
+ * otro lado del centro de la prenda (CX), con el giro al revés. Las copias van bloqueadas (se mueven con su original)
+ * y su id acaba en «~m». Los textos y gráficos no se dan la vuelta (se leerían al revés); solo cambian de sitio.
+ */
+export function withMirrors(data: DesignData): DesignData {
+  const prints = data.prints ?? []
+  const details = data.details ?? []
+  const drawings = data.drawings ?? []
+  const side = (v: { view: string; mirror?: boolean }) => !!v.mirror && v.view !== 'side'
+  if (!prints.some(side) && !details.some(side) && !drawings.some(side)) return data
+  const fx = (x: number) => 2 * CX - x
+  return {
+    ...data,
+    prints: [...prints, ...prints.filter(side).map((p) => ({ ...p, id: `${p.id}~m`, x: fx(p.x), rotation: -p.rotation, locked: true, mirror: false }))],
+    details: [...details, ...details.filter(side).map((d) => ({ ...d, id: `${d.id}~m`, x: fx(d.x), rotation: -d.rotation, locked: true, mirror: false }))],
+    drawings: [
+      ...drawings,
+      ...drawings.filter(side).map((d) => ({ ...d, id: `${d.id}~m`, points: d.points.map((v, i) => (i % 2 ? v : fx(v))), locked: true, mirror: false })),
+    ],
+  }
 }

@@ -23,11 +23,16 @@ export const SURFACE_KINDS = [
   { id: 'liso', label: 'Liso' },
   { id: 'rayas', label: 'Rayas' },
   { id: 'cuadros', label: 'Cuadros' },
+  { id: 'escoces', label: 'Escocés' },
+  { id: 'patagallo', label: 'Pata de gallo' },
+  { id: 'diplomatica', label: 'Raya diplomática' },
+  { id: 'zigzag', label: 'Zigzag' },
   { id: 'lunares', label: 'Lunares' },
   { id: 'camuflaje', label: 'Camuflaje' },
   { id: 'tiedye', label: 'Tie-dye' },
   { id: 'logo', label: 'Logo repetido' },
   { id: 'degradado', label: 'Degradado' },
+  { id: 'imagen', label: 'Imagen propia' },
 ] as const
 export type SurfaceKind = (typeof SURFACE_KINDS)[number]['id']
 
@@ -41,6 +46,8 @@ export interface Surface {
   angle: number
   /** Gráfico que se repite (kind = logo). */
   art?: DetailArt | null
+  /** Imagen propia que se repite (kind = imagen): una muestra de tela (cuadros, rayas, estampado…) subida por el usuario. */
+  file?: string
 }
 
 export const WASH_KINDS = [
@@ -151,6 +158,8 @@ export interface Print {
   strokeWidth?: number
   shadow?: string
   shadowOffset?: number
+  /** Simétrico: se repite reflejado al otro lado del centro de la prenda (la copia sigue al original). */
+  mirror?: boolean
 }
 
 /** Tipos de detalle que se colocan sobre la prenda. */
@@ -327,6 +336,8 @@ export interface Detail {
   shape?: Record<string, number>
   hidden?: boolean
   locked?: boolean
+  /** Simétrico: se repite reflejado al otro lado del centro de la prenda (la copia sigue al original). */
+  mirror?: boolean
 }
 
 /** Estilo de las fornituras que trae la prenda base (botones de la tapeta, cremallera y su tirador). */
@@ -342,17 +353,21 @@ export interface HardwareStyle {
 export interface Drawing {
   id: string
   view: 'front' | 'back' | 'side'
-  /** Lápiz libre, línea recta, rectángulo o elipse (estos tres con dos puntos: esquina a esquina). */
-  kind: 'free' | 'line' | 'rect' | 'ellipse'
+  /** Lápiz libre, línea recta o una forma (rectángulo, elipse, triángulo, estrella, corazón o rombo: dos puntos, de esquina a esquina). */
+  kind: 'free' | 'line' | 'rect' | 'ellipse' | 'triangle' | 'star' | 'heart' | 'diamond'
   points: number[]
   color: string
   width: number
   /** Trazo discontinuo, como un pespunte. */
   dash: boolean
+  /** Relleno de las formas cerradas (vacío = solo el contorno). */
+  fill?: string
   /** Canal de acolchado dibujado a mano: pespunte con el relieve del relleno a los lados. */
   quilt?: boolean
   hidden?: boolean
   locked?: boolean
+  /** Simétrico: se repite reflejado al otro lado del centro de la prenda (la copia sigue al original). */
+  mirror?: boolean
 }
 
 /** Boceto (foto de un dibujo a mano) puesto encima del plano para calcarlo. Centro (x, y) y ancho en unidades del lienzo. */

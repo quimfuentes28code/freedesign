@@ -277,6 +277,10 @@ export function PrintsPanel({ template, prints, onChange, view, onViewChange, se
             <span>Recortar al contorno de la prenda</span>
             <input type="checkbox" checked={current.clip} onChange={(e) => update({ clip: e.target.checked })} />
           </label>
+          <label className="toggle-row" title="Se repite reflejado al otro lado del centro de la prenda (los textos y gráficos se siguen leyendo bien)">
+            <span>Simétrico (se repite al otro lado)</span>
+            <input type="checkbox" checked={!!current.mirror} onChange={(e) => update({ mirror: e.target.checked || undefined })} />
+          </label>
           <div className="print-actions">
             <button className="button" onClick={() => update({ x: CX })} title="Centrar en la prenda (también se ajusta solo al acercarlo al centro)">
               ↔ Centrar

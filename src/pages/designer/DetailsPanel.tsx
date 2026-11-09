@@ -196,6 +196,10 @@ export function DetailsPanel({ details, onChange, view, selected, onSelect, artw
               <input type="checkbox" checked={!!current.relief} onChange={(e) => update({ relief: e.target.checked || undefined })} />
             </label>
           )}
+          <label className="toggle-row" title="Se repite reflejado al otro lado del centro de la prenda">
+            <span>Simétrico (se repite al otro lado)</span>
+            <input type="checkbox" checked={!!current.mirror} onChange={(e) => update({ mirror: e.target.checked || undefined })} />
+          </label>
           <div className="print-actions">
             <button className="button" onClick={() => update({ x: CX })}>
               ↔ Centrar

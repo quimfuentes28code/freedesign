@@ -185,7 +185,7 @@ const viewOf = (v: unknown) => (VIEWS.includes(v as (typeof VIEWS)[number]) ? (v
 function readDrawing(raw: unknown): Drawing | null {
   if (!raw || typeof raw !== 'object') return null
   const d = raw as Record<string, unknown>
-  const kinds = ['free', 'line', 'rect', 'ellipse'] as const
+  const kinds = ['free', 'line', 'rect', 'ellipse', 'triangle', 'star', 'heart', 'diamond'] as const
   const points = Array.isArray(d.points) ? d.points.slice(0, 4000).map((n) => Math.round(finite(n, 0) * 10) / 10) : []
   if (points.length < 4 || points.length % 2) return null
   const color = text(d.color)
@@ -197,6 +197,8 @@ function readDrawing(raw: unknown): Drawing | null {
     color: /^#[0-9a-f]{6}$/i.test(color) ? color : '#1d1c1a',
     width: Math.min(12, Math.max(0.3, finite(d.width, 1.2))),
     dash: d.dash === true,
+    ...(/^#[0-9a-f]{6}$/i.test(text(d.fill)) ? { fill: text(d.fill) } : {}),
+    ...(d.mirror === true ? { mirror: true } : {}),
     ...(d.quilt === true ? { quilt: true } : {}),
     ...(d.hidden === true ? { hidden: true } : {}),
     ...(d.locked === true ? { locked: true } : {}),
@@ -239,6 +241,7 @@ function readDetail(raw: unknown): Detail | null {
     ...(art ? { art } : {}),
     ...(d.relief === true ? { relief: true } : {}),
     ...(readShape(d.shape) ? { shape: readShape(d.shape)! } : {}),
+    ...(d.mirror === true ? { mirror: true } : {}),
     ...(d.hidden === true ? { hidden: true } : {}),
     ...(d.locked === true ? { locked: true } : {}),
   }
@@ -248,7 +251,7 @@ function readDetail(raw: unknown): Detail | null {
 function readShape(raw: unknown): Record<string, number> | null {
   if (!raw || typeof raw !== 'object') return null
   const out: Record<string, number> = {}
-  for (const [k, v] of Object.entries(raw).slice(0, 10)) {
+  for (const [k, v] of Object.entries(raw).slice(0, 20)) {
     if (typeof v === 'number' && Number.isFinite(v)) out[k.slice(0, 20)] = Math.min(40, Math.max(-5, Math.round(v * 100) / 100))
   }
   return Object.keys(out).length ? out : null
@@ -300,6 +303,7 @@ function readSurface(raw: unknown): Surface | null {
     size: Math.min(200, Math.max(0.3, finite(s.size, 4))),
     angle: Math.max(-180, Math.min(180, finite(s.angle, 0))),
     ...(art ? { art } : {}),
+    ...(kind === 'imagen' && isFileKey(text(s.file)) ? { file: text(s.file) } : {}),
   }
 }
 
@@ -376,6 +380,7 @@ function readPrint(raw: unknown): Print | null {
     rotation: n(p.rotation, 0),
     technique: TECHNIQUES.some((t) => t.id === p.technique) ? (p.technique as Technique) : 'serigrafia',
     clip: p.clip !== false,
+    ...(p.mirror === true ? { mirror: true } : {}),
     ...(p.hidden === true ? { hidden: true } : {}),
     ...(p.locked === true ? { locked: true } : {}),
     // Efectos del texto (solo los que estén puestos)

@@ -35,7 +35,11 @@ const TOOLS: { id: DrawTool | null; label: string; title: string; icon: RailIcon
   { id: 'free', label: 'Lápiz', title: 'Lápiz: dibujo a mano alzada', icon: 'free' },
   { id: 'line', label: 'Línea', title: 'Línea recta', icon: 'line' },
   { id: 'rect', label: 'Rectángulo', title: 'Rectángulo', icon: 'rect' },
-  { id: 'ellipse', label: 'Elipse', title: 'Elipse o círculo', icon: 'ellipse' },
+  { id: 'ellipse', label: 'Elipse', title: 'Elipse o círculo (con Mayús, círculo)', icon: 'ellipse' },
+  { id: 'triangle', label: 'Triángulo', title: 'Triángulo', icon: 'triangle' },
+  { id: 'star', label: 'Estrella', title: 'Estrella', icon: 'star' },
+  { id: 'heart', label: 'Corazón', title: 'Corazón', icon: 'heart' },
+  { id: 'diamond', label: 'Rombo', title: 'Rombo', icon: 'diamond' },
 ]
 
 /** Iconos de la columna de herramientas (20×20, trazo con el color del texto). */
@@ -45,6 +49,10 @@ const RAIL_ICONS = {
   line: 'M4 16L16 4',
   rect: 'M4 5.5h12v9H4z',
   ellipse: 'M3 10a7 5 0 1 0 14 0a7 5 0 1 0-14 0',
+  triangle: 'M10 3.5L17 16H3z',
+  star: 'M10 2.5l2.2 4.9 5.3.5-4 3.5 1.2 5.2L10 13.9l-4.7 2.7 1.2-5.2-4-3.5 5.3-.5z',
+  heart: 'M10 6.5C10 3.5 3.5 3 3.5 7.5c0 3.5 4 6 6.5 9 2.5-3 6.5-5.5 6.5-9C16.5 3 10 3.5 10 6.5z',
+  diamond: 'M10 2.5L17 10l-7 7.5L3 10z',
   note: 'M4 4h12v9H9.5L6 16v-3H4z',
   block: 'M4 4h12v12H4zM4 16L16 4',
   shape: 'M4 4h5M4 4v5M16 16h-5M16 16v-5M4 4l12 12',
@@ -415,6 +423,24 @@ export function Canvas(props: Props) {
               <label className="toggle small-toggle" title="Dibuja canales de acolchado (puffer, chaleco): pespunte con el relleno abultado a los lados">
                 <input type="checkbox" checked={(selectedDraw ? selectedDraw.quilt : settings.brush.quilt) ?? false} onChange={(e) => setBrush({ quilt: e.target.checked })} />
                 Canal de acolchado
+              </label>
+              <label className="toggle small-toggle" title="Relleno de las formas (rectángulo, elipse, triángulo, estrella, corazón, rombo; con el lápiz, la forma se cierra: tu propio bolsillo o parche)">
+                <input
+                  type="checkbox"
+                  checked={!!(selectedDraw ? selectedDraw.fill : settings.brush.fill)}
+                  onChange={(e) => setBrush({ fill: e.target.checked ? (selectedDraw?.color ?? settings.brush.color) : undefined })}
+                />
+                Relleno
+              </label>
+              {(selectedDraw ? selectedDraw.fill : settings.brush.fill) && (
+                <label className="brush-color" title="Color del relleno">
+                  <input type="color" value={(selectedDraw ? selectedDraw.fill : settings.brush.fill) ?? '#000000'} onChange={(e) => setBrush({ fill: e.target.value })} />
+                  <span style={{ background: (selectedDraw ? selectedDraw.fill : settings.brush.fill) ?? '#000' }} />
+                </label>
+              )}
+              <label className="toggle small-toggle" title="Simétrico: lo que dibujes se repite reflejado al otro lado del centro de la prenda">
+                <input type="checkbox" checked={(selectedDraw ? selectedDraw.mirror : settings.brush.mirror) ?? false} onChange={(e) => setBrush({ mirror: e.target.checked })} />
+                Simétrico
               </label>
               {selectedDraw && (
                 <button className="tool" onClick={() => onDrawings(drawings.filter((d) => d.id !== selectedDraw.id))} title="Borrar el trazo (Supr)">

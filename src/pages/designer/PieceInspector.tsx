@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { chartColor, COLOR_CHART, colorLabel } from '../../designer/colors'
 import type { PieceDef } from '../../designer/types'
 import type { Artwork } from '../../shared/artworks'
@@ -9,6 +10,8 @@ import { MaterialPicker } from './MaterialPicker'
 import { Fold } from './Fold'
 import { POCKET_SHAPE_PARAMS } from '../../designer/details'
 import { useAuth } from '../../auth/AuthContext'
+import { api } from '../../api/client'
+import { fileUrl } from '../../shared/library'
 
 interface Props {
   template: string
@@ -279,7 +282,20 @@ function SurfaceControls({ style, artworks, onChange }: { style: PieceStyle; art
   const set = (patch: Partial<Surface>) => s && onChange({ surface: { ...s, ...patch } })
   const wash = style.wash
   const setWash = (k: WashKind) => onChange({ wash: k === 'ninguno' ? undefined : { kind: k, amount: wash?.amount ?? 0.6 } })
-  const big = kind === 'camuflaje' || kind === 'tiedye'
+  const big = kind === 'camuflaje' || kind === 'tiedye' || kind === 'imagen' || kind === 'escoces'
+  const [uploading, setUploading] = useState(false)
+  const uploadTile = async (file: File | undefined) => {
+    if (!file || !s) return
+    setUploading(true)
+    try {
+      const { key } = await api.uploadImage(file)
+      set({ file: key })
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se ha podido subir la imagen')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   return (
     <>
@@ -294,15 +310,26 @@ function SurfaceControls({ style, artworks, onChange }: { style: PieceStyle; art
         </div>
         {s && (
           <div className="surface-fields">
-            {kind !== 'logo' && (
+            {kind === 'imagen' && (
+              <div className="field">
+                <span>Muestra de tela (se repite)</span>
+                {s.file && <img className="surface-thumb" src={fileUrl(s.file)} alt="Muestra de tela" />}
+                <label className="button">
+                  {uploading ? 'Subiendo…' : s.file ? 'Cambiar imagen' : 'Subir imagen'}
+                  <input type="file" accept="image/*" hidden onChange={(e) => uploadTile(e.target.files?.[0])} />
+                </label>
+                <small className="muted">Mejor una imagen cuadrada que encaje sin cortes al repetirse (cuadros, rayas, un estampado…).</small>
+              </div>
+            )}
+            {kind !== 'logo' && kind !== 'imagen' && (
               <label className="field">
                 <span>{kind === 'degradado' ? 'Color de abajo' : 'Segundo color'}</span>
                 <input type="color" value={s.color2} onChange={(e) => set({ color2: e.target.value })} />
               </label>
             )}
-            {big && (
+            {big && kind !== 'imagen' && (
               <label className="field">
-                <span>Tercer color</span>
+                <span>{kind === 'escoces' ? 'Color de las rayas finas' : 'Tercer color'}</span>
                 <input type="color" value={s.color3} onChange={(e) => set({ color3: e.target.value })} />
               </label>
             )}

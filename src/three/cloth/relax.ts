@@ -103,6 +103,12 @@ export interface RelaxOptions {
   iterations?: number
   /** Cuánto se resiste la tela a estirarse (1 = casi nada; menos = punto elástico, que se estira sobre el cuerpo). */
   stretch?: number
+  /**
+   * Prenda «hinchada» sin cuerpo (vista 3D del editor): presión hacia fuera en cada punto (unidades / s²). Las
+   * piezas se cosen sobre el cuerpo y, en cuanto se han juntado, el cuerpo deja de contar y la prenda se infla como
+   * un globo con la forma de su patrón, sin la silueta del maniquí.
+   */
+  inflate?: number
 }
 
 export interface Layer {
@@ -245,10 +251,24 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
     }
   }
 
+  // Inflado: cada triángulo empuja hacia fuera (su lado de fuera es el que mira lejos del cuerpo al empezar)
+  const tri = opts.inflate ? Int32Array.from([...cloth.tris[0], ...cloth.tris[1]]) : null
+  const triSign = tri ? new Int8Array(tri.length / 3) : null
+  const push = tri ? new Float32Array(n * 3) : null
+  if (tri && triSign) {
+    for (let k = 0; k < triSign.length; k++) {
+      const [nx, ny, nz] = triNormal(k)
+      const s = skinNormal(tri[k * 3])
+      triSign[k] = s && nx * s[0] + ny * s[1] + nz * s[2] < 0 ? -1 : 1
+    }
+  }
+
   for (let step = 0; step < steps; step++) {
     // Las costuras tiran fuerte al principio y la gravedad entra poco a poco: así las piezas se juntan antes de caer
     const t = step / steps
     const gravity = g * Math.min(1, t * 3)
+    // Inflando, el cuerpo sigue sujetando la tela donde se apoya (hombros, cuello): el resto se hincha y se aleja de él
+    const onBody = true
 
     // 1. Mover (Verlet con amortiguación)
     for (let i = 0; i < n * 3; i += 3) {
@@ -271,6 +291,9 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
       }
     }
 
+    // Presión hacia fuera (cada 4 pasos, el cuádruple), entrando poco a poco
+    if (tri && triSign && push && step % 4 === 0 && t > 0.1) inflateStep(opts.inflate! * h * h * 4 * Math.min(1, (t - 0.1) * 4))
+
     // 3. Distancias del patrón
     for (let k = 0; k < (opts.iterations ?? 1); k++) satisfyLinks()
 
@@ -283,8 +306,10 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
 
     // 4. Choque con el cuerpo (con rozamiento para que la tela se quede apoyada en hombros y pecho)
     // La piel más cercana cambia poco de un paso a otro: se recalcula de vez en cuando
-    if (step % 20 === 0) refresh()
-    collideBody()
+    if (onBody) {
+      if (step % 20 === 0) refresh()
+      collideBody()
+    }
 
     // 5. Capas de la propia prenda (cada pocos pasos: es más caro y cambia poco)
     if (opts.layers && step % 2 === 0 && t > 0.15) separateLayers(pos, prev, opts.layers, skinNormal, opts.cell)
@@ -303,6 +328,42 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
     }
   }
   return pos
+
+  /** Normal (sin normalizar: su largo es el doble del área) del triángulo k. */
+  function triNormal(k: number): [number, number, number] {
+    const a = tri![k * 3] * 3
+    const b = tri![k * 3 + 1] * 3
+    const c = tri![k * 3 + 2] * 3
+    const ux = pos[b] - pos[a]
+    const uy = pos[b + 1] - pos[a + 1]
+    const uz = pos[b + 2] - pos[a + 2]
+    const vx = pos[c] - pos[a]
+    const vy = pos[c + 1] - pos[a + 1]
+    const vz = pos[c + 2] - pos[a + 2]
+    return [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx]
+  }
+
+  /** Mueve cada punto hacia fuera de la tela (media de las normales de sus triángulos) `amount` unidades. */
+  function inflateStep(amount: number) {
+    push!.fill(0)
+    for (let k = 0; k < triSign!.length; k++) {
+      const [nx, ny, nz] = triNormal(k)
+      const s = triSign![k]
+      for (let j = 0; j < 3; j++) {
+        const v = tri![k * 3 + j] * 3
+        push![v] += nx * s
+        push![v + 1] += ny * s
+        push![v + 2] += nz * s
+      }
+    }
+    for (let i = 0; i < n * 3; i += 3) {
+      const l = Math.hypot(push![i], push![i + 1], push![i + 2])
+      if (l < 1e-9) continue
+      pos[i] += (push![i] / l) * amount
+      pos[i + 1] += (push![i + 1] / l) * amount
+      pos[i + 2] += (push![i + 2] / l) * amount
+    }
+  }
 
   /** Normal de la piel bajo un punto de la tela (hacia fuera del cuerpo). */
   function skinNormal(i: number): [number, number, number] | null {

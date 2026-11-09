@@ -620,7 +620,9 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
       if (frame) {
         u.uPrintFrame.value.set(frame.cx, frame.half, frame.top, frame.bottom)
         u.uPrintZ.value = frame.cz
-        u.uPrintFlat.value = frame.uv ? 1 : 0
+        // En el pantalón, de frente sobre la prenda: cada pernera es una pieza plana aparte y un parche en el centro
+        // (bragueta, culo) se partía a los lados
+        u.uPrintFlat.value = frame.uv && design.garment !== 'pantalon' ? 1 : 0
         if (frame.uv) u.uPrintUv.value.set(...frame.uv)
       }
     }

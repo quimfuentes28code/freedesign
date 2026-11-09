@@ -93,7 +93,9 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   const extra = fine ? 0.2 : 0
   // Prenda sola (editor): un instante y casi sin gravedad, para que quede recta, sin pliegues de caída
   const ghost = !!design.ghost
-  const gravity = (ghost ? 450 : 980) * unit
+  const gravity = (ghost ? 60 : 980) * unit
+  // Sola (editor): hinchada como un globo, con la forma de su patrón y sin la silueta del maniquí
+  const inflate = ghost ? 420 * unit : undefined
   const settle = (normal: number) => input.seconds ?? (ghost ? 0.9 : normal + extra)
   // La rigidez a la flexión depende de la tela
   for (const l of cloth.links) if (l.k < 0.5) l.k = Math.min(1, l.k * fabric.stiffness)
@@ -112,6 +114,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
         iterations,
         thickness: 0.6 * unit,
         gravity,
+        inflate,
         cell: 2.2 * unit,
         // El borde de arriba se sujeta (un top sin tirantes no se escurre)
         pins: femTop.pins,
@@ -123,6 +126,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
         iterations,
         thickness: 0.9 * unit,
         gravity,
+        inflate,
         cell: 2.2 * unit,
         // Una pernera no atraviesa la otra
         layers: pants ? [{ mode: 'apart', outer: pants.legs[0], inner: pants.legs[1], gap: 1.4 * unit }] : [],
@@ -141,6 +145,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     // Sobre otra prenda, algo más de separación: con la malla fina, el relieve de la de debajo asomaba entre los puntos
     thickness: (input.underlay ? 1.1 : 0.7) * unit,
     gravity,
+    inflate,
     cell: 2.2 * unit,
     // La tela no se atraviesa a sí misma: la capucha queda encima de la espalda y las mangas no se meten en el cuerpo
     layers: [

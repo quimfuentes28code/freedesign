@@ -19,7 +19,7 @@ import './studio.css'
  */
 export function useDesign3D(template: GarmentTemplate | null | undefined, data: DesignData | null | undefined, materials: Map<string, Material>, body?: Body) {
   const [layers, setLayers] = useState<Design['prints']>()
-  const printKey = template && data ? JSON.stringify([data.prints ?? [], data.details ?? [], data.hardware ?? {}, data.blocks ?? [], data.pieces, data.options, data.measures ?? {}, template.id, !!body]) : ''
+  const printKey = template && data ? JSON.stringify([data.prints ?? [], data.details ?? [], data.drawings ?? [], data.hardware ?? {}, data.blocks ?? [], data.pieces, data.options, data.measures ?? {}, template.id, !!body]) : ''
   useEffect(() => {
     if (!template || !data) return setLayers(undefined)
     let alive = true

@@ -46,12 +46,24 @@ export interface ShapeParam {
 const ALTO: ShapeParam = { id: 'alto', label: 'Alto', min: 0.4, max: 2.5, step: 0.05, def: 1 }
 const POINT: ShapeParam = { id: 'pico', label: 'Profundidad del pico', min: 0.05, max: 1, step: 0.05, def: 0.35 }
 
+const FONDO: ShapeParam = { id: 'fondo', label: 'Fondo', min: 0, max: 4, step: 1, def: 0, choices: ['Recto', 'En pico', 'Redondo', 'Doble pico', 'Esquinas cortadas'] }
+/** Ajustes libres de la forma de un bolsillo de parche (además de fondo, pico, esquinas y alto). */
+const POCKET_FREE: ShapeParam[] = [
+  { id: 'boca', label: 'Ancho de la boca', min: 0.6, max: 1.4, step: 0.05, def: 1 },
+  { id: 'abajo', label: 'Ancho del fondo', min: 0.5, max: 1.5, step: 0.05, def: 1 },
+  { id: 'inclinada', label: 'Boca inclinada', min: -0.4, max: 0.4, step: 0.02, def: 0 },
+  { id: 'curva', label: 'Boca curva', min: -1, max: 1, step: 0.05, def: 0 },
+  { id: 'solapa', label: 'Solapa', min: 0, max: 3, step: 1, def: 0, choices: ['Sin solapa', 'Recta', 'En pico', 'Redonda'] },
+  { id: 'solapaAlto', label: 'Alto de la solapa', min: 0.12, max: 0.5, step: 0.02, def: 0.28 },
+  { id: 'boton', label: 'Botón en la solapa', min: 0, max: 1, step: 1, def: 0, choices: ['No', 'Sí'] },
+]
 /** Forma de los bolsillos que trae la prenda (al elegir la pieza «Bolsillos»). */
 export const POCKET_SHAPE_PARAMS: ShapeParam[] = [
-  { id: 'fondo', label: 'Fondo', min: 0, max: 2, step: 1, def: 0, choices: ['Recto', 'En pico', 'Redondo'] },
+  FONDO,
   POINT,
   { id: 'esquinas', label: 'Esquinas redondeadas', min: 0, max: 1, step: 0.05, def: 0.1 },
   ALTO,
+  ...POCKET_FREE,
 ]
 
 /** Forma que se puede ajustar en cada tipo de detalle. */
@@ -59,9 +71,10 @@ export const SHAPE_PARAMS: Partial<Record<Detail['kind'], ShapeParam[]>> = {
   bolsillo: [
     ALTO,
     { id: 'esquinas', label: 'Esquinas redondeadas', min: 0, max: 1, step: 0.05, def: 0.2 },
-    { id: 'fondo', label: 'Fondo', min: 0, max: 2, step: 1, def: 0, choices: ['Recto', 'En pico', 'Redondo'] },
+    FONDO,
     POINT,
     { id: 'tapeta', label: 'Alto de la tapeta (cargo)', min: 0.4, max: 2, step: 0.05, def: 1 },
+    ...POCKET_FREE,
   ],
   parche: [ALTO],
   etiqueta: [ALTO],
@@ -313,13 +326,31 @@ export function detailPrims(d: Detail): Prim[] {
 /** Pespunte discontinuo (de `color`) del tamaño del detalle. */
 const stitch = (d: string, w: number, color: string): Prim => ({ t: 'path', d, stroke: color, sw: Math.max(0.3, w * 0.018), dash: `${n(Math.max(1, w * 0.05))} ${n(Math.max(0.7, w * 0.035))}` })
 
-/** Cuerpo de un bolsillo con su fondo recto, en pico o redondo (`inset` para el pespunte); `depth`: lo que baja el pico (0–1). */
-export function pocketBody(x0: number, y0: number, w: number, h: number, r: number, fondo: number, inset = 0, depth = 0.35) {
+/** Forma libre de un bolsillo: ancho de la boca y del fondo, boca inclinada y curva (relativos; 1, 1, 0, 0 = rectángulo). */
+export interface PocketFree {
+  boca: number
+  abajo: number
+  inclinada: number
+  curva: number
+}
+const isPlain = (f?: PocketFree) => !f || (f.boca === 1 && f.abajo === 1 && !f.inclinada && !f.curva)
+
+/** Lee la forma libre de un bolsillo de sus ajustes (o la de por defecto). */
+export function pocketFreeOf(get: (id: string) => number): PocketFree {
+  return { boca: get('boca'), abajo: get('abajo'), inclinada: get('inclinada'), curva: get('curva') }
+}
+
+/**
+ * Cuerpo de un bolsillo con su fondo recto, en pico, redondo, doble pico o con las esquinas cortadas (`inset` para el
+ * pespunte); `depth`: lo que baja el pico (0–1); `free`: boca y fondo más anchos o estrechos, boca inclinada o curva.
+ */
+export function pocketBody(x0: number, y0: number, w: number, h: number, r: number, fondo: number, inset = 0, depth = 0.35, free?: PocketFree) {
   const x = x0 + inset
   const y = y0 + inset
   const ww = w - inset * 2
   const hh = h - inset * 2
   const rr = Math.max(0, Math.min(r, ww / 2, hh / 2) - inset * 0.5)
+  if (!isPlain(free) || fondo > 2) return freePocket(x, y, ww, hh, rr, fondo, depth, free ?? { boca: 1, abajo: 1, inclinada: 0, curva: 0 })
   if (fondo === 1) {
     // En pico: los lados bajan y se juntan en el centro
     const tip = Math.min(hh * 0.9, ww * depth)
@@ -331,6 +362,72 @@ export function pocketBody(x0: number, y0: number, w: number, h: number, r: numb
     return `M${n(x + rr)} ${n(y)}H${n(x + ww - rr)}Q${n(x + ww)} ${n(y)} ${n(x + ww)} ${n(y + rr)}V${n(y + hh - rb)}Q${n(x + ww)} ${n(y + hh)} ${n(x + ww / 2)} ${n(y + hh)}Q${n(x)} ${n(y + hh)} ${n(x)} ${n(y + hh - rb)}V${n(y + rr)}Q${n(x)} ${n(y)} ${n(x + rr)} ${n(y)}Z`
   }
   return roundRect(x, y, ww, hh, rr)
+}
+
+/** Bolsillo de forma libre: la boca arriba (inclinada o curva) y los lados hasta el fondo elegido. */
+function freePocket(x: number, y: number, ww: number, hh: number, rr: number, fondo: number, depth: number, f: PocketFree) {
+  const cx = x + ww / 2
+  const tw = ww * f.boca
+  const bw = ww * f.abajo
+  const yl = y + Math.max(0, -f.inclinada) * hh
+  const yr = y + Math.max(0, f.inclinada) * hh
+  const L = cx - tw / 2
+  const R = cx + tw / 2
+  const bl = cx - bw / 2
+  const br = cx + bw / 2
+  const yb = y + hh
+  let d = `M${n(L)} ${n(yl)}Q${n(cx)} ${n((yl + yr) / 2 + f.curva * hh * 0.3)} ${n(R)} ${n(yr)}`
+  const tip = Math.min(hh * 0.9, bw * depth)
+  switch (fondo) {
+    case 1:
+      d += `L${n(br)} ${n(yb - tip)}L${n(cx)} ${n(yb)}L${n(bl)} ${n(yb - tip)}Z`
+      break
+    case 2: {
+      const rb = Math.min(bw / 2, hh * 0.6)
+      d += `L${n(br)} ${n(yb - rb)}Q${n(br)} ${n(yb)} ${n(cx)} ${n(yb)}Q${n(bl)} ${n(yb)} ${n(bl)} ${n(yb - rb)}Z`
+      break
+    }
+    case 3:
+      d += `L${n(br)} ${n(yb - tip / 2)}L${n(cx + bw / 4)} ${n(yb)}L${n(cx)} ${n(yb - tip / 2)}L${n(cx - bw / 4)} ${n(yb)}L${n(bl)} ${n(yb - tip / 2)}Z`
+      break
+    case 4: {
+      const c = Math.min(bw / 2, hh / 2) * Math.max(0.15, depth)
+      d += `L${n(br)} ${n(yb - c)}L${n(br - c)} ${n(yb)}L${n(bl + c)} ${n(yb)}L${n(bl)} ${n(yb - c)}Z`
+      break
+    }
+    default: {
+      const k = Math.min(rr, bw / 2)
+      d += `L${n(br)} ${n(yb - k)}Q${n(br)} ${n(yb)} ${n(br - k)} ${n(yb)}L${n(bl + k)} ${n(yb)}Q${n(bl)} ${n(yb)} ${n(bl)} ${n(yb - k)}Z`
+    }
+  }
+  return d
+}
+
+/**
+ * Solapa de un bolsillo (recta, en pico o redonda) sobre su boca, con su pespunte y, si lleva, el botón. `x0, y0, w`:
+ * boca del bolsillo; `fh`: alto de la solapa.
+ */
+export function pocketFlap(x0: number, y0: number, w: number, fh: number, kind: number, button: boolean, color: string, thread: string): Prim[] {
+  if (!kind) return []
+  const x = x0 - w * 0.03
+  const ww = w * 1.06
+  const edge = shade(color, -0.45)
+  const sw = Math.max(0.5, w * 0.02)
+  const outline = (inset: number) => {
+    const L = x + inset
+    const R = x + ww - inset
+    const T = y0 + inset * 0.5
+    const B = y0 + fh - inset
+    if (kind === 2) return `M${n(L)} ${n(T)}H${n(R)}V${n(B - fh * 0.35)}L${n((L + R) / 2)} ${n(B)}L${n(L)} ${n(B - fh * 0.35)}Z`
+    if (kind === 3) return `M${n(L)} ${n(T)}H${n(R)}V${n(B - fh * 0.45)}Q${n(R)} ${n(B)} ${n((L + R) / 2)} ${n(B)}Q${n(L)} ${n(B)} ${n(L)} ${n(B - fh * 0.45)}Z`
+    return `M${n(L)} ${n(T)}H${n(R)}V${n(B)}H${n(L)}Z`
+  }
+  const out: Prim[] = [
+    { t: 'path', d: outline(0), fill: shade(color, -0.06), stroke: edge, sw },
+    stitch(outline(w * 0.05), w, thread),
+  ]
+  if (button) out.push({ t: 'path', d: circle(x + ww / 2, y0 + fh * (kind === 1 ? 0.55 : 0.6), w * 0.055), fill: thread, stroke: shade(thread, -0.4), sw: sw * 0.6 })
+  return out
 }
 
 function pocketPrims(style: string, w: number, color: string, thread: string, shape?: Detail['shape']): Prim[] {
@@ -369,11 +466,15 @@ function pocketPrims(style: string, w: number, color: string, thread: string, sh
       { t: 'path', d: circle(0, -h / 2 + flapH * 0.5, w * 0.05), fill: thread, stroke: shade(thread, -0.4), sw: sw * 0.6 },
     ]
   }
-  // De parche, con el dobladillo arriba
+  // De parche, con el dobladillo arriba (y, si lleva, la solapa)
+  const free = pocketFreeOf(get)
+  const flap = Math.round(get('solapa'))
   return [
-    { t: 'path', d: pocketBody(-w / 2, -h / 2, w, h, r, fondo, 0, depth), fill: color, stroke: edge, sw },
-    stitch(pocketBody(-w / 2, -h / 2, w, h, r, fondo, w * 0.07, depth), w, thread),
-    stitch(`M${n(-w * 0.43)} ${n(-h / 2 + h * 0.16)}H${n(w * 0.43)}`, w, thread),
+    { t: 'path', d: pocketBody(-w / 2, -h / 2, w, h, r, fondo, 0, depth, free), fill: color, stroke: edge, sw },
+    stitch(pocketBody(-w / 2, -h / 2, w, h, r, fondo, w * 0.07, depth, free), w, thread),
+    // Dobladillo de la boca (solo si la boca es recta y sin solapa)
+    ...(isPlain(free) && !flap ? [stitch(`M${n(-w * 0.43)} ${n(-h / 2 + h * 0.16)}H${n(w * 0.43)}`, w, thread)] : []),
+    ...pocketFlap(-(w * free.boca) / 2, -h / 2 + Math.min(0, free.inclinada) * h, w * free.boca, h * get('solapaAlto'), flap, get('boton') > 0.5, color, thread),
   ]
 }
 

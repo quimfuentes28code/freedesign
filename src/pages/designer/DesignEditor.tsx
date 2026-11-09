@@ -777,7 +777,7 @@ function DetailIcon({ d }: { d: Detail }) {
     </svg>
   )
 }
-const DRAW_LABEL = { free: 'Trazo a mano', line: 'Línea', rect: 'Rectángulo', ellipse: 'Elipse' } as const
+const DRAW_LABEL = { free: 'Trazo a mano', line: 'Línea', rect: 'Rectángulo', ellipse: 'Elipse', triangle: 'Triángulo', star: 'Estrella', heart: 'Corazón', diamond: 'Rombo' } as const
 
 /** Botones de una capa: mostrar/ocultar y (si se puede) bloquear/desbloquear. */
 function LayerToggles(props: { hidden?: boolean; locked?: boolean; lockable?: boolean; onChange: (p: { hidden?: boolean; locked?: boolean }) => void }) {
