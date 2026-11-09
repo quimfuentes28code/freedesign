@@ -110,10 +110,12 @@ function FrameGarment() {
     const t = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2))
     const aspect = size.width / Math.max(1, size.height)
     const r = Math.max(s.x, s.z) / 2
-    const d = Math.max(s.y / 2 / t, r / (t * aspect)) * 1.15 + r * 0.3
+    const d = Math.max(s.y / 2 / t, r / (t * aspect)) * 1.22 + r * 0.3
     const ctl = controls as unknown as { target: THREE.Vector3; update: () => void } | null
     const dir = first || !ctl ? new THREE.Vector3(0, 0.08, 1) : cam.position.clone().sub(ctl.target)
     dir.normalize()
+    // Algo por encima del centro: la prenda baja un poco y deja sitio a la barra de opciones de arriba
+    c.y += s.y * 0.07
     cam.position.copy(c).addScaledVector(dir, d)
     ctl?.target.copy(c)
     ctl?.update()

@@ -93,20 +93,22 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   const extra = fine ? 0.2 : 0
   // Prenda sola (editor): un instante y casi sin gravedad, para que quede recta, sin pliegues de caída
   const ghost = !!design.ghost
-  const gravity = (ghost ? 60 : 980) * unit
+  // (sola, con su peso: la capucha bajada tiene que caer sobre los hombros y la espalda, no quedarse de pie)
+  const gravity = (ghost ? 650 : 980) * unit
   // Acolchada (puffer, chaleco acolchado): el relleno la hincha y la deja lisa, sin pliegues de caída
   const puffy = !!design.top?.quilt
   // Sola (editor): hinchada como un globo, con la forma de su patrón y sin la silueta del maniquí. Acolchada, también
   // puesta: el relleno la separa del cuerpo
-  const inflate = ghost ? (puffy ? 700 : 600) * unit : puffy ? 380 * unit : undefined
+  // (poco: con la forma de ir puesta, como en las fotos de catálogo con maniquí invisible; la acolchada, más)
+  const inflate = ghost ? (puffy ? 700 : 220) * unit : puffy ? 380 * unit : undefined
   // Lisa: sola (editor) o acolchada, sin pliegues ni arruguitas, como rellena del todo
   const smooth = ghost || puffy
-  const settle = (normal: number) => input.seconds ?? (ghost ? 0.9 : normal + extra)
+  const settle = (normal: number) => input.seconds ?? (ghost ? 1.4 : normal + extra)
   // La rigidez a la flexión depende de la tela
   // Acolchada: mucho más rígida al doblarse (el relleno no deja que se arrugue)
   // (salvo la capucha: tiesa, se levantaba y tapaba los cordones)
   const hood = new Set(layers.hoodAll)
-  for (const l of cloth.links) if (l.k < 0.5) l.k = Math.min(1, l.k * fabric.stiffness * (smooth && !hood.has(l.a) ? 4 : 1))
+  for (const l of cloth.links) if (l.k < 0.5) l.k = Math.min(1, l.k * fabric.stiffness * (smooth && !hood.has(l.a) ? (puffy ? 4 : 2) : 1))
 
   lap('patron')
   const { skinIndex, skinWeight } = skinCloth(cloth, cloud, new CloudGrid(cloud.pos), pose.parts, follows)
@@ -176,7 +178,7 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   const border = cloth.edgeInfo()
   const fixed = (v: number) => border[v * 3] < 1e-3 && !sewn.has(v)
   // Lisa: muchas más pasadas, para que no quede ningún pliegue
-  taubinSmooth(relaxed, cloth.neighbours(), smooth ? 16 : 4, fixed)
+  taubinSmooth(relaxed, cloth.neighbours(), smooth ? 10 : 4, fixed)
   // Los bordes libres se alisan a lo largo del propio borde (sin encogerlos hacia dentro): si no, salen dentados
   for (const rim of rims) smoothChain(relaxed, rim.verts, 6)
   weldSeams(relaxed, cloth.seams)

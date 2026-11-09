@@ -161,7 +161,7 @@ export function Design3D({ template, data, materials, client, designId }: Props)
     <div className="design-3d studio">
       <div className="viewport">
         {/* En el editor se ve solo la ropa, quieta en la postura de reposo (el maniquí y la animación salen en el Probador) */}
-        <Scene measurements={measurements} design={shown} outfit={ghostOutfit} autoRotate={autoRotate} animate={false} showBody={false} pose="brazos" stage="product" focus={template.family === 'head' ? 0.92 : outfit.length ? 0.5 : pants ? 0.3 : 0.66} />
+        <Scene measurements={measurements} design={shown} outfit={ghostOutfit} autoRotate={autoRotate} animate={false} showBody={false} pose="fantasma" stage="product" focus={template.family === 'head' ? 0.92 : outfit.length ? 0.5 : pants ? 0.3 : 0.66} />
         <div className="design-3d-bar">
           {/* Un gorro o una gorra se ve solo (en el Probador, con la ropa) */}
           {template.family !== 'head' && (

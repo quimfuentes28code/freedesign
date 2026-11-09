@@ -113,6 +113,17 @@ export const POSES = [
     ],
   },
   {
+    // Maniquí invisible (vista 3D del editor): brazos algo separados y caídos, como en las fotos de catálogo
+    id: 'fantasma',
+    label: 'Maniquí invisible',
+    bones: [
+      ['LeftArm', 'z', 18],
+      ['RightArm', 'z', -18],
+      ['LeftForeArm', 'z', 4],
+      ['RightForeArm', 'z', -4],
+    ],
+  },
+  {
     id: 'paso',
     label: 'Caminando',
     bones: [
