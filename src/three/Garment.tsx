@@ -600,6 +600,8 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
     )
       .then((g) => {
         if (!alive || !g) return
+        // Para qué postura y cuerpo se ha calculado (ver más abajo: con otra, no se enseña)
+        g.userData.made = { pose, fit }
         // La de debajo deja su superficie para que la de encima se asiente sobre ella
         if (layer !== undefined) setUnderlay(layer, g.userData.surface)
         setPatternGeom((prev) => {
@@ -681,7 +683,11 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
   }, [patternGeom, wrapGeoms, materials, pattern, printTextures, design.garment])
 
   useEffect(() => {
-    const geometries = pattern ? (patternGeom ? [{ g: patternGeom, slot: null }] : []) : wrapGeoms
+    // La prenda calculada para otra postura o para otro cuerpo no se enseña mientras llega la nueva: unida al esqueleto
+    // en la postura nueva se deformaba (mangas retorcidas en las manos, chepas, cuellos rotos) hasta que se recalculaba
+    const made = patternGeom?.userData.made as { pose: unknown; fit: unknown } | undefined
+    const current = !!patternGeom && (!made || (made.pose === pose && made.fit === fit))
+    const geometries = pattern ? (current ? [{ g: patternGeom!, slot: null }] : []) : wrapGeoms
     // Forma del bolsillo de esta prenda, para recortar su material
     const shape = patternGeom?.userData.pocket as { y0: number; h: number; w0: number; w1: number; x0?: number; mirror?: boolean } | null | undefined
     const pocketUniform = materials[slotIndex('bolsillo')].userData.pocket as { value: THREE.Vector4 } | undefined
@@ -712,7 +718,7 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
       return mesh
     })
     return () => meshes.forEach((m) => model.root.remove(m))
-  }, [patternGeom, wrapGeoms, materials, model, pattern])
+  }, [patternGeom, wrapGeoms, materials, model, pattern, pose, fit])
 
   return null
 }

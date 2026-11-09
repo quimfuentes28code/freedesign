@@ -160,7 +160,8 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     inflate,
     // La capucha bajada no se infla: cae por la espalda como siempre
     // ni el bajo de canalé, que va ceñido (inflado, se curvaba hacia dentro como un cuenco)
-    noInflate: [...(design.hoodUp ? [] : layers.hoodAll), ...(puffy ? [] : layers.band)],
+    // ni el cuello (pie y pala, sujetos a su sitio: inflados, la pala se levantaba y el cuello de camisa parecía un mao)
+    noInflate: [...(design.hoodUp ? [] : layers.hoodAll), ...(puffy ? [] : layers.band), ...layers.collarPins],
     heavy: ghost && !design.hoodUp ? { points: layers.hoodAll, gravity: 900 * unit } : undefined,
     cell: 2.2 * unit,
     // La tela no se atraviesa a sí misma: la capucha queda encima de la espalda y las mangas no se meten en el cuerpo

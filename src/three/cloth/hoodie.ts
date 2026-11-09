@@ -626,8 +626,9 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
               out.copy(p).addScaledVector(up, r * Math.sin(phi)).addScaledVector(outDir, r * (1 - Math.cos(phi)))
             } else {
               const e = d - arc
-              // La pala cae pegada al pie y a los hombros, no abierta hacia fuera
-              const dir = up.clone().multiplyScalar(-0.95).addScaledVector(outDir, 0.3 + tip * 0.25).normalize()
+              // La pala cae sobre el pie y los hombros, algo abierta: casi vertical se metía detrás del cuerpo de la
+              // camisa y solo se veía su borde (un cuello finísimo)
+              const dir = up.clone().multiplyScalar(-0.85).addScaledVector(outDir, 0.55 + tip * 0.25).normalize()
               out.copy(p).addScaledVector(outDir, 2 * r).addScaledVector(dir, e)
             }
             out.addScaledVector(new THREE.Vector3(Math.sign(p.x || 1), 0, 0), tip * 1.2 * s * unit * v)
