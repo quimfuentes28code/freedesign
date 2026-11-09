@@ -111,6 +111,8 @@ export interface RelaxOptions {
   inflate?: number
   /** Puntos que no se inflan (la capucha bajada, que si no se levantaba y tapaba los cordones). */
   noInflate?: number[]
+  /** Puntos con otra gravedad (p. ej. la capucha bajada, que tiene que caer aunque el resto pese poco). */
+  heavy?: { points: number[]; gravity: number }
 }
 
 export interface Layer {
@@ -257,6 +259,9 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
   const tri = opts.inflate ? Int32Array.from([...cloth.tris[0], ...cloth.tris[1]]) : null
   const triSign = tri ? new Int8Array(tri.length / 3) : null
   const push = tri ? new Float32Array(n * 3) : null
+  const heavyG = opts.heavy ? opts.heavy.gravity * h * h : 0
+  const heavy = new Uint8Array(n)
+  for (const v of opts.heavy?.points ?? []) heavy[v] = 1
   const still = new Uint8Array(n)
   for (const v of opts.noInflate ?? []) still[v] = 1
   if (tri && triSign) {
@@ -281,7 +286,7 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
         prev[i + c] = pos[i + c]
         pos[i + c] += v
       }
-      pos[i + 1] -= gravity
+      pos[i + 1] -= heavy[i / 3] ? heavyG * Math.min(1, t * 3) : gravity
     }
 
     // 2. Costuras (los dos puntos van a su punto medio)

@@ -94,7 +94,9 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   // Prenda sola (editor): un instante y casi sin gravedad, para que quede recta, sin pliegues de caída
   const ghost = !!design.ghost
   // (sola, con su peso: la capucha bajada tiene que caer sobre los hombros y la espalda, no quedarse de pie)
-  const gravity = (ghost ? 650 : 980) * unit
+  // (el cuerpo de la prenda pesa poco: separada del cuerpo por el inflado, con todo su peso resbalaba y se
+  // amontonaba sobre el bajo; la capucha bajada sí pesa, ver `heavy`)
+  const gravity = (ghost ? 200 : 980) * unit
   // Acolchada (puffer, chaleco acolchado): el relleno la hincha y la deja lisa, sin pliegues de caída
   const puffy = !!design.top?.quilt
   // Sola (editor): hinchada como un globo, con la forma de su patrón y sin la silueta del maniquí. Acolchada, también
@@ -157,7 +159,9 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     gravity,
     inflate,
     // La capucha bajada no se infla: cae por la espalda como siempre
-    noInflate: design.hoodUp ? undefined : layers.hoodAll,
+    // ni el bajo de canalé, que va ceñido (inflado, se curvaba hacia dentro como un cuenco)
+    noInflate: [...(design.hoodUp ? [] : layers.hoodAll), ...(puffy ? [] : layers.band)],
+    heavy: ghost && !design.hoodUp ? { points: layers.hoodAll, gravity: 900 * unit } : undefined,
     cell: 2.2 * unit,
     // La tela no se atraviesa a sí misma: la capucha queda encima de la espalda y las mangas no se meten en el cuerpo
     layers: [
@@ -167,7 +171,9 @@ export function dressPatternGarment(input: DressInput): DressOutput {
       // Junto a la sisa están más cerca (a un lado y otro de la costura): separación más corta
       { mode: 'apart', outer: layers.sleeveCap, inner: layers.torsoArmhole, gap: 1.5 * unit },
     ],
-    bodyOnly: layers.bodyOnly,
+    // Sola (editor), la mitad de abajo del cuerpo y la capucha no chocan con brazos ni manos (las manos invisibles, a
+    // la altura de la cadera, abollaban el bajo); las mangas y la sisa sí
+    bodyOnly: ghost ? [...layers.bodyOnly, ...layers.torsoLower, ...layers.hoodAll] : layers.bodyOnly,
     pins: layers.collarPins,
     bodyParts: [Part.Torso, Part.Neck, Part.LegL, Part.LegR],
   })
@@ -361,7 +367,7 @@ function femTopGarment(body: Parameters<typeof buildFemTop>[0], m: Measurements,
     cuffButtons: none,
     patches: [] as Patch[],
     tabs: [] as Tab[],
-    layers: { hood: none, hoodAll: none, torso: none, sleevesLow: none, torsoLow: none, sleeveCap: none, torsoArmhole: none, bodyOnly: none, collarPins: none },
+    layers: { hood: none, hoodAll: none, torso: none, sleevesLow: none, torsoLow: none, sleeveCap: none, torsoArmhole: none, bodyOnly: none, torsoLower: none, band: none, collarPins: none },
   }
 }
 
@@ -374,7 +380,7 @@ function pantsGarment(body: Parameters<typeof buildPants>[0], m: Measurements, d
     pocket: null,
     closure: null,
     // Los cordones de la cintura se apoyan en toda la tela del pantalón
-    layers: { hood: none, hoodAll: none, torso: Array.from({ length: p.cloth.panelOf.length }, (_, v) => v), sleevesLow: none, torsoLow: none, sleeveCap: none, torsoArmhole: none, bodyOnly: none, collarPins: none },
+    layers: { hood: none, hoodAll: none, torso: Array.from({ length: p.cloth.panelOf.length }, (_, v) => v), sleevesLow: none, torsoLow: none, sleeveCap: none, torsoArmhole: none, bodyOnly: none, torsoLower: none, band: none, collarPins: none },
   }
 }
 

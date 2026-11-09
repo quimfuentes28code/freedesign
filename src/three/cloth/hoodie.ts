@@ -39,6 +39,10 @@ export interface HoodieResult {
     torsoArmhole: number[]
     /** Bajo y parte baja del cuerpo: solo chocan con el tronco y las piernas, no con brazos ni manos. */
     bodyOnly: number[]
+    /** Mitad de abajo del cuerpo (hasta unos 30 cm del bajo), a la altura de las manos. */
+    torsoLower: number[]
+    /** Bajo de canalé o pretina (pieza aparte). */
+    band: number[]
     /** Capucha bajada: puntos del cuello vuelto que se sujetan a su sitio. */
     collarPins: number[]
   }
@@ -754,7 +758,9 @@ export function buildHoodie(body: Body, m: Measurements, design: Design): Hoodie
     }
     closureOut = { left, right, kind: closure.kind, buttons: closure.buttons ?? 5, size: closure.buttonSize ?? 1.2, open, full: closure.full }
   }
-  const layers = { hood: hoodFree, hoodAll: hoodPanels.flatMap(all), torso: torsoWithCut, sleevesLow, torsoLow, sleeveCap, torsoArmhole, bodyOnly, collarPins }
+  const lowerRows = Math.ceil((30 * s) / (L / (nv - 1)))
+  const torsoLower = torsoAll.filter((_, k) => Math.floor((k % (nu * nv)) / nu) < lowerRows)
+  const layers = { hood: hoodFree, hoodAll: hoodPanels.flatMap(all), torso: torsoWithCut, sleevesLow, torsoLow, sleeveCap, torsoArmhole, bodyOnly, torsoLower, band: bandPanel ? [...all(bandPanel), ...rightsOf(bandPanel)] : [], collarPins }
 
   return { cloth, follows, slots, pocket, layers, cordExits, rims, closure: closureOut, cuffButtons, patches, tabs: [] as Tab[] }
 }
