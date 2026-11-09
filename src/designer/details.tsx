@@ -53,6 +53,8 @@ const POCKET_FREE: ShapeParam[] = [
   { id: 'abajo', label: 'Ancho del fondo', min: 0.5, max: 1.5, step: 0.05, def: 1 },
   { id: 'inclinada', label: 'Boca inclinada', min: -0.4, max: 0.4, step: 0.02, def: 0 },
   { id: 'curva', label: 'Boca curva', min: -1, max: 1, step: 0.05, def: 0 },
+  { id: 'lados', label: 'Lados curvos (− hacia dentro, + hacia fuera)', min: -1, max: 1, step: 0.05, def: 0 },
+  { id: 'picoCurva', label: 'Curva del fondo o del pico', min: -1, max: 1, step: 0.05, def: 0 },
   { id: 'solapa', label: 'Solapa', min: 0, max: 3, step: 1, def: 0, choices: ['Sin solapa', 'Recta', 'En pico', 'Redonda'] },
   { id: 'solapaAlto', label: 'Alto de la solapa', min: 0.12, max: 0.5, step: 0.02, def: 0.28 },
   { id: 'boton', label: 'Botón en la solapa', min: 0, max: 1, step: 1, def: 0, choices: ['No', 'Sí'] },
@@ -332,12 +334,15 @@ export interface PocketFree {
   abajo: number
   inclinada: number
   curva: number
+  /** Curva de los lados y de los tramos del fondo (−1 hacia dentro, 1 hacia fuera). */
+  lados?: number
+  picoCurva?: number
 }
-const isPlain = (f?: PocketFree) => !f || (f.boca === 1 && f.abajo === 1 && !f.inclinada && !f.curva)
+const isPlain = (f?: PocketFree) => !f || (f.boca === 1 && f.abajo === 1 && !f.inclinada && !f.curva && !f.lados && !f.picoCurva)
 
 /** Lee la forma libre de un bolsillo de sus ajustes (o la de por defecto). */
 export function pocketFreeOf(get: (id: string) => number): PocketFree {
-  return { boca: get('boca'), abajo: get('abajo'), inclinada: get('inclinada'), curva: get('curva') }
+  return { boca: get('boca'), abajo: get('abajo'), inclinada: get('inclinada'), curva: get('curva'), lados: get('lados'), picoCurva: get('picoCurva') }
 }
 
 /**
@@ -377,30 +382,68 @@ function freePocket(x: number, y: number, ww: number, hh: number, rr: number, fo
   const br = cx + bw / 2
   const yb = y + hh
   let d = `M${n(L)} ${n(yl)}Q${n(cx)} ${n((yl + yr) / 2 + f.curva * hh * 0.3)} ${n(R)} ${n(yr)}`
+  // Tramo de donde va el contorno a (x1, y1), abombado `bulge` (−1…1) hacia fuera
+  let px = R
+  let py = yr
+  const to = (x1: number, y1: number, bulge = 0) => {
+    if (bulge) {
+      const dx = x1 - px
+      const dy = y1 - py
+      d += `Q${n((px + x1) / 2 + dy * bulge * 0.3)} ${n((py + y1) / 2 - dx * bulge * 0.3)} ${n(x1)} ${n(y1)}`
+    } else d += `L${n(x1)} ${n(y1)}`
+    px = x1
+    py = y1
+  }
+  const side = f.lados ?? 0
+  const low = f.picoCurva ?? 0
   const tip = Math.min(hh * 0.9, bw * depth)
   switch (fondo) {
     case 1:
-      d += `L${n(br)} ${n(yb - tip)}L${n(cx)} ${n(yb)}L${n(bl)} ${n(yb - tip)}Z`
+      to(br, yb - tip, side)
+      to(cx, yb, low)
+      to(bl, yb - tip, low)
+      to(L, yl, side)
       break
     case 2: {
       const rb = Math.min(bw / 2, hh * 0.6)
-      d += `L${n(br)} ${n(yb - rb)}Q${n(br)} ${n(yb)} ${n(cx)} ${n(yb)}Q${n(bl)} ${n(yb)} ${n(bl)} ${n(yb - rb)}Z`
+      to(br, yb - rb, side)
+      d += `Q${n(br)} ${n(yb + low * rb * 0.5)} ${n(cx)} ${n(yb + low * rb * 0.3)}Q${n(bl)} ${n(yb + low * rb * 0.5)} ${n(bl)} ${n(yb - rb)}`
+      px = bl
+      py = yb - rb
+      to(L, yl, side)
       break
     }
     case 3:
-      d += `L${n(br)} ${n(yb - tip / 2)}L${n(cx + bw / 4)} ${n(yb)}L${n(cx)} ${n(yb - tip / 2)}L${n(cx - bw / 4)} ${n(yb)}L${n(bl)} ${n(yb - tip / 2)}Z`
+      to(br, yb - tip / 2, side)
+      to(cx + bw / 4, yb, low)
+      to(cx, yb - tip / 2, low)
+      to(cx - bw / 4, yb, low)
+      to(bl, yb - tip / 2, low)
+      to(L, yl, side)
       break
     case 4: {
       const c = Math.min(bw / 2, hh / 2) * Math.max(0.15, depth)
-      d += `L${n(br)} ${n(yb - c)}L${n(br - c)} ${n(yb)}L${n(bl + c)} ${n(yb)}L${n(bl)} ${n(yb - c)}Z`
+      to(br, yb - c, side)
+      to(br - c, yb, low)
+      to(bl + c, yb, low)
+      to(bl, yb - c, low)
+      to(L, yl, side)
       break
     }
     default: {
       const k = Math.min(rr, bw / 2)
-      d += `L${n(br)} ${n(yb - k)}Q${n(br)} ${n(yb)} ${n(br - k)} ${n(yb)}L${n(bl + k)} ${n(yb)}Q${n(bl)} ${n(yb)} ${n(bl)} ${n(yb - k)}Z`
+      to(br, yb - k, side)
+      d += `Q${n(br)} ${n(yb)} ${n(br - k)} ${n(yb)}`
+      px = br - k
+      py = yb
+      to(bl + k, yb, low)
+      d += `Q${n(bl)} ${n(yb)} ${n(bl)} ${n(yb - k)}`
+      px = bl
+      py = yb - k
+      to(L, yl, side)
     }
   }
-  return d
+  return d + 'Z'
 }
 
 /**

@@ -26,6 +26,75 @@ export interface Brush {
   mirror?: boolean
   /** Relleno de las formas cerradas. */
   fill?: string
+  /** Esquinas redondeadas (rectángulo, triángulo, rombo, estrella). */
+  round?: number
+  /** Suaviza el trazo a mano al soltarlo (sin temblores ni trompicones). */
+  smooth?: boolean
+}
+
+/** Contorno cerrado por unos puntos, con las esquinas redondeadas (`r`: 0 en pico, 1 muy redondas). */
+function roundedPolygon(pts: [number, number][], r: number) {
+  const f = (v: number) => v.toFixed(1)
+  if (r <= 0) return 'M' + pts.map(([x, y]) => `${f(x)} ${f(y)}`).join(' L') + ' Z'
+  const k = Math.min(0.5, r * 0.5)
+  const n = pts.length
+  // Cada esquina se cambia por una curva que empieza y acaba en sus dos lados
+  const cut = (a: [number, number], b: [number, number]) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]
+  let d = ''
+  for (let i = 0; i < n; i++) {
+    const p = pts[i]
+    const a = cut(p, pts[(i - 1 + n) % n])
+    const b = cut(p, pts[(i + 1) % n])
+    d += `${i ? ' L' : 'M'}${f(a[0])} ${f(a[1])} Q${f(p[0])} ${f(p[1])} ${f(b[0])} ${f(b[1])}`
+  }
+  return d + ' Z'
+}
+
+/**
+ * Suaviza un trazo a mano: quita los puntos que sobran (temblores) y redondea los quiebros. Puntos x0, y0, x1, y1…
+ */
+export function smoothPoints(points: number[], strength = 1) {
+  const pts: [number, number][] = []
+  for (let i = 0; i + 1 < points.length; i += 2) pts.push([points[i], points[i + 1]])
+  if (pts.length < 4) return points
+  // 1. Simplificar (Ramer-Douglas-Peucker): fuera los puntos a menos de `eps` de la línea que los une
+  const eps = 0.9 * strength
+  const keep = new Uint8Array(pts.length)
+  keep[0] = keep[pts.length - 1] = 1
+  const stack: [number, number][] = [[0, pts.length - 1]]
+  while (stack.length) {
+    const [a, b] = stack.pop()!
+    const [ax, ay] = pts[a]
+    const [bx, by] = pts[b]
+    const len = Math.hypot(bx - ax, by - ay) || 1
+    let far = -1
+    let best = eps
+    for (let i = a + 1; i < b; i++) {
+      const dist = Math.abs((bx - ax) * (ay - pts[i][1]) - (ax - pts[i][0]) * (by - ay)) / len
+      if (dist > best) {
+        best = dist
+        far = i
+      }
+    }
+    if (far > 0) {
+      keep[far] = 1
+      stack.push([a, far], [far, b])
+    }
+  }
+  let out = pts.filter((_, i) => keep[i])
+  // 2. Redondear (Chaikin): cada tramo se cambia por dos puntos a 1/4 y 3/4, conservando los extremos
+  for (let it = 0; it < 2; it++) {
+    if (out.length < 3) break
+    const next: [number, number][] = [out[0]]
+    for (let i = 0; i < out.length - 1; i++) {
+      const [x0, y0] = out[i]
+      const [x1, y1] = out[i + 1]
+      next.push([x0 * 0.75 + x1 * 0.25, y0 * 0.75 + y1 * 0.25], [x0 * 0.25 + x1 * 0.75, y0 * 0.25 + y1 * 0.75])
+    }
+    next.push(out[out.length - 1])
+    out = next
+  }
+  return out.flatMap(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10])
 }
 
 /** Trazos con sus copias reflejadas (los que van en simétrico). */
@@ -39,6 +108,7 @@ export function drawingPath(d: Drawing) {
     case 'line':
       return `M${x0} ${y0} L${x1} ${y1}`
     case 'rect':
+      if (d.round) return roundedPolygon([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], d.round)
       return `M${x0} ${y0} H${x1} V${y1} H${x0} Z`
     case 'ellipse': {
       const cx = (x0 + x1) / 2
@@ -57,18 +127,19 @@ export function drawingPath(d: Drawing) {
       const W = Math.abs(x1 - x0)
       const H = Math.abs(y1 - y0)
       const at = (u: number, v: number) => `${(L + u * W).toFixed(1)} ${(T + v * H).toFixed(1)}`
-      if (d.kind === 'triangle') return `M${at(0.5, 0)} L${at(1, 1)} L${at(0, 1)} Z`
-      if (d.kind === 'diamond') return `M${at(0.5, 0)} L${at(1, 0.5)} L${at(0.5, 1)} L${at(0, 0.5)} Z`
+      const pt = (u: number, v: number): [number, number] => [L + u * W, T + v * H]
+      if (d.kind === 'triangle') return roundedPolygon([pt(0.5, 0), pt(1, 1), pt(0, 1)], d.round ?? 0)
+      if (d.kind === 'diamond') return roundedPolygon([pt(0.5, 0), pt(1, 0.5), pt(0.5, 1), pt(0, 0.5)], d.round ?? 0)
       if (d.kind === 'heart')
         return `M${at(0.5, 0.28)} C${at(0.5, 0.05)} ${at(0, 0)} ${at(0, 0.32)} C${at(0, 0.6)} ${at(0.35, 0.78)} ${at(0.5, 1)} C${at(0.65, 0.78)} ${at(1, 0.6)} ${at(1, 0.32)} C${at(1, 0)} ${at(0.5, 0.05)} ${at(0.5, 0.28)} Z`
       // Estrella de cinco puntas
-      let s = ''
+      const star: [number, number][] = []
       for (let k = 0; k < 10; k++) {
         const a = -Math.PI / 2 + (k * Math.PI) / 5
         const r = k % 2 ? 0.2 : 0.5
-        s += (k ? ' L' : 'M') + at(0.5 + Math.cos(a) * r, 0.53 + Math.sin(a) * r * 1.05)
+        star.push(pt(0.5 + Math.cos(a) * r, 0.53 + Math.sin(a) * r * 1.05))
       }
-      return s + ' Z'
+      return roundedPolygon(star, d.round ?? 0)
     }
     default: {
       if (p.length < 6) return `M${x0} ${y0} L${x1} ${y1}`
@@ -179,7 +250,9 @@ export function DrawingsLayer({ ctx, drawings, view, selected, onSelect, tool, b
     drawing.current = false
     const p = draft.points
     const size = Math.hypot(p[p.length - 2] - p[0], p[p.length - 1] - p[1])
-    if (size > 1 || p.length > 6) onAdd(draft)
+    // El trazo a mano se suaviza al soltarlo (salvo que se haya quitado «Suavizar»)
+    const smooth = draft.kind === 'free' && brush.smooth !== false
+    if (size > 1 || p.length > 6) onAdd(smooth ? { ...draft, points: smoothPoints(p) } : draft)
     setDraft(null)
   }
 

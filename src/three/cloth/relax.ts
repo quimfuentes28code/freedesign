@@ -109,6 +109,8 @@ export interface RelaxOptions {
    * un globo con la forma de su patrón, sin la silueta del maniquí.
    */
   inflate?: number
+  /** Puntos que no se inflan (la capucha bajada, que si no se levantaba y tapaba los cordones). */
+  noInflate?: number[]
 }
 
 export interface Layer {
@@ -255,6 +257,8 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
   const tri = opts.inflate ? Int32Array.from([...cloth.tris[0], ...cloth.tris[1]]) : null
   const triSign = tri ? new Int8Array(tri.length / 3) : null
   const push = tri ? new Float32Array(n * 3) : null
+  const still = new Uint8Array(n)
+  for (const v of opts.noInflate ?? []) still[v] = 1
   if (tri && triSign) {
     for (let k = 0; k < triSign.length; k++) {
       const [nx, ny, nz] = triNormal(k)
@@ -357,6 +361,7 @@ export function relax(cloth: Cloth, body: Collider, opts: RelaxOptions) {
       }
     }
     for (let i = 0; i < n * 3; i += 3) {
+      if (still[i / 3]) continue
       const l = Math.hypot(push![i], push![i + 1], push![i + 2])
       if (l < 1e-9) continue
       pos[i] += (push![i] / l) * amount

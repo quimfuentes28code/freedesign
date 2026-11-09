@@ -23,9 +23,13 @@ export function useDesign3D(template: GarmentTemplate | null | undefined, data: 
   useEffect(() => {
     if (!template || !data) return setLayers(undefined)
     let alive = true
-    Promise.all([printLayer(template, data, 'front', body), printLayer(template, data, 'back', body)]).then(([front, back]) => {
+    Promise.all([printLayer(template, data, 'front', body), printLayer(template, data, 'back', body), printLayer(template, data, 'side', body)]).then(([front, back, side]) => {
       if (alive)
-        setLayers(front || back ? { front: front?.color ?? null, back: back?.color ?? null, frontRelief: front?.relief ?? null, backRelief: back?.relief ?? null } : undefined)
+        setLayers(
+          front || back || side
+            ? { front: front?.color ?? null, back: back?.color ?? null, frontRelief: front?.relief ?? null, backRelief: back?.relief ?? null, side: side?.color ?? null }
+            : undefined,
+        )
     })
     return () => {
       alive = false
@@ -152,7 +156,6 @@ export function Design3D({ template, data, materials, client, designId }: Props)
   const ghostOutfit = useMemo(() => outfit.map((d) => ({ ...d, ghost: true })), [outfit])
   const measurements = useMemo(() => mannequinMeasurements(client?.measurements, kind), [client, kind])
   const [autoRotate, setAutoRotate] = useState(false)
-  const sidePrints = (data.prints ?? []).filter((p) => p.view === 'side').length
 
   return (
     <div className="design-3d studio">
@@ -208,7 +211,6 @@ export function Design3D({ template, data, materials, client, designId }: Props)
         <p className="design-3d-note">
           {client && Object.keys(client.measurements).length ? `Medidas de ${client.name}` : kind === 'mujer' ? 'Medidas estándar de mujer' : 'Medidas estándar'}
           {!hasOwn3D(template) && ` · ${template.name}: forma 3D aproximada (algunos detalles solo se ven en 2D)`}
-          {sidePrints > 0 && ' · Los estampados del lateral aún no se ven en 3D'}
           {' · Arrastra para girar'}
         </p>
       </div>

@@ -135,10 +135,24 @@ uniform vec4 uPrintUv;
 uniform sampler2D uPrintReliefFront;
 uniform sampler2D uPrintReliefBack;
 uniform float uPrintRelief;
+// Lateral: estampados del costado derecho (uPrintSideFrame: centro y medio fondo en z, arriba y abajo)
+uniform sampler2D uPrintSide;
+uniform float uPrintSideOn;
+uniform vec4 uPrintSideFrame;
+varying vec3 vRestNormal;
 `
 
 const PRINT_APPLY = /* glsl */ `
 float printH = 0.0;
+if (uPrintSideOn > 0.5 && gl_FrontFacing && vRestNormal.x < -0.45 && vRestPos.x < uPrintFrame.x) {
+  // Del dibujo lateral: de detrás (izquierda) a delante (derecha)
+  float ss = (vRestPos.z - uPrintSideFrame.x) / (2.0 * uPrintSideFrame.y) + 0.5;
+  float st = (uPrintSideFrame.z - vRestPos.y) / max(uPrintSideFrame.z - uPrintSideFrame.w, 1e-4);
+  if (ss > 0.0 && ss < 1.0 && st > 0.0 && st < 1.0) {
+    vec4 sc = texture2D(uPrintSide, vec2(ss, 1.0 - st));
+    diffuseColor.rgb = mix(diffuseColor.rgb, sc.rgb, sc.a);
+  }
+}
 if (uPrintOn > 0.5 && gl_FrontFacing) {
   float ps = (vRestPos.x - uPrintFrame.x) / (2.0 * uPrintFrame.y) + 0.5;
   float pt = (uPrintFrame.z - vRestPos.y) / max(uPrintFrame.z - uPrintFrame.w, 1e-4);
@@ -198,6 +212,31 @@ float quiltHeight(vec2 p) {
 `
 
 /**
+ * Volumen del acolchado en la malla: cada canal se abomba de verdad entre pespunte y pespunte (no solo con la luz),
+ * como un cojín. Junto a los bordes de cada pieza no se mueve, para que las costuras no se abran.
+ */
+const QUILT_VERTEX = /* glsl */ `
+uniform vec4 uQuilt;
+float quiltBandV(float d, float st) {
+  float s = fract(d / st);
+  return pow(max(sin(3.14159 * s), 0.0), 0.5);
+}
+float quiltHeightV(vec2 p) {
+  float st = uQuilt.y;
+  int k = int(uQuilt.x + 0.5);
+  float x = p.x;
+  float y = p.y;
+  if (k == 0) return quiltBandV(y, st);
+  if (k == 1) return quiltBandV(y + abs(x) * 0.45, st);
+  if (k == 2) return quiltBandV(y - st * 0.28 * sin(6.2832 * x / (st * 3.2)), st);
+  if (k == 3) return min(quiltBandV(y - 0.65 * x, st * 1.25), quiltBandV(y + 0.65 * x, st * 1.25));
+  if (k == 4) return min(quiltBandV(y, st), quiltBandV(x + st * 0.675, st * 1.35));
+  if (k == 5) return quiltBandV(x + st * 0.45, st * 0.9);
+  return quiltBandV(y - 0.55 * x, st);
+}
+`
+
+/**
  * Variación del tejido sobre las UV del patrón (cm): vetas finas a lo largo de la trama y manchas suaves de tono,
  * muy leves (±4 %). Una tela de un color totalmente uniforme parece plástico.
  */
@@ -251,6 +290,9 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
     uPrintReliefFront: { value: NO_PRINT as THREE.Texture },
     uPrintReliefBack: { value: NO_PRINT as THREE.Texture },
     uPrintRelief: { value: 0 },
+    uPrintSide: { value: NO_PRINT as THREE.Texture },
+    uPrintSideOn: { value: 0 },
+    uPrintSideFrame: { value: new THREE.Vector4(0, 1, 1, 0) },
     // Acolchado: forma de los canales, separación (cm), relieve (cm) y si se ve (ver QUILT_GLSL)
     uQuilt: { value: new THREE.Vector4(0, 14, 0, 0) },
     // Tejido en el color: cuánto se ve el hilo (x) y cuánto aclara la trama blanca del denim (y)
@@ -270,12 +312,18 @@ function withSeams(m: THREE.MeshPhysicalMaterial, pocket: boolean, prints = fals
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
-        `#include <common>\nattribute vec3 edge;\nattribute float occlusion;\nattribute vec2 wrinkle;\nvarying float vOcc;\nvarying vec2 vWrinkle;\nvarying vec2 vEdge;\nvarying vec2 vQuiltUv;\nflat varying float vEdgeKind;${pocket ? '\nvarying vec2 vPocketUv;' : ''}${prints ? '\nvarying vec3 vRestPos;\nvarying vec2 vPrintUv;' : ''}`,
+        `#include <common>\n${QUILT_VERTEX}\nattribute vec3 edge;\nattribute float occlusion;\nattribute vec2 wrinkle;\nvarying float vOcc;\nvarying vec2 vWrinkle;\nvarying vec2 vEdge;\nvarying vec2 vQuiltUv;\nflat varying float vEdgeKind;${pocket ? '\nvarying vec2 vPocketUv;' : ''}${prints ? '\nvarying vec3 vRestPos;\nvarying vec3 vRestNormal;\nvarying vec2 vPrintUv;' : ''}`,
       )
       .replace(
         '#include <uv_vertex>',
-        `#include <uv_vertex>\nvOcc = occlusion;\nvWrinkle = wrinkle;\nvEdge = edge.xy;\nvQuiltUv = uv;\nvEdgeKind = edge.z;${pocket ? '\nvPocketUv = uv;' : ''}${prints ? '\nvRestPos = position;\nvPrintUv = uv;' : ''}`,
+        `#include <uv_vertex>\nvOcc = occlusion;\nvWrinkle = wrinkle;\nvEdge = edge.xy;\nvQuiltUv = uv;\nvEdgeKind = edge.z;${pocket ? '\nvPocketUv = uv;' : ''}${prints ? '\nvRestPos = position;\nvRestNormal = normal;\nvPrintUv = uv;' : ''}`,
       )
+    // Acolchado: el canal sale hacia fuera (el pespunte se queda hundido)
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+      if (uQuilt.w > 0.5) transformed += objectNormal * (quiltHeightV(uv) - 0.55) * uQuilt.z * 1.3 * smoothstep(0.5, 3.0, edge.x);`,
+    )
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\nvarying float vOcc;\nvarying vec2 vWrinkle;\n${FABRIC_GLSL}${SEAM_GLSL}${QUILT_GLSL}${prints ? PRINT_GLSL : ''}`)
       .replace(
@@ -598,6 +646,7 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
       back: make(design.prints?.back),
       frontRelief: relief(design.prints?.frontRelief),
       backRelief: relief(design.prints?.backRelief),
+      side: make(design.prints?.side),
     }
   }, [design.prints])
   useEffect(
@@ -617,6 +666,9 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
       u.uPrintReliefFront.value = printTextures.frontRelief ?? NO_PRINT
       u.uPrintReliefBack.value = printTextures.backRelief ?? NO_PRINT
       u.uPrintRelief.value = printTextures.frontRelief || printTextures.backRelief ? 1 : 0
+      u.uPrintSide.value = printTextures.side ?? NO_PRINT
+      u.uPrintSideOn.value = frame && printTextures.side ? 1 : 0
+      if (frame) u.uPrintSideFrame.value.set(frame.cz, frame.halfZ, frame.top, frame.bottom)
       if (frame) {
         u.uPrintFrame.value.set(frame.cx, frame.half, frame.top, frame.bottom)
         u.uPrintZ.value = frame.cz
@@ -645,7 +697,8 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
       const u = materials[i].userData.quilt as { value: THREE.Vector4 } | undefined
       if (!u) return
       const on = !!quilt && (slot === 'cuerpo' || slot === 'mangas')
-      u.value.set(quilt?.shape ?? 0, quilt?.step ?? 14, (quilt?.step ?? 14) * 0.09, on ? 1 : 0)
+      // Relieve de cada canal: abombado como un cojín (el relleno empuja entre pespunte y pespunte)
+      u.value.set(quilt?.shape ?? 0, quilt?.step ?? 14, (quilt?.step ?? 14) * 0.2, on ? 1 : 0)
     })
     const meshes = geometries.map(({ g, slot }) => {
       const mesh = new THREE.SkinnedMesh(g, slot ? materials[slotIndex(slot)] : materials)
@@ -676,6 +729,9 @@ interface PrintUniforms {
   uPrintReliefFront: { value: THREE.Texture }
   uPrintReliefBack: { value: THREE.Texture }
   uPrintRelief: { value: number }
+  uPrintSide: { value: THREE.Texture }
+  uPrintSideOn: { value: number }
+  uPrintSideFrame: { value: THREE.Vector4 }
 }
 
 /**
@@ -732,7 +788,7 @@ function printFrame(list: { g: THREE.BufferGeometry; slot: GarmentSlot | null }[
     maxZ = Math.max(maxZ, pts[i + 2])
   }
   if (!Number.isFinite(minX)) return null
-  return { cx: (minX + maxX) / 2, half: (maxX - minX) / 2, top: maxY, bottom: minY, cz: (minZ + maxZ) / 2, uv }
+  return { cx: (minX + maxX) / 2, half: (maxX - minX) / 2, top: maxY, bottom: minY, cz: (minZ + maxZ) / 2, halfZ: (maxZ - minZ) / 2, uv }
 }
 
 /** Unidades del modelo (cm del modelo original) para una distancia real en metros. */

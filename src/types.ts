@@ -217,5 +217,7 @@ export interface Design {
     /** Mapa de relieve (blanco donde hay bordado, parche o fornitura), con el mismo encuadre. */
     frontRelief?: HTMLCanvasElement | null
     backRelief?: HTMLCanvasElement | null
+    /** Vista lateral: el costado derecho de quien la lleva (en el dibujo, el delantero queda a la derecha). */
+    side?: HTMLCanvasElement | null
   }
 }

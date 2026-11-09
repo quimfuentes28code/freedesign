@@ -362,6 +362,8 @@ export interface Drawing {
   dash: boolean
   /** Relleno de las formas cerradas (vacío = solo el contorno). */
   fill?: string
+  /** Esquinas redondeadas de las formas con esquinas (0 = en pico, 1 = muy redondas). */
+  round?: number
   /** Canal de acolchado dibujado a mano: pespunte con el relieve del relleno a los lados. */
   quilt?: boolean
   hidden?: boolean

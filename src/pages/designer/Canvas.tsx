@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent, type WheelEvent } from 'react'
 import { api, imageSize } from '../../api/client'
 import { Callouts, CmGrid, Dimensions, newCallout, ScaleBar } from '../../designer/annotations'
-import { DrawingsLayer, TracingLayer, type Brush, type DrawTool } from '../../designer/drawings'
+import { DrawingsLayer, smoothPoints, TracingLayer, type Brush, type DrawTool } from '../../designer/drawings'
 import { CX } from '../../designer/geometry'
 import { unitsOf } from '../../designer/prints'
 import { FlatView, type FlatContext } from '../../designer/FlatView'
@@ -436,6 +436,23 @@ export function Canvas(props: Props) {
                 <label className="brush-color" title="Color del relleno">
                   <input type="color" value={(selectedDraw ? selectedDraw.fill : settings.brush.fill) ?? '#000000'} onChange={(e) => setBrush({ fill: e.target.value })} />
                   <span style={{ background: (selectedDraw ? selectedDraw.fill : settings.brush.fill) ?? '#000' }} />
+                </label>
+              )}
+              {(!selectedDraw || selectedDraw.kind === 'free') && (
+                <label className="toggle small-toggle" title="Suaviza el trazo a mano al soltarlo: sin temblores ni trompicones">
+                  <input type="checkbox" checked={settings.brush.smooth !== false} onChange={(e) => onSettings({ ...settings, brush: { ...settings.brush, smooth: e.target.checked } })} />
+                  Suavizar
+                </label>
+              )}
+              {selectedDraw?.kind === 'free' && (
+                <button className="tool" onClick={() => onDrawings(drawings.map((d) => (d.id === selectedDraw.id ? { ...d, points: smoothPoints(d.points, 1.6) } : d)))} title="Suaviza más este trazo">
+                  Suavizar más
+                </button>
+              )}
+              {(selectedDraw ? ['rect', 'triangle', 'diamond', 'star'].includes(selectedDraw.kind) : tool && ['rect', 'triangle', 'diamond', 'star'].includes(tool)) && (
+                <label className="toggle small-toggle" title="Redondea las esquinas de la forma">
+                  Esquinas
+                  <input type="range" min={0} max={1} step={0.05} value={(selectedDraw ? selectedDraw.round : settings.brush.round) ?? 0} onChange={(e) => setBrush({ round: Number(e.target.value) || undefined })} />
                 </label>
               )}
               <label className="toggle small-toggle" title="Simétrico: lo que dibujes se repite reflejado al otro lado del centro de la prenda">

@@ -94,11 +94,19 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   // Prenda sola (editor): un instante y casi sin gravedad, para que quede recta, sin pliegues de caída
   const ghost = !!design.ghost
   const gravity = (ghost ? 60 : 980) * unit
-  // Sola (editor): hinchada como un globo, con la forma de su patrón y sin la silueta del maniquí
-  const inflate = ghost ? 420 * unit : undefined
+  // Acolchada (puffer, chaleco acolchado): el relleno la hincha y la deja lisa, sin pliegues de caída
+  const puffy = !!design.top?.quilt
+  // Sola (editor): hinchada como un globo, con la forma de su patrón y sin la silueta del maniquí. Acolchada, también
+  // puesta: el relleno la separa del cuerpo
+  const inflate = ghost ? (puffy ? 700 : 600) * unit : puffy ? 380 * unit : undefined
+  // Lisa: sola (editor) o acolchada, sin pliegues ni arruguitas, como rellena del todo
+  const smooth = ghost || puffy
   const settle = (normal: number) => input.seconds ?? (ghost ? 0.9 : normal + extra)
   // La rigidez a la flexión depende de la tela
-  for (const l of cloth.links) if (l.k < 0.5) l.k = Math.min(1, l.k * fabric.stiffness)
+  // Acolchada: mucho más rígida al doblarse (el relleno no deja que se arrugue)
+  // (salvo la capucha: tiesa, se levantaba y tapaba los cordones)
+  const hood = new Set(layers.hoodAll)
+  for (const l of cloth.links) if (l.k < 0.5) l.k = Math.min(1, l.k * fabric.stiffness * (smooth && !hood.has(l.a) ? 4 : 1))
 
   lap('patron')
   const { skinIndex, skinWeight } = skinCloth(cloth, cloud, new CloudGrid(cloud.pos), pose.parts, follows)
@@ -146,6 +154,8 @@ export function dressPatternGarment(input: DressInput): DressOutput {
     thickness: (input.underlay ? 1.1 : 0.7) * unit,
     gravity,
     inflate,
+    // La capucha bajada no se infla: cae por la espalda como siempre
+    noInflate: design.hoodUp ? undefined : layers.hoodAll,
     cell: 2.2 * unit,
     // La tela no se atraviesa a sí misma: la capucha queda encima de la espalda y las mangas no se meten en el cuerpo
     layers: [
@@ -165,7 +175,8 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   const sewn = new Set(cloth.seams.flat())
   const border = cloth.edgeInfo()
   const fixed = (v: number) => border[v * 3] < 1e-3 && !sewn.has(v)
-  taubinSmooth(relaxed, cloth.neighbours(), 4, fixed)
+  // Lisa: muchas más pasadas, para que no quede ningún pliegue
+  taubinSmooth(relaxed, cloth.neighbours(), smooth ? 16 : 4, fixed)
   // Los bordes libres se alisan a lo largo del propio borde (sin encogerlos hacia dentro): si no, salen dentados
   for (const rim of rims) smoothChain(relaxed, rim.verts, 6)
   weldSeams(relaxed, cloth.seams)
@@ -307,7 +318,8 @@ export function dressPatternGarment(input: DressInput): DressOutput {
   const normal = vertexNormals(position, Array.from(index))
   const occlusion = clothOcclusion(position, normal, 5 * unit)
   const wrinkle = new Float32Array((position.length / 3) * 2)
-  wrinkle.set(gathering(cloth, relaxed))
+  // Lisa (sola o acolchada), sin arruguitas: hinchada, la tela queda tensa
+  if (!smooth) wrinkle.set(gathering(cloth, relaxed))
   lap('malla')
 
   // Normales iguales a ambos lados de cada costura, para que la prenda se vea de una pieza
