@@ -3,17 +3,36 @@ import { createPortal } from 'react-dom'
 import { api } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import { mockupCanvas } from '../designer/exportFlat'
-import type { GarmentTemplate } from '../designer/types'
-import type { Body } from '../production/measurements'
-import { BLEND_MODES, type BlendMode, type CanvasDoc, type CanvasLayer, type DesignData, type MockupLayer, type PaintLayer } from '../shared/designs'
+import { FlatView } from '../designer/FlatView'
+import { drawScale } from '../designer/measures'
+import { reshapePockets } from '../designer/pocketShape'
+import { defaultDesign, getTemplate, NEW_DESIGN_CATALOG } from '../designer/templates'
+import type { GarmentTemplate, Options } from '../designer/types'
+import { DETAIL_DEFAULTS } from '../pages/designer/DetailsPanel'
+import { standardBody, type Body } from '../production/measurements'
+import {
+  BLEND_MODES,
+  DETAIL_KINDS,
+  DETAIL_STYLES,
+  LONG_DETAILS,
+  PULLER_STYLES,
+  type BlendMode,
+  type CanvasDoc,
+  type CanvasLayer,
+  type DesignData,
+  type DetailKind,
+  type DetailLayer,
+  type MockupLayer,
+  type PaintLayer,
+} from '../shared/designs'
 import type { Material } from '../shared/library'
 import { BRUSHES, paperGrain, Stroke, union, type BrushPreset, type Rect, type Symmetry } from './brushes'
 import { ColorPicker } from './ColorPicker'
-import { afterSave, compose, floodMask, garmentMask, grab, registerFlush, runtimeFor, uploadDirty } from './engine'
+import { afterSave, compose, detailCanvas, floodMask, garmentMask, grab, pieceAt, registerFlush, runtimeFor, uploadDirty, type Runtime } from './engine'
 import './lienzo.css'
 
 type Tool = 'brush' | 'eraser' | 'picker' | 'fill' | 'move'
-type Panel = 'brushes' | 'layers' | 'color' | 'ajustes' | 'acciones' | null
+type Panel = 'brushes' | 'layers' | 'color' | 'ajustes' | 'acciones' | 'biblioteca' | 'opciones' | null
 
 interface Settings {
   brush: string
@@ -29,8 +48,10 @@ interface Settings {
   gridSize: number
   /** Pintar solo dentro de las prendas (mockups). */
   inside: boolean
+  /** Bote: pinta la pieza de la prenda que se toca o rellena la zona cerrada de lo pintado. */
+  fillMode: 'pieza' | 'zona'
 }
-const DEFAULTS: Settings = { brush: 'tecnica', eraser: 'aeroduro', color: '#1d1c1a', recent: [], sizes: {}, opacities: {}, streamline: {}, symmetry: 'none', grid: false, gridSize: 50, inside: false }
+const DEFAULTS: Settings = { brush: 'tecnica', eraser: 'aeroduro', color: '#1d1c1a', recent: [], sizes: {}, opacities: {}, streamline: {}, symmetry: 'none', grid: false, gridSize: 50, inside: false, fillMode: 'pieza' }
 const KEY = 'fd:lienzo'
 function loadSettings(): Settings {
   try {
@@ -64,6 +85,12 @@ interface Props {
   materials: Map<string, Material>
   body: Body
   onChange: (doc: CanvasDoc) => void
+  /**
+   * Cambiar el color de una pieza de la prenda del propio diseño (y, a la vez, el lienzo, si cambia: el mockup pasa a
+   * verse a color).
+   */
+  onPieceColor: (piece: string, color: string, canvas?: CanvasDoc) => void
+  onOptions: (patch: Options) => void
   /** Guardar el diseño (el editor sube antes las capas cambiadas). */
   onSave: () => void
   onExit: () => void
@@ -151,7 +178,7 @@ export function Lienzo(props: Props) {
   const designKey = useMemo(() => JSON.stringify({ ...data, canvas: undefined }), [data])
   const mockKey = doc.layers
     .filter((l): l is MockupLayer => l.kind === 'mockup')
-    .map((l) => `${l.id}:${l.view}:${l.style}`)
+    .map((l) => JSON.stringify([l.id, l.view, l.style, l.template, l.options, l.pieces]))
     .join('|')
   useEffect(() => {
     let alive = true
@@ -159,10 +186,14 @@ export function Lienzo(props: Props) {
       for (const l of docRef.current.layers) {
         if (l.kind !== 'mockup') continue
         try {
-          const { canvas } = await mockupCanvas(template, data, materials, body, l.view, l.style, 1400)
+          const src = mockupSource(l, template, data, body)
+          if (!src) continue
+          const { canvas, box } = await mockupCanvas(src.t, src.data, materials, src.body, l.view, l.style, 1400)
           if (!alive) return
           if (l.style === 'linea') tintLine(canvas)
           r.mockups.set(l.id, canvas)
+          // Sus piezas, para pintarlas con el bote
+          r.mockupInfo.set(l.id, { box, shapes: reshapePockets(src.t.draw(l.view, src.data.options, drawScale(src.t, src.data, src.body)), src.data) })
         } catch (e) {
           console.error('No se ha podido pintar el mockup', e)
         }
@@ -374,6 +405,23 @@ export function Lienzo(props: Props) {
     setSettings({ color: hex })
   }
   const fill = (x: number, y: number) => {
+    if (settings.fillMode === 'pieza') {
+      const hit = pieceAt(r, doc, x, y)
+      if (!hit) return flash('Toca una pieza de una prenda (o cambia el bote a «Zona pintada»)')
+      remember(settings.color)
+      // En línea no se ven los colores: la prenda pasa a verse a color (lo que no se ha pintado sigue en gris claro)
+      const toColor = hit.layer.style === 'linea'
+      if (!hit.layer.template) {
+        // (todas las vistas de la prenda del diseño a la vez: delante, espalda…)
+        const next = toColor ? { ...doc, layers: doc.layers.map((l) => (l.kind === 'mockup' && !l.template ? ({ ...l, style: 'color' } as CanvasLayer) : l)) } : undefined
+        if (next) {
+          r.history.push({ kind: 'doc', before: docRef.current, after: next })
+          docRef.current = next
+        }
+        return props.onPieceColor(hit.piece, settings.color, next)
+      }
+      return patch(hit.layer.id, { ...(toColor ? { style: 'color' } : {}), pieces: { ...hit.layer.pieces, [hit.piece]: { color: settings.color } } })
+    }
     if (!paintLayer || paintLayer.locked) return flash('Elige una capa de pintura sin bloquear')
     const mask = floodMask(compose(r, doc), x, y)
     if (!mask) return
@@ -653,6 +701,59 @@ export function Lienzo(props: Props) {
     const label = view === 'front' ? 'Delantero' : view === 'back' ? 'Espalda' : 'Lateral'
     insertAbove({ id: uid(), kind: 'mockup', name: `Prenda · ${label}`, view, x: doc.w / 2 - 400, y: 120, w: 800, style: 'linea', visible: true, locked: false, opacity: 1, blend: 'normal' })
   }
+  /** Prenda del catálogo como mockup nuevo, centrada en (x, y). */
+  const addGarment = (entryId: string, x: number, y: number) => {
+    const e = NEW_DESIGN_CATALOG.find((c) => c.id === entryId)
+    if (!e) return
+    const w = e.template.family === 'head' ? 420 : 620
+    const opts = { ...defaultDesign(e.template, e.options).options }
+    insertAbove({ id: uid(), kind: 'mockup', name: e.name, view: 'front', x: x - w / 2, y: y - w * 0.6, w, style: 'linea', template: e.template.id, options: opts, pieces: {}, visible: true, locked: false, opacity: 1, blend: 'normal' })
+    setTool('move')
+  }
+  /** Fornitura nueva (con su estilo), centrada en (x, y). Su ancho en el lienzo sale de su tamaño real. */
+  const addDetail = (kind: DetailKind, style: string | null, x: number, y: number) => {
+    const base = DETAIL_DEFAULTS[kind]
+    const detail = { ...base, ...(style ? { style } : {}), id: uid(), view: 'front' as const, x: 0, y: 0 }
+    // 1 unidad del dibujo = 0,5 cm; en el lienzo, unos 8 px por cm (una prenda ocupa ~600 px)
+    const w = Math.max(20, base.w * 4)
+    const name = DETAIL_KINDS.find((k) => k.id === kind)?.label ?? 'Fornitura'
+    insertAbove({ id: uid(), kind: 'detail', name, detail, x, y, w, rotation: base.rotation, visible: true, locked: false, opacity: 1, blend: 'normal' })
+    setTool('move')
+  }
+  const center = () => {
+    const rect = viewport.current!.getBoundingClientRect()
+    return toDoc(rect.left + rect.width / 2, rect.top + rect.height / 2)
+  }
+  /** Lo que se arrastra desde la biblioteca (sigue al dedo; al soltar sobre el lienzo, se coloca ahí). */
+  const [carry, setCarry] = useState<{ item: LibraryItem; x: number; y: number; x0: number; y0: number; moved: boolean } | null>(null)
+  const dropItem = (item: LibraryItem, clientX: number | null, clientY: number | null) => {
+    const rect = viewport.current!.getBoundingClientRect()
+    const inside = clientX !== null && clientY !== null && clientX > rect.left && clientX < rect.right && clientY > rect.top && clientY < rect.bottom
+    const p = inside ? toDoc(clientX!, clientY!) : center()
+    if (item.kind === 'garment') addGarment(item.id, p.x, p.y)
+    else addDetail(item.detail, item.style, p.x, p.y)
+  }
+  useEffect(() => {
+    if (!carry) return
+    const move = (e: PointerEvent) => setCarry((c) => (c ? { ...c, x: e.clientX, y: e.clientY, moved: c.moved || Math.hypot(e.clientX - c.x, e.clientY - c.y) > 6 } : c))
+    const up = (e: PointerEvent) => {
+      const c = carry
+      setCarry(null)
+      // Arrastrado si se ha soltado lejos de donde empezó (aunque el movimiento haya sido muy rápido)
+      c.moved = c.moved || Math.hypot(e.clientX - c.x0, e.clientY - c.y0) > 12
+      // Sin arrastrar (un toque): al centro de la pantalla
+      dropItem(c.item, c.moved ? e.clientX : null, c.moved ? e.clientY : null)
+      if (c.moved) setPanel(null)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up, { once: true })
+    return () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carry?.item])
+
   const addImage = async (file: File) => {
     flash('Subiendo imagen…')
     try {
@@ -777,6 +878,9 @@ export function Lienzo(props: Props) {
           <button className={panel === 'ajustes' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'ajustes' ? null : 'ajustes')} title="Guías: simetría, cuadrícula, estabilizador">
             <Icon d="M10 2.5v15M2.5 10h15M5 5l10 10" />
           </button>
+          <button className={panel === 'biblioteca' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'biblioteca' ? null : 'biblioteca')} title="Biblioteca: prendas y fornituras para arrastrar al lienzo">
+            <Icon d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM13.5 11v5M11 13.5h5" />
+          </button>
           <button className={tool === 'move' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('move')} title="Mover la capa (V)">
             <Icon d="M10 2.5v15M2.5 10h15M10 2.5l-2.5 2.5M10 2.5l2.5 2.5M10 17.5l-2.5-2.5M10 17.5l2.5-2.5M2.5 10l2.5-2.5M2.5 10l2.5 2.5M17.5 10l-2.5-2.5M17.5 10l-2.5 2.5" />
           </button>
@@ -863,6 +967,18 @@ export function Lienzo(props: Props) {
                 />
               )
             }
+            if (l.kind === 'detail') {
+              const c = detailCanvas(r, l)
+              const h = (l.w * c.height) / c.width
+              return (
+                <div
+                  key={l.id + c.width + c.height}
+                  className={l.id === active && tool === 'move' ? 'lz-item selected' : 'lz-item'}
+                  style={{ ...style, left: l.x - l.w / 2 + (off?.dx ?? 0), top: l.y - h / 2 + (off?.dy ?? 0), width: l.w, height: h, transform: `rotate(${l.rotation}deg)` }}
+                  ref={(el) => mount(el, c)}
+                />
+              )
+            }
             const img = r.images.get(l.file)
             const h = l.w * l.aspect
             return (
@@ -899,6 +1015,37 @@ export function Lienzo(props: Props) {
         {notice && <div className="lz-notice">{notice}</div>}
       </div>
 
+      {tool === 'fill' && (
+        <div className="lz-toolbar" onPointerDown={(e) => e.stopPropagation()}>
+          <span>Bote:</span>
+          <button className={settings.fillMode === 'pieza' ? 'lz-chip on' : 'lz-chip'} onClick={() => setSettings({ fillMode: 'pieza' })} title="Toca una pieza de la prenda (manga, cuerpo, capucha…) para darle color">
+            Pieza de la prenda
+          </button>
+          <button className={settings.fillMode === 'zona' ? 'lz-chip on' : 'lz-chip'} onClick={() => setSettings({ fillMode: 'zona' })} title="Rellena la zona cerrada por líneas en la capa de pintura">
+            Zona pintada
+          </button>
+        </div>
+      )}
+      {carry && carry.moved && (
+        <div className="lz-carry" style={{ left: carry.x, top: carry.y }}>
+          {carry.item.label}
+        </div>
+      )}
+      {panel === 'biblioteca' && (
+        <Pop className="lz-pop left wide" title="Biblioteca">
+          <Library materials={materials} onStart={(item, e) => setCarry({ item, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, moved: false })} />
+        </Pop>
+      )}
+      {panel === 'opciones' && layer?.kind === 'mockup' && (
+        <Pop className="lz-pop right wide" title={`Opciones · ${layer.name}`}>
+          <GarmentOptions
+            layer={layer}
+            own={{ template, data }}
+            materials={materials}
+            onChange={(patchOpts) => (layer.template ? patch(layer.id, { options: { ...layer.options, ...patchOpts } }) : props.onOptions(patchOpts))}
+          />
+        </Pop>
+      )}
       {panel === 'brushes' && (
         <Pop className="lz-pop right" title={tool === 'eraser' ? 'Pincel del borrador' : 'Biblioteca de pinceles'}>
           <BrushLibrary
@@ -928,7 +1075,8 @@ export function Lienzo(props: Props) {
                 key={l.id}
                 layer={l}
                 active={l.id === active}
-                thumb={l.kind === 'paint' ? r.layer(l.id) : l.kind === 'mockup' ? r.mockups.get(l.id) : undefined}
+                thumb={l.kind === 'paint' ? r.layer(l.id) : l.kind === 'mockup' ? r.mockups.get(l.id) : l.kind === 'detail' ? detailCanvas(r, l) : undefined}
+                onOptions={() => setPanel('opciones')}
                 image={l.kind === 'image' ? r.images.get(l.file)?.src : undefined}
                 onSelect={() => setActive(l.id)}
                 onPatch={(p) => {
@@ -1171,6 +1319,7 @@ function LayerRow(props: {
   onDown: () => void
   onMerge: () => void
   onClear?: () => void
+  onOptions: () => void
 }) {
   const { layer: l, active } = props
   const thumbRef = useRef<HTMLCanvasElement>(null)
@@ -1183,7 +1332,7 @@ function LayerRow(props: {
     g.drawImage(props.thumb, (c.width - props.thumb.width * k) / 2, (c.height - props.thumb.height * k) / 2, props.thumb.width * k, props.thumb.height * k)
   })
   const [editing, setEditing] = useState(false)
-  const kind = l.kind === 'paint' ? 'Pintura' : l.kind === 'mockup' ? 'Prenda' : 'Imagen'
+  const kind = l.kind === 'paint' ? 'Pintura' : l.kind === 'mockup' ? 'Prenda' : l.kind === 'detail' ? 'Fornitura' : 'Imagen'
   return (
     <div className={active ? 'lz-layer-row on' : 'lz-layer-row'}>
       <div className="lz-layer-main" onClick={props.onSelect}>
@@ -1244,15 +1393,21 @@ function LayerRow(props: {
               </div>
             </>
           )}
-          {(l.kind === 'mockup' || l.kind === 'image') && (
+          {l.kind === 'mockup' && (
+            <button className="lz-btn" onClick={props.onOptions} title="Cuello, capucha, bolsillos, mangas… viendo cómo queda cada uno">
+              Cambiar cuello, capucha, bolsillos…
+            </button>
+          )}
+          {l.kind === 'detail' && <DetailOptions layer={l} onPatch={props.onPatch} />}
+          {(l.kind === 'mockup' || l.kind === 'image' || l.kind === 'detail') && (
             <div className="lz-field">
               <span>
                 Tamaño <strong>{Math.round(l.w)} px</strong>
               </span>
-              <input type="range" min={60} max={2400} step={10} value={l.w} onChange={(e) => props.onPatch({ w: Number(e.target.value) })} />
+              <input type="range" min={l.kind === 'detail' ? 8 : 60} max={2400} step={l.kind === 'detail' ? 2 : 10} value={l.w} onChange={(e) => props.onPatch({ w: Number(e.target.value) })} />
             </div>
           )}
-          {l.kind === 'image' && (
+          {(l.kind === 'image' || l.kind === 'detail') && (
             <div className="lz-field">
               <span>
                 Giro <strong>{Math.round(l.rotation)}°</strong>
@@ -1302,3 +1457,218 @@ function LayerRow(props: {
 
 // Las funciones del motor que no se usan aquí directamente
 void union
+
+/** Lo que se puede arrastrar desde la biblioteca. */
+type LibraryItem = { kind: 'garment'; id: string; label: string } | { kind: 'detail'; detail: DetailKind; style: string | null; label: string }
+
+/** Fornituras de la biblioteca: cada tipo con sus estilos (cremalleras metálicas, invisibles, botones de 2 o 4 agujeros…). */
+const HARDWARE: { kind: DetailKind; styles: (string | null)[] }[] = DETAIL_KINDS.map((k) => ({
+  kind: k.id,
+  styles: DETAIL_STYLES[k.id]?.map((s) => s.id) ?? [null],
+}))
+
+/** Biblioteca visual: prendas del catálogo y fornituras, para tocar (al centro) o arrastrar al lienzo. */
+function Library({ materials, onStart }: { materials: Map<string, import('../shared/library').Material>; onStart: (item: LibraryItem, e: React.PointerEvent) => void }) {
+  const [tab, setTab] = useState<'prendas' | 'fornituras'>('prendas')
+  const [kind, setKind] = useState<DetailKind>('cremallera')
+  const body = useMemo(() => standardBody('M'), [])
+  return (
+    <div className="lz-library">
+      <div className="lz-chips">
+        <button className={tab === 'prendas' ? 'lz-chip on' : 'lz-chip'} onClick={() => setTab('prendas')}>
+          Prendas
+        </button>
+        <button className={tab === 'fornituras' ? 'lz-chip on' : 'lz-chip'} onClick={() => setTab('fornituras')}>
+          Fornituras y detalles
+        </button>
+      </div>
+      <p className="lz-muted">Arrastra al lienzo o toca para ponerlo en el centro.</p>
+      {tab === 'prendas' ? (
+        <div className="lz-grid-items">
+          {NEW_DESIGN_CATALOG.map((e) => {
+            const data = { ...defaultDesign(e.template, e.options), prints: [] } as DesignData
+            return (
+              <button key={e.id} className="lz-lib-item" onPointerDown={(ev) => onStart({ kind: 'garment', id: e.id, label: e.name }, ev)} title={e.description}>
+                <div className="lz-lib-thumb">
+                  <FlatView template={e.template} data={data} view="front" materials={materials} mode="linea" body={body} />
+                </div>
+                <span>{e.name}</span>
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <>
+          <div className="lz-chips">
+            {HARDWARE.map((h) => (
+              <button key={h.kind} className={h.kind === kind ? 'lz-chip on' : 'lz-chip'} onClick={() => setKind(h.kind)}>
+                {DETAIL_KINDS.find((k) => k.id === h.kind)?.label}
+              </button>
+            ))}
+          </div>
+          <div className="lz-grid-items">
+            {HARDWARE.find((h) => h.kind === kind)!.styles.map((style) => {
+              const label = DETAIL_STYLES[kind]?.find((x) => x.id === style)?.label ?? DETAIL_KINDS.find((k) => k.id === kind)?.label ?? ''
+              return (
+                <button key={style ?? 'x'} className="lz-lib-item" onPointerDown={(ev) => onStart({ kind: 'detail', detail: kind, style, label }, ev)}>
+                  <div className="lz-lib-thumb">
+                    <DetailThumb kind={kind} style={style} />
+                  </div>
+                  <span>{label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/** Miniatura de una fornitura con su estilo. */
+function DetailThumb({ kind, style }: { kind: DetailKind; style: string | null }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const c = ref.current
+    if (!c) return
+    const base = DETAIL_DEFAULTS[kind]
+    const layer: DetailLayer = {
+      id: `thumb-${kind}-${style}`,
+      kind: 'detail',
+      name: '',
+      detail: { ...base, ...(style ? { style } : {}), id: 'thumb', view: 'front', x: 0, y: 0 },
+      x: 0,
+      y: 0,
+      w: 120,
+      rotation: 0,
+      visible: true,
+      locked: false,
+      opacity: 1,
+      blend: 'normal',
+    }
+    const src = detailCanvas(thumbRuntime, layer)
+    const g = c.getContext('2d')!
+    g.clearRect(0, 0, c.width, c.height)
+    const k = Math.min((c.width * 0.8) / src.width, (c.height * 0.8) / src.height)
+    g.drawImage(src, (c.width - src.width * k) / 2, (c.height - src.height * k) / 2, src.width * k, src.height * k)
+  }, [kind, style])
+  return <canvas ref={ref} width={120} height={90} />
+}
+/** Memoria aparte para las miniaturas de la biblioteca. */
+const thumbRuntime = { details: new Map() } as unknown as Runtime
+
+/** Ajustes de una fornitura: estilo, tirador, colores y largo. */
+function DetailOptions({ layer: l, onPatch }: { layer: DetailLayer; onPatch: (p: Partial<CanvasLayer>) => void }) {
+  const d = l.detail
+  const set = (p: Partial<DetailLayer['detail']>) => onPatch({ detail: { ...d, ...p } } as Partial<CanvasLayer>)
+  const styles = DETAIL_STYLES[d.kind]
+  return (
+    <>
+      {styles && (
+        <div className="lz-chips">
+          {styles.map((s) => (
+            <button key={s.id} className={d.style === s.id ? 'lz-chip on' : 'lz-chip'} onClick={() => set({ style: s.id })}>
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {d.kind === 'cremallera' && (
+        <>
+          <p className="lz-label">Tirador</p>
+          <div className="lz-chips">
+            {PULLER_STYLES.map((p) => (
+              <button key={p.id} className={(d.puller ?? 'clasico') === p.id ? 'lz-chip on' : 'lz-chip'} onClick={() => set({ puller: p.id })}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      <div className="lz-color-pair">
+        <label className="lz-field">
+          <span>Color</span>
+          <input type="color" value={d.color} onChange={(e) => set({ color: e.target.value })} />
+        </label>
+        <label className="lz-field">
+          <span>Contraste</span>
+          <input type="color" value={d.color2} onChange={(e) => set({ color2: e.target.value })} />
+        </label>
+      </div>
+      {(d.kind === 'etiqueta' || d.kind === 'parche') && (
+        <label className="lz-field">
+          <span>Texto</span>
+          <input className="lz-hex" value={d.text ?? ''} onChange={(e) => set({ text: e.target.value })} />
+        </label>
+      )}
+      {LONG_DETAILS.includes(d.kind) && (
+        <div className="lz-field">
+          <span>
+            Largo <strong>{Math.round((d.length ?? 100) / 2)} cm</strong>
+          </span>
+          <input type="range" min={6} max={400} step={2} value={d.length ?? 100} onChange={(e) => set({ length: Number(e.target.value) })} />
+        </div>
+      )}
+    </>
+  )
+}
+
+/** De dónde sale el dibujo de un mockup: la prenda del propio diseño o una del catálogo con sus opciones y colores. */
+function mockupSource(l: MockupLayer, own: GarmentTemplate, data: DesignData, body: Body) {
+  if (!l.template) return { t: own, data, body }
+  const t = getTemplate(l.template)
+  if (!t) return null
+  const base = defaultDesign(t, l.options)
+  // Lo que no se ha pintado, en gris muy claro (como el mockup en línea)
+  const pieces = Object.fromEntries(Object.entries(base.pieces).map(([k, v]) => [k, { ...v, color: l.pieces?.[k]?.color ?? (l.style === 'color' ? '#ebebea' : v.color) }]))
+  const kind = l.options?.genero === 'mujer' ? 'mujer' : 'hombre'
+  return { t, data: { ...base, pieces, prints: [] } as DesignData, body: standardBody('M', kind) }
+}
+
+/**
+ * Opciones de una prenda (cuello, capucha, bolsillos, mangas, largos…) viendo cómo queda cada una: una miniatura
+ * de la prenda con esa opción. Se abre una opción cada vez.
+ */
+function GarmentOptions({ layer, own, materials, onChange }: { layer: MockupLayer; own: { template: GarmentTemplate; data: DesignData }; materials: Map<string, import('../shared/library').Material>; onChange: (p: Options) => void }) {
+  const t = layer.template ? getTemplate(layer.template) : own.template
+  const [open, setOpen] = useState<string | null>(null)
+  if (!t) return null
+  const current: Options = layer.template ? { ...defaultDesign(t).options, ...layer.options } : own.data.options
+  const base = layer.template ? ({ ...defaultDesign(t, current), prints: [] } as DesignData) : own.data
+  return (
+    <div className="lz-options">
+      {t.options.map((o) => {
+        const value = current[o.id]
+        const choices = o.type === 'choice' ? o.choices : [
+          { id: 'true', label: 'Sí' },
+          { id: 'false', label: 'No' },
+        ]
+        const label = o.type === 'choice' ? o.choices.find((c) => c.id === value)?.label : value ? 'Sí' : 'No'
+        return (
+          <div key={o.id} className="lz-option">
+            <button className="lz-option-head" onClick={() => setOpen(open === o.id ? null : o.id)}>
+              <span>{o.label}</span>
+              <strong>{label}</strong>
+            </button>
+            {open === o.id && (
+              <div className="lz-grid-items small">
+                {choices.map((c) => {
+                  const v = o.type === 'choice' ? c.id : c.id === 'true'
+                  const data = { ...base, options: { ...base.options, [o.id]: v } }
+                  return (
+                    <button key={c.id} className={String(value) === String(v) ? 'lz-lib-item on' : 'lz-lib-item'} onClick={() => onChange({ [o.id]: v })}>
+                      <div className="lz-lib-thumb">
+                        <FlatView template={t} data={data} view={layer.view} materials={materials} mode="linea" />
+                      </div>
+                      <span>{c.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}

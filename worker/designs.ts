@@ -177,8 +177,28 @@ function readCanvas(raw: unknown): CanvasDoc | null {
     }
     const file = text(l.file)
     if (l.kind === 'paint') layers.push({ ...base, kind: 'paint', file: isFileKey(file) ? file : null, ...(l.alphaLock === true ? { alphaLock: true } : {}) })
-    else if (l.kind === 'mockup')
-      layers.push({ ...base, kind: 'mockup', view: viewOf(l.view), x: finite(l.x, 0), y: finite(l.y, 0), w: Math.max(20, finite(l.w, 600)), style: l.style === 'linea' ? 'linea' : 'color' })
+    else if (l.kind === 'mockup') {
+      const options: Record<string, string | boolean> = {}
+      for (const [k, v] of Object.entries((l.options as Record<string, unknown>) ?? {}).slice(0, 60)) if (typeof v === 'string' || typeof v === 'boolean') options[k.slice(0, 40)] = typeof v === 'string' ? v.slice(0, 40) : v
+      const pieces: Record<string, { color: string }> = {}
+      for (const [k, v] of Object.entries((l.pieces as Record<string, unknown>) ?? {}).slice(0, 40)) {
+        const color = hex((v as Record<string, unknown> | null)?.color, '')
+        if (color) pieces[k.slice(0, 40)] = { color }
+      }
+      layers.push({
+        ...base,
+        kind: 'mockup',
+        view: viewOf(l.view),
+        x: finite(l.x, 0),
+        y: finite(l.y, 0),
+        w: Math.max(20, finite(l.w, 600)),
+        style: l.style === 'linea' ? 'linea' : 'color',
+        ...(text(l.template) ? { template: text(l.template).slice(0, 40), options, pieces } : {}),
+      })
+    } else if (l.kind === 'detail') {
+      const detail = readDetail(l.detail)
+      if (detail) layers.push({ ...base, kind: 'detail', detail, x: finite(l.x, 0), y: finite(l.y, 0), w: Math.max(4, finite(l.w, 80)), rotation: finite(l.rotation, 0) })
+    }
     else if (l.kind === 'image' && isFileKey(file))
       layers.push({ ...base, kind: 'image', file, aspect: Math.max(0.05, finite(l.aspect, 1)), x: finite(l.x, 0), y: finite(l.y, 0), w: Math.max(4, finite(l.w, 400)), rotation: finite(l.rotation, 0) })
   }

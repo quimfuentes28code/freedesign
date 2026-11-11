@@ -518,6 +518,17 @@ export function DesignEditor() {
             materials={materials}
             body={body}
             onChange={(canvas) => history.set({ ...design, data: { ...design.data, canvas } })}
+            onPieceColor={(piece, color, canvas) =>
+              history.set({
+                ...design,
+                data: {
+                  ...design.data,
+                  ...(canvas ? { canvas } : {}),
+                  pieces: { ...design.data.pieces, [piece]: { ...design.data.pieces[piece], color, colorName: undefined, colorCode: undefined } },
+                },
+              })
+            }
+            onOptions={(patch) => history.set({ ...design, data: { ...design.data, options: { ...design.data.options, ...patch } } })}
             onSave={save}
             onExit={() => changeMode('2d')}
             saving={saving}

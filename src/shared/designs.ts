@@ -433,6 +433,22 @@ export interface MockupLayer extends CanvasLayerBase {
   w: number
   /** Dibujo a color (con colores y materiales de cada pieza) o en línea (gris claro con contorno, para pintar encima). */
   style: 'color' | 'linea'
+  /**
+   * Otra prenda del catálogo (sin poner, la del propio diseño): su prenda base, sus opciones (cuello, capucha…) y el
+   * color de sus piezas. Los cambios en la del propio diseño van al diseño (y se ven en 3D y en la ficha).
+   */
+  template?: string
+  options?: Record<string, string | boolean>
+  pieces?: Record<string, { color: string }>
+}
+/** Fornitura o detalle (cremallera, botón, cordón, parche…) colocado en el lienzo. Centro (x, y) y ancho en px. */
+export interface DetailLayer extends CanvasLayerBase {
+  kind: 'detail'
+  detail: Detail
+  x: number
+  y: number
+  w: number
+  rotation: number
 }
 /** Imagen pegada o subida (inspiración, foto, referencia). */
 export interface ImageLayer extends CanvasLayerBase {
@@ -445,7 +461,7 @@ export interface ImageLayer extends CanvasLayerBase {
   w: number
   rotation: number
 }
-export type CanvasLayer = PaintLayer | MockupLayer | ImageLayer
+export type CanvasLayer = PaintLayer | MockupLayer | ImageLayer | DetailLayer
 
 /** Documento del lienzo: tamaño en píxeles, color del papel y capas (la primera, la de más abajo). */
 export interface CanvasDoc {

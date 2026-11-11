@@ -82,11 +82,14 @@ async function composeSvg(t: GarmentTemplate, data: DesignData, materials: Map<s
     let x = 0
     let height = 0
     const parts: string[] = []
+    // Encuadre de cada vista en unidades del dibujo (para saber qué pieza hay en cada punto del mockup)
+    const boxes: { x: number; y: number; w: number; h: number }[] = []
     const labels: { x: number; text: string }[] = []
     for (const v of o.views) {
       const svg = host.querySelector<SVGSVGElement>(`[data-view="${v}"] svg`)
       if (!svg) continue
       const vb = svg.viewBox.baseVal
+      boxes.push({ x: vb.x, y: vb.y, w: vb.width, h: vb.height })
       const clone = svg.cloneNode(true) as SVGSVGElement
       // Las imágenes (gráficos, fotos de materiales) van dentro para que el archivo se vea solo
       for (const img of Array.from(clone.querySelectorAll('image'))) {
@@ -119,7 +122,7 @@ async function composeSvg(t: GarmentTemplate, data: DesignData, materials: Map<s
       `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${Math.round(width * 2)}" height="${Math.round(total * 2)}" viewBox="0 0 ${width.toFixed(2)} ${total.toFixed(2)}" font-family="${FONT}">` +
       (css ? `<defs><style>${css}</style></defs>` : '') +
       `${o.transparent ? '' : '<rect width="100%" height="100%" fill="#ffffff"/>'}${parts.join('')}</svg>`
-    return { svg, width, height: total }
+    return { svg, width, height: total, boxes }
   } finally {
     root.unmount()
     host.remove()
@@ -190,7 +193,7 @@ export function download(blob: Blob, file: string) {
  * Devuelve también su proporción (alto / ancho).
  */
 export async function mockupCanvas(t: GarmentTemplate, data: DesignData, materials: Map<string, Material>, body: Body, view: View, mode: 'color' | 'linea', px: number) {
-  const { svg, width, height } = await composeSvg(t, data, materials, body, { format: 'png', views: [view], mode, dims: false, notes: false, name: '', subtitle: '', transparent: true })
+  const { svg, width, height, boxes } = await composeSvg(t, data, materials, body, { format: 'png', views: [view], mode, dims: false, notes: false, name: '', subtitle: '', transparent: true })
   const scale = px / width
   const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
   try {
@@ -201,7 +204,7 @@ export async function mockupCanvas(t: GarmentTemplate, data: DesignData, materia
     canvas.width = Math.round(width * scale)
     canvas.height = Math.round(height * scale)
     canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
-    return { canvas, aspect: height / width }
+    return { canvas, aspect: height / width, box: boxes[0] ?? { x: 0, y: 0, w: width, h: height } }
   } finally {
     URL.revokeObjectURL(url)
   }

@@ -1,5 +1,7 @@
 import { api } from '../api/client'
-import type { CanvasDoc, CanvasLayer, PaintLayer } from '../shared/designs'
+import { detailAspect, detailPrims, drawPrims } from '../designer/details'
+import type { Shape } from '../designer/types'
+import type { CanvasDoc, CanvasLayer, DetailLayer, PaintLayer } from '../shared/designs'
 import { fileUrl } from '../shared/library'
 import type { Rect } from './brushes'
 
@@ -12,6 +14,10 @@ export class Runtime {
   readonly paint = new Map<string, HTMLCanvasElement>()
   readonly mockups = new Map<string, HTMLCanvasElement>()
   readonly images = new Map<string, HTMLImageElement>()
+  /** Fornituras ya pintadas (se rehacen al cambiar su forma o color). */
+  readonly details = new Map<string, { key: string; canvas: HTMLCanvasElement }>()
+  /** De cada mockup: su encuadre en unidades del dibujo y sus piezas (para pintar una pieza con un toque). */
+  readonly mockupInfo = new Map<string, { box: { x: number; y: number; w: number; h: number }; shapes: Shape[] }>()
   /** Capas de pintura con cambios sin subir. */
   readonly dirty = new Set<string>()
   readonly history = new History()
@@ -161,6 +167,12 @@ export function compose(r: Runtime, doc: CanvasDoc, opts: { paper?: boolean; ski
     else if (l.kind === 'mockup') {
       const m = r.mockups.get(l.id)
       if (m) g.drawImage(m, l.x, l.y, l.w, (l.w * m.height) / m.width)
+    } else if (l.kind === 'detail') {
+      const c = detailCanvas(r, l)
+      const h = (l.w * c.height) / c.width
+      g.translate(l.x, l.y)
+      g.rotate((l.rotation * Math.PI) / 180)
+      g.drawImage(c, -l.w / 2, -h / 2, l.w, h)
     } else {
       const img = r.images.get(l.file)
       if (img) {
@@ -234,6 +246,47 @@ export function floodMask(source: HTMLCanvasElement, x: number, y: number, toler
   for (let i = 0; i < w * h; i++) if (seen[i]) img.data[i * 4 + 3] = 255
   mg.putImageData(img, 0, 0)
   return count ? mask : null
+}
+
+/** Fornitura pintada en un canvas (a buena resolución para su tamaño en el lienzo). */
+export function detailCanvas(r: Runtime, l: DetailLayer) {
+  const key = JSON.stringify([l.detail, Math.round(l.w / 50)])
+  const cached = r.details.get(l.id)
+  if (cached?.key === key) return cached.canvas
+  const d = l.detail
+  const aspect = detailAspect(d)
+  const px = Math.min(1600, Math.max(64, l.w * 2))
+  const c = document.createElement('canvas')
+  c.width = Math.round(px)
+  c.height = Math.max(1, Math.round(px * aspect))
+  const g = c.getContext('2d')!
+  const k = px / d.w
+  g.translate(c.width / 2, c.height / 2)
+  g.scale(k, k)
+  drawPrims(g, detailPrims({ ...d, x: 0, y: 0, rotation: 0 }), () => null)
+  r.details.set(l.id, { key, canvas: c })
+  return c
+}
+
+/**
+ * Pieza de prenda bajo el punto (x, y) del lienzo: la del mockup visible más alto que tenga una pieza ahí.
+ * Devuelve la capa y el id de la pieza.
+ */
+export function pieceAt(r: Runtime, doc: CanvasDoc, x: number, y: number) {
+  const probe = document.createElement('canvas').getContext('2d')!
+  for (const l of [...doc.layers].reverse()) {
+    if (l.kind !== 'mockup' || !l.visible || l.locked) continue
+    const info = r.mockupInfo.get(l.id)
+    if (!info) continue
+    const k = info.box.w / l.w
+    const ux = info.box.x + (x - l.x) * k
+    const uy = info.box.y + (y - l.y) * k
+    for (const s of [...info.shapes].reverse()) {
+      if (s.kind !== 'fill' || !s.piece) continue
+      if (probe.isPointInPath(new Path2D(s.d), ux, uy)) return { layer: l, piece: s.piece }
+    }
+  }
+  return null
 }
 
 /** Paso de deshacer: unos píxeles de una capa (antes y después) o el documento entero (capas, orden, ajustes). */

@@ -8,7 +8,7 @@ import { DETAIL_KINDS, DETAIL_STYLES, LONG_DETAILS, PULLER_STYLES, type Detail, 
 import { fileUrl } from '../../shared/library'
 
 /** Cómo empieza cada detalle al añadirlo (tamaños en unidades del lienzo: 2 = 1 cm). */
-const DEFAULTS: Record<DetailKind, Omit<Detail, 'id' | 'view' | 'x' | 'y'>> = {
+export const DETAIL_DEFAULTS: Record<DetailKind, Omit<Detail, 'id' | 'view' | 'x' | 'y'>> = {
   boton: { kind: 'boton', style: '4', w: 8, rotation: 0, color: '#2b2b2b', color2: '#1d1c1a' },
   cremallera: { kind: 'cremallera', style: 'metal', puller: 'clasico', w: 6, length: 120, rotation: 0, color: '#c9c9c9', color2: '#1d1c1a' },
   ojal: { kind: 'ojal', style: '', w: 6, rotation: 0, color: '#c9c9c9', color2: '#1d1c1a' },
@@ -75,7 +75,7 @@ export function DetailsPanel({ details, onChange, view, selected, onSelect, artw
   const current = details.find((d) => d.id === selected) ?? null
   const update = (patch: Partial<Detail>) => current && onChange(details.map((d) => (d.id === current.id ? { ...d, ...patch } : d)))
   const add = (kind: DetailKind) => {
-    const base = structuredClone(DEFAULTS[kind])
+    const base = structuredClone(DETAIL_DEFAULTS[kind])
     // En las prendas que se dibujan más grandes (gorros, gorras), el detalle sale a su tamaño real
     const k = upc / CLOTHES_UNITS
     const d: Detail = { id: crypto.randomUUID(), view, x: CX + (kind === 'cremallera' ? 0 : 30), y: kind === 'cremallera' ? 200 : 170, ...base, w: base.w * k, ...(base.length ? { length: base.length * k } : {}) }
@@ -92,7 +92,7 @@ export function DetailsPanel({ details, onChange, view, selected, onSelect, artw
         {DETAIL_KINDS.map((k) => {
           // Los claros (hilos, desgaste) se ven en el icono con un color de muestra; y todos sin girar
           const light = k.id === 'desgaste' || k.id === 'deshilachado' ? { color: '#5a6f8f' } : {}
-          const sample = { id: k.id, view, x: 0, y: 0, ...DEFAULTS[k.id], ...light, rotation: 0, ...(LONG_DETAILS.includes(k.id) ? { length: DEFAULTS[k.id].w * 5 } : {}) } as Detail
+          const sample = { id: k.id, view, x: 0, y: 0, ...DETAIL_DEFAULTS[k.id], ...light, rotation: 0, ...(LONG_DETAILS.includes(k.id) ? { length: DETAIL_DEFAULTS[k.id].w * 5 } : {}) } as Detail
           const h = sample.w * detailAspect(sample)
           const s = Math.max(sample.w, h) * 1.25
           return (
