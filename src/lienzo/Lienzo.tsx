@@ -32,11 +32,14 @@ import {
   type SurfaceKind,
   type TextLayer,
   type LayerRole,
+  type LienzoAsset,
 } from '../shared/designs'
 import type { Material } from '../shared/library'
-import { BRUSHES, paperGrain, Stroke, union, type BrushPreset, type Rect, type Symmetry } from './brushes'
+import { BRUSHES, grainFor, registerBrushImages, Stroke, union, type BrushPreset, type Rect, type Symmetry } from './brushes'
+import { grainFromImage, importProcreate, pngOf, tipFromImage } from './brushImport'
+import { TEXTURES, textureTile, type TextureDef } from './textures'
 import { ColorPicker } from './ColorPicker'
-import { afterSave, clipBaseOf, clippedLayer, compose, detailCanvas, floodMask, garmentMask, grab, imageKey, loadImage, onArtLoaded, pieceAt, refreshClip, registerFlush, runtimeFor, textCanvas, uploadDirty, type Runtime } from './engine'
+import { afterSave, clipBaseOf, clippedLayer, compose, textureCanvas, detailCanvas, floodMask, garmentMask, grab, imageKey, loadImage, onArtLoaded, pieceAt, refreshClip, registerFlush, runtimeFor, textCanvas, uploadDirty, type Runtime } from './engine'
 import { FontPicker } from '../components/FontPicker'
 import { MOCKUPS, type MockupAsset } from './mockups'
 import type { Artwork } from '../shared/artworks'
@@ -169,6 +172,28 @@ export function Lienzo(props: Props) {
   // Fornituras propias y gráficos de la cuenta (para la biblioteca y los logos de botones, tiradores y parches)
   const [presets, setPresets] = useState<HardwarePreset[]>([])
   const [artworks, setArtworks] = useState<Artwork[]>([])
+  // Texturas y pinceles propios (de la cuenta)
+  const [assets, setAssets] = useState<LienzoAsset[]>([])
+  const [, setBrushImages] = useState(0)
+  useEffect(() => {
+    api.listLienzoAssets().then(setAssets).catch(() => {})
+  }, [])
+  const customBrushes = useMemo(() => assets.filter((a) => a.kind === 'pincel').map(assetBrush), [assets])
+  // Las imágenes de la punta y el grano de cada pincel propio
+  useEffect(() => {
+    let alive = true
+    for (const a of assets) {
+      if (a.kind !== 'pincel' || (!a.file && !a.grain)) continue
+      Promise.all([a.file ? loadImage(fileOf(a.file)) : null, a.grain ? loadImage(fileOf(a.grain)) : null]).then(([tip, grain]) => {
+        if (!alive) return
+        registerBrushImages(`u:${a.id}`, tip ? canvasOf(tip) : null, grain ? canvasOf(grain) : null)
+        setBrushImages((n) => n + 1)
+      })
+    }
+    return () => {
+      alive = false
+    }
+  }, [assets])
   useEffect(() => {
     api.listHardware().then(setPresets).catch(() => {})
     api.listArtworks().then(setArtworks).catch(() => {})
@@ -177,7 +202,8 @@ export function Lienzo(props: Props) {
 
   const docRef = useRef(doc)
   docRef.current = doc
-  const brush = BRUSHES.find((b) => b.id === (tool === 'eraser' ? settings.eraser : settings.brush)) ?? BRUSHES[0]
+  const allBrushes = [...BRUSHES, ...customBrushes]
+  const brush = allBrushes.find((b) => b.id === (tool === 'eraser' ? settings.eraser : settings.brush)) ?? BRUSHES[0]
   const size = (tool === 'eraser' ? settings.sizes[`e:${brush.id}`] : settings.sizes[brush.id]) ?? (tool === 'eraser' ? brush.size * 1.5 : brush.size)
   const opacity = (tool === 'eraser' ? settings.opacities[`e:${brush.id}`] : settings.opacities[brush.id]) ?? (tool === 'eraser' ? 1 : brush.opacity)
   const streamline = settings.streamline[brush.id] ?? brush.streamline
@@ -311,6 +337,8 @@ export function Lienzo(props: Props) {
     opts: ConstructorParameters<typeof Stroke>[1]
     layer: PaintLayer
     erase: boolean
+    /** Difuminar (la capa se cambia en directo, como al borrar). */
+    smudge: boolean
     masks: HTMLCanvasElement[]
     pointer: number
     touchStart: number
@@ -343,11 +371,18 @@ export function Lienzo(props: Props) {
     const h = f.y1 - f.y0
     if (w <= 0 || h <= 0) return
     const src = raw.current!
+    if (st.smudge) {
+      const lg = r.layer(st.layer.id).getContext('2d')!
+      lg.clearRect(f.x0, f.y0, w, h)
+      lg.drawImage(src, f.x0, f.y0, w, h, f.x0, f.y0, w, h)
+      if (st.layer.clip) refreshClip(r, st.layer, f)
+      return
+    }
     const grained = (g: CanvasRenderingContext2D) => {
       if (st.s && st.layer && st.erase !== undefined && brushOf(st).grain > 0) {
         g.globalCompositeOperation = 'destination-out'
         g.globalAlpha = brushOf(st).grain * 0.85
-        g.fillStyle = g.createPattern(paperGrain(), 'repeat')!
+        g.fillStyle = g.createPattern(grainFor(brushOf(st)), 'repeat')!
         g.fillRect(f.x0, f.y0, w, h)
         g.globalAlpha = 1
       }
@@ -410,6 +445,8 @@ export function Lienzo(props: Props) {
     const bg = bk.getContext('2d')!
     bg.clearRect(0, 0, doc.w, doc.h)
     bg.drawImage(lc, 0, 0)
+    // Difuminar: el trazo arrastra lo que hay en la capa (parte de una copia de ella)
+    if (brush.smudge && !erase) target.getContext('2d')!.drawImage(lc, 0, 0)
     const masks: HTMLCanvasElement[] = []
     if (paintLayer.alphaLock && !erase) masks.push(bk)
     if (settings.inside && !erase) {
@@ -436,6 +473,7 @@ export function Lienzo(props: Props) {
       opts,
       layer: paintLayer,
       erase,
+      smudge: !!brush.smudge && !erase,
       masks,
       pointer: e.pointerId,
       touchStart: e.pointerType === 'touch' ? performance.now() : 0,
@@ -469,7 +507,7 @@ export function Lienzo(props: Props) {
       flash('Color cogido (cuentagotas)')
       return
     }
-    quickShape(st)
+    if (!st.smudge) quickShape(st)
   }
   /** Direcciones de la guía en (x, y): hacia los puntos de fuga, o las de la cuadrícula. */
   const guideDirs = (x: number, y: number): [number, number][] => {
@@ -617,7 +655,7 @@ export function Lienzo(props: Props) {
     if (rect && !cancel) {
       renderFrame(rect)
       const before = grab(backup.current!, rect)
-      if (!st.erase) {
+      if (!st.erase && !st.smudge) {
         const lg = lc.getContext('2d')!
         lg.save()
         lg.globalAlpha = opacityRef.current
@@ -1002,7 +1040,7 @@ export function Lienzo(props: Props) {
       r.history.push({ kind: 'pixels', layer: l.id, rect: all, before, after: grab(lc, all) })
       r.dirty.add(l.id)
       touch()
-    } else {
+    } else if (l.kind !== 'texture') {
       change({ ...doc, layers: doc.layers.map((x) => (x.id === l.id ? ({ ...x, x: Math.round(l.x + m.dx), y: Math.round(l.y + m.dy) } as CanvasLayer) : x)) })
       maskCache.current = null
     }
@@ -1451,6 +1489,106 @@ export function Lienzo(props: Props) {
     remove(l.id)
     setActive(below.id)
   }
+  /**
+   * Textura encima de la capa elegida, ya recortada a ella y en su fusión (Superponer o Luz suave): coge el color de
+   * debajo y le pone el tejido. Se pueden poner varias, una encima de otra.
+   */
+  const addTexture = async (src: TextureDef | LienzoAsset) => {
+    const own = 'kind' in src
+    if (own && !r.images.has(src.file)) {
+      const img = await loadImage(fileOf(src.file))
+      if (img) r.images.set(src.file, img)
+    }
+    const def = own ? null : src
+    insertAbove({
+      id: uid(),
+      kind: 'texture',
+      name: src.name,
+      texture: own ? '' : src.id,
+      ...(own ? { file: src.file } : {}),
+      scale: def?.scale ?? 1,
+      rotation: 0,
+      clip: layer ? true : undefined,
+      visible: true,
+      locked: false,
+      opacity: def?.opacity ?? 0.8,
+      blend: def?.blend ?? 'overlay',
+    })
+    flash(layer ? `${src.name}: recortada a «${layer.name}». Cambia su escala y fusión en Capas` : `${src.name} añadida`)
+  }
+  const uploadTexture = async (file: File) => {
+    flash('Subiendo textura…')
+    try {
+      const { key } = await api.uploadImage(file)
+      const a = await api.createLienzoAsset({ kind: 'textura', name: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Textura', file: key, grain: null, settings: {} })
+      setAssets((list) => [a, ...list])
+      await addTexture(a)
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'No se ha podido subir la textura')
+    }
+  }
+  const deleteAsset = (a: LienzoAsset) => {
+    setAssets((list) => list.filter((x) => x.id !== a.id))
+    api.deleteLienzoAsset(a.id).catch(() => flash('No se ha podido borrar'))
+  }
+
+  // --- Pinceles propios: importar de Procreate, desde una imagen o guardar el actual ---
+  const saveBrushAsset = async (name: string, tip: HTMLCanvasElement | null, grain: HTMLCanvasElement | null, s: LienzoAsset['settings']) => {
+    const file = tip ? (await api.uploadBlob(await pngOf(tip))).key : ''
+    const grainKey = grain ? (await api.uploadBlob(await pngOf(grain))).key : null
+    const a = await api.createLienzoAsset({ kind: 'pincel', name: name.slice(0, 60), file, grain: grainKey, settings: s })
+    if (tip || grain) registerBrushImages(`u:${a.id}`, tip, grain)
+    setAssets((list) => [a, ...list])
+    return a
+  }
+  const importBrushes = async (file: File) => {
+    flash('Importando pinceles…')
+    try {
+      const list = await importProcreate(file)
+      let last: LienzoAsset | null = null
+      for (const b of list) last = await saveBrushAsset(b.name, b.tip, b.grain, { ...IMPORTED, grain: b.grain ? 0.8 : 0 })
+      if (last) setSettings({ brush: `u:${last.id}` })
+      setTool('brush')
+      flash(`${list.length === 1 ? 'Pincel importado' : `${list.length} pinceles importados`}: están en «Mis pinceles»`)
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'No se han podido importar los pinceles')
+    }
+  }
+  const brushFromImage = async (file: File, as: 'tip' | 'grain') => {
+    try {
+      const url = URL.createObjectURL(file)
+      const img = await loadImage(url)
+      URL.revokeObjectURL(url)
+      if (!img) throw new Error('Imagen no válida')
+      const name = file.name.replace(/\.[^.]+$/, '').slice(0, 50) || 'Pincel'
+      const a =
+        as === 'tip'
+          ? await saveBrushAsset(name, tipFromImage(img), null, { ...IMPORTED, grain: 0 })
+          : await saveBrushAsset(`${name} (grano)`, null, grainFromImage(img), { base: 'redondo', size: 50, grain: 0.85, hardness: 0.9, flow: 1, spacing: 0.05 })
+      setSettings({ brush: `u:${a.id}` })
+      setTool('brush')
+      flash(`«${a.name}» guardado en Mis pinceles`)
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'No se ha podido crear el pincel')
+    }
+  }
+  const saveCurrentBrush = async () => {
+    const b = brush
+    const own = assets.find((a) => `u:${a.id}` === b.id)
+    try {
+      const a = await saveBrushAsset(`${b.name} (mío)`, null, null, {
+        ...(own ? own.settings : { base: b.id }),
+        size,
+        opacity,
+        streamline,
+      })
+      setSettings({ brush: `u:${a.id}` })
+      flash(`«${a.name}» guardado en Mis pinceles: cámbialo abajo`)
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'No se ha podido guardar')
+    }
+  }
+
   /** Cambia los píxeles de una capa de pintura entera (con su paso de deshacer). */
   const pixelOp = (l: PaintLayer, fn: (g: CanvasRenderingContext2D, src: HTMLCanvasElement) => void) => {
     if (l.locked) return flash('La capa está bloqueada')
@@ -1687,7 +1825,7 @@ export function Lienzo(props: Props) {
               return (
                 <div key={l.id} className="lz-layer" style={{ ...style, transform: off ? `translate(${off.dx}px, ${off.dy}px)` : undefined }}>
                   <div className="lz-fill" ref={(el) => mount(el, c)} />
-                  {stroke.current?.layer.id === l.id && !stroke.current.erase && <div className="lz-fill" style={{ opacity }} ref={mountPreview} />}
+                  {stroke.current?.layer.id === l.id && !stroke.current.erase && !stroke.current.smudge && <div className="lz-fill" style={{ opacity }} ref={mountPreview} />}
                 </div>
               )
             }
@@ -1695,7 +1833,7 @@ export function Lienzo(props: Props) {
               return (
                 <div key={l.id} className="lz-layer" style={{ ...style, transform: off ? `translate(${off.dx}px, ${off.dy}px)` : undefined }}>
                   <div className="lz-fill" ref={(el) => mount(el, r.layer(l.id))} />
-                  {stroke.current?.layer.id === l.id && !stroke.current.erase && <div className="lz-fill" style={{ opacity }} ref={mountPreview} />}
+                  {stroke.current?.layer.id === l.id && !stroke.current.erase && !stroke.current.smudge && <div className="lz-fill" style={{ opacity }} ref={mountPreview} />}
                 </div>
               )
             if (l.kind === 'mockup') {
@@ -1734,6 +1872,12 @@ export function Lienzo(props: Props) {
                 />
               )
             }
+            if (l.kind === 'texture')
+              return (
+                <div key={l.id} className="lz-layer" style={style}>
+                  <div className="lz-fill" ref={(el) => mount(el, textureCanvas(r, doc, l))} />
+                </div>
+              )
             const img = r.images.get(imageKey(l))
             const h = l.w * l.aspect
             return (
@@ -1956,6 +2100,10 @@ export function Lienzo(props: Props) {
       {panel === 'biblioteca' && (
         <Pop className="lz-pop left wide" title="Biblioteca">
           <Library
+            textures={assets.filter((a) => a.kind === 'textura')}
+            onTexture={addTexture}
+            onUploadTexture={uploadTexture}
+            onDeleteTexture={deleteAsset}
             materials={materials}
             artworks={artworks}
             presets={presets}
@@ -1990,10 +2138,51 @@ export function Lienzo(props: Props) {
       {panel === 'brushes' && (
         <Pop className="lz-pop right" title={tool === 'eraser' ? 'Pincel del borrador' : 'Biblioteca de pinceles'}>
           <BrushLibrary
+            brushes={allBrushes}
             current={brush.id}
             onPick={(id) => setSettings(tool === 'eraser' ? { eraser: id } : { brush: id })}
             color={tool === 'eraser' ? '#e7e5e4' : settings.color}
           />
+          <p className="lz-label">Mis pinceles</p>
+          <div className="lz-chips">
+            <label className="lz-chip" title="Archivos .brushset o .brush de Procreate">
+              Importar de Procreate…
+              <input type="file" accept=".brushset,.brush" hidden onChange={(ev) => ev.target.files?.[0] && importBrushes(ev.target.files[0])} />
+            </label>
+            <label className="lz-chip" title="Una imagen como punta: lo claro pinta (o lo oscuro, si el fondo es blanco)">
+              Punta con una imagen…
+              <input type="file" accept="image/*" hidden onChange={(ev) => ev.target.files?.[0] && brushFromImage(ev.target.files[0], 'tip')} />
+            </label>
+            <label className="lz-chip" title="Una imagen como grano: el trazo sale con su dibujo">
+              Grano con una imagen…
+              <input type="file" accept="image/*" hidden onChange={(ev) => ev.target.files?.[0] && brushFromImage(ev.target.files[0], 'grain')} />
+            </label>
+            <button className="lz-chip" onClick={saveCurrentBrush} title="Una copia de este pincel con su tamaño y opacidad, para ajustarla">
+              Guardar este como mío
+            </button>
+          </div>
+          {(() => {
+            const own = assets.find((a) => `u:${a.id}` === brush.id)
+            return own ? (
+              <BrushEditor
+                key={own.id}
+                asset={own}
+                onSave={async (name, s) => {
+                  try {
+                    const a = await api.updateLienzoAsset(own.id, { name, settings: s })
+                    setAssets((list) => list.map((x) => (x.id === a.id ? a : x)))
+                    flash('Pincel guardado')
+                  } catch (err) {
+                    flash(err instanceof Error ? err.message : 'No se ha podido guardar')
+                  }
+                }}
+                onDelete={() => {
+                  deleteAsset(own)
+                  setSettings({ brush: 'tecnica' })
+                }}
+              />
+            ) : null
+          })()}
           <div className="lz-field">
             <span>
               Estabilizador <strong>{Math.round(streamline * 100)} %</strong>
@@ -2032,7 +2221,7 @@ export function Lienzo(props: Props) {
                 key={l.id}
                 layer={l}
                 active={l.id === active}
-                thumb={l.kind === 'paint' ? r.layer(l.id) : l.kind === 'mockup' ? r.mockups.get(l.id) : l.kind === 'detail' ? detailCanvas(r, l) : l.kind === 'text' ? textCanvas(r, l) : undefined}
+                thumb={l.kind === 'texture' ? (l.file ? undefined : textureTile(l.texture)) : l.kind === 'paint' ? r.layer(l.id) : l.kind === 'mockup' ? r.mockups.get(l.id) : l.kind === 'detail' ? detailCanvas(r, l) : l.kind === 'text' ? textCanvas(r, l) : undefined}
                 onOptions={() => setPanel('opciones')}
                 artworks={artworks}
                 onSavePreset={async (name, detail) => {
@@ -2044,7 +2233,7 @@ export function Lienzo(props: Props) {
                     flash(e instanceof Error ? e.message : 'No se ha podido guardar')
                   }
                 }}
-                image={l.kind === 'image' ? r.images.get(imageKey(l))?.src : undefined}
+                image={l.kind === 'image' ? r.images.get(imageKey(l))?.src : l.kind === 'texture' && l.file ? fileOf(l.file) : undefined}
                 onSelect={() => setActive(l.id)}
                 onPatch={(p) => {
                   patch(l.id, p)
@@ -2306,9 +2495,9 @@ function VSlider({ value, onChange, title }: { value: number; onChange: (v: numb
 }
 
 /** Biblioteca de pinceles por grupos, cada uno con su muestra de trazo. */
-function BrushLibrary({ current, onPick, color }: { current: string; onPick: (id: string) => void; color: string }) {
-  const groups = [...new Set(BRUSHES.map((b) => b.group))]
-  const [group, setGroup] = useState(BRUSHES.find((b) => b.id === current)?.group ?? groups[0])
+function BrushLibrary({ brushes, current, onPick, color }: { brushes: BrushPreset[]; current: string; onPick: (id: string) => void; color: string }) {
+  const groups = [...new Set(brushes.map((b) => b.group))]
+  const [group, setGroup] = useState(brushes.find((b) => b.id === current)?.group ?? groups[0])
   return (
     <div className="lz-brushes">
       <nav>
@@ -2319,7 +2508,7 @@ function BrushLibrary({ current, onPick, color }: { current: string; onPick: (id
         ))}
       </nav>
       <div className="lz-brush-list">
-        {BRUSHES.filter((b) => b.group === group).map((b) => (
+        {brushes.filter((b) => b.group === group).map((b) => (
           <button key={b.id} className={b.id === current ? 'lz-brush on' : 'lz-brush'} onClick={() => onPick(b.id)}>
             <span>{b.name}</span>
             <BrushPreview brush={b} color={color} />
@@ -2341,7 +2530,14 @@ function BrushPreview({ brush, color }: { brush: BrushPreset; color: string }) {
     const raw = document.createElement('canvas')
     raw.width = c.width
     raw.height = c.height
-    const s = new Stroke(raw, { brush, color, size: Math.min(26, brush.size * 1.4 + 3), opacity: 1, streamline: 0, symmetry: 'none', axis: { x: 0, y: 0 } })
+    if (brush.smudge) {
+      const rg = raw.getContext('2d')!
+      for (let i = 0; i < 6; i++) {
+        rg.fillStyle = i % 2 ? color : '#9ca3af'
+        rg.fillRect((i * c.width) / 6, 0, c.width / 6, c.height)
+      }
+    }
+    const s = new Stroke(raw, { brush, color, size: Math.min(brush.shape ? 16 : 26, brush.size * 1.4 + 3), opacity: 1, streamline: 0, symmetry: 'none', axis: { x: 0, y: 0 } })
     for (let i = 0; i <= 60; i++) {
       const t = i / 60
       s.add(12 + t * (c.width - 24), c.height / 2 + Math.sin(t * Math.PI * 2) * 10, Math.sin(t * Math.PI) * 0.9 + 0.1)
@@ -2351,7 +2547,7 @@ function BrushPreview({ brush, color }: { brush: BrushPreset; color: string }) {
     if (brush.grain) {
       g.globalCompositeOperation = 'destination-out'
       g.globalAlpha = brush.grain * 0.85
-      g.fillStyle = g.createPattern(paperGrain(), 'repeat')!
+      g.fillStyle = g.createPattern(grainFor(brush), 'repeat')!
       g.fillRect(0, 0, c.width, c.height)
       g.globalCompositeOperation = 'source-over'
     }
@@ -2393,7 +2589,7 @@ function LayerRow(props: {
     g.drawImage(props.thumb, (c.width - props.thumb.width * k) / 2, (c.height - props.thumb.height * k) / 2, props.thumb.width * k, props.thumb.height * k)
   })
   const [editing, setEditing] = useState(false)
-  const kind = l.kind === 'paint' ? 'Pintura' : l.kind === 'mockup' ? 'Prenda' : l.kind === 'detail' ? 'Fornitura' : l.kind === 'text' ? 'Texto' : 'Imagen'
+  const kind = l.kind === 'paint' ? 'Pintura' : l.kind === 'mockup' ? 'Prenda' : l.kind === 'detail' ? 'Fornitura' : l.kind === 'text' ? 'Texto' : l.kind === 'texture' ? 'Textura' : 'Imagen'
   return (
     <div className={`lz-layer-row${active ? ' on' : ''}${props.clipped ? ' clipped' : ''}`}>
       <div className="lz-layer-main" onClick={props.onSelect}>
@@ -2463,6 +2659,23 @@ function LayerRow(props: {
           )}
           {l.kind === 'text' && <TextOptions layer={l} onPatch={props.onPatch} />}
           {l.kind === 'detail' && <DetailOptions layer={l} onPatch={props.onPatch} artworks={props.artworks} onSavePreset={props.onSavePreset} />}
+          {l.kind === 'texture' && (
+            <>
+              <div className="lz-field">
+                <span>
+                  Escala <strong>{Math.round(l.scale * 100)} %</strong>
+                </span>
+                <input type="range" min={0.1} max={4} step={0.05} value={l.scale} onChange={(e) => props.onPatch({ scale: Number(e.target.value) })} />
+              </div>
+              <div className="lz-field">
+                <span>
+                  Giro <strong>{Math.round(l.rotation)}°</strong>
+                </span>
+                <input type="range" min={-180} max={180} step={1} value={l.rotation} onChange={(e) => props.onPatch({ rotation: Number(e.target.value) })} />
+              </div>
+              <p className="lz-muted">Prueba la fusión Superponer o Luz suave, y baja la opacidad para que se note menos.</p>
+            </>
+          )}
           {(l.kind === 'mockup' || l.kind === 'image' || l.kind === 'detail') && (
             <div className="lz-field">
               <span>
@@ -2576,19 +2789,27 @@ const HARDWARE: { kind: DetailKind; styles: (string | null)[] }[] = DETAIL_KINDS
 
 /** Biblioteca visual: prendas del catálogo y fornituras, para tocar (al centro) o arrastrar al lienzo. */
 function Library({
+  textures,
+  onTexture,
+  onUploadTexture,
+  onDeleteTexture,
   materials,
   artworks,
   presets,
   onDeletePreset,
   onStart,
 }: {
+  textures: LienzoAsset[]
+  onTexture: (t: TextureDef | LienzoAsset) => void
+  onUploadTexture: (f: File) => void
+  onDeleteTexture: (t: LienzoAsset) => void
   materials: Map<string, import('../shared/library').Material>
   artworks: Artwork[]
   presets: HardwarePreset[]
   onDeletePreset: (p: HardwarePreset) => void
   onStart: (item: LibraryItem, e: React.PointerEvent) => void
 }) {
-  const [tab, setTab] = useState<'mockups' | 'prendas' | 'cuellos' | 'graficos' | 'fornituras' | 'mias'>('mockups')
+  const [tab, setTab] = useState<'mockups' | 'texturas' | 'prendas' | 'cuellos' | 'graficos' | 'fornituras' | 'mias'>('mockups')
   const [kind, setKind] = useState<DetailKind>('cremallera')
   const body = useMemo(() => standardBody('M'), [])
   return (
@@ -2596,6 +2817,9 @@ function Library({
       <div className="lz-chips">
         <button className={tab === 'mockups' ? 'lz-chip on' : 'lz-chip'} onClick={() => setTab('mockups')} title="Dibujos planos para pintar encima">
           Mockups
+        </button>
+        <button className={tab === 'texturas' ? 'lz-chip on' : 'lz-chip'} onClick={() => setTab('texturas')} title="Telas y efectos: se ponen encima de la capa elegida, recortados a ella">
+          Texturas
         </button>
         <button className={tab === 'prendas' ? 'lz-chip on' : 'lz-chip'} onClick={() => setTab('prendas')} title="Prendas del Diseñador: se les cambia el cuello, la capucha… y se pintan por piezas">
           Prendas editables
@@ -2613,8 +2837,48 @@ function Library({
           Mis fornituras{presets.length ? ` (${presets.length})` : ''}
         </button>
       </div>
-      <p className="lz-muted">Arrastra al lienzo o toca para ponerlo en el centro.</p>
-      {tab === 'cuellos' ? (
+      {tab === 'texturas' ? (
+        <>
+          <p className="lz-muted">Toca una: se pone encima de la capa elegida (la prenda o tu color), recortada a ella y en Superponer. Puedes poner varias.</p>
+          {(['Telas', 'Efectos'] as const).map((group) => (
+            <div key={group}>
+              <p className="lz-label">{group}</p>
+              <div className="lz-grid-items">
+                {TEXTURES.filter((t) => t.group === group).map((t) => (
+                  <button key={t.id} className="lz-lib-item" onClick={() => onTexture(t)} title={t.name}>
+                    <TextureThumb id={t.id} />
+                    <span>{t.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <p className="lz-label">Mis texturas</p>
+          <div className="lz-grid-items">
+            <label className="lz-lib-item lz-upload" title="Cualquier imagen: una foto de tela, una textura descargada…">
+              <div className="lz-lib-thumb">＋</div>
+              <span>Subir textura</span>
+              <input type="file" accept="image/*" hidden onChange={(ev) => ev.target.files?.[0] && onUploadTexture(ev.target.files[0])} />
+            </label>
+            {textures.map((t) => (
+              <div key={t.id} className="lz-lib-item" title={t.name}>
+                <button className="lz-lib-pick" onClick={() => onTexture(t)}>
+                  <div className="lz-lib-thumb">
+                    <img src={fileOf(t.file)} alt={t.name} draggable={false} />
+                  </div>
+                  <span>{t.name}</span>
+                </button>
+                <button className="lz-mini" onClick={() => confirm(`¿Quitar «${t.name}» de Mis texturas?`) && onDeleteTexture(t)} title="Quitar de Mis texturas">
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="lz-muted">Arrastra al lienzo o toca para ponerlo en el centro.</p>
+      )}
+      {tab === 'texturas' ? null : tab === 'cuellos' ? (
         <>
           <p className="lz-muted">Suéltalos encima de una prenda editable (la de tu diseño o las de «Prendas editables»).</p>
           <div className="lz-grid-items">
@@ -3403,4 +3667,109 @@ function triangle(g: CanvasRenderingContext2D, img: HTMLCanvasElement, s0: [numb
   g.transform(a, b, cc, d, e, f)
   g.drawImage(img, 0, 0)
   g.restore()
+}
+
+/** Ajustes de partida de un pincel importado o hecho con una imagen. */
+const IMPORTED: LienzoAsset['settings'] = { size: 40, opacity: 1, flow: 0.85, spacing: 0.08, hardness: 1, grain: 0.8, pressureSize: 0.5, pressureOpacity: 0.3, taper: 0, streamline: 0.2, scatter: 0, orient: false }
+
+/** Pincel propio (de la cuenta) como pincel del lienzo: parte de uno de la app y cambia lo que tiene guardado. */
+function assetBrush(a: LienzoAsset): BrushPreset {
+  const s = a.settings
+  const base = BRUSHES.find((b) => b.id === s.base) ?? BRUSHES.find((b) => b.id === 'redondo')!
+  const n = (k: string, d: number) => (typeof s[k] === 'number' ? (s[k] as number) : d)
+  return {
+    ...base,
+    id: `u:${a.id}`,
+    name: a.name,
+    group: 'Mis pinceles',
+    size: n('size', base.size),
+    opacity: n('opacity', base.opacity),
+    flow: n('flow', base.flow),
+    spacing: n('spacing', base.spacing),
+    hardness: n('hardness', base.hardness),
+    grain: n('grain', base.grain),
+    pressureSize: n('pressureSize', base.pressureSize),
+    pressureOpacity: n('pressureOpacity', base.pressureOpacity),
+    taper: n('taper', base.taper),
+    streamline: n('streamline', base.streamline),
+    scatter: n('scatter', base.scatter),
+    tip: a.file ? 'image' : base.tip,
+    orient: s.orient === true,
+    tipFile: a.file || undefined,
+    grainFile: a.grain || undefined,
+  }
+}
+
+/** Una imagen cargada como canvas (para la punta y el grano de los pinceles). */
+function canvasOf(img: HTMLImageElement) {
+  const c = document.createElement('canvas')
+  c.width = img.naturalWidth || img.width
+  c.height = img.naturalHeight || img.height
+  c.getContext('2d')!.drawImage(img, 0, 0)
+  return c
+}
+
+/** Muestra de una textura de la app. */
+function TextureThumb({ id }: { id: string }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    // Las texturas se hacen la primera vez (unas décimas cada una): de una en una, sin congelar el panel
+    const i = TEXTURES.findIndex((t) => t.id === id)
+    const timer = setTimeout(() => {
+      const c = ref.current
+      if (!c) return
+      // Un trozo del azulejo a su tamaño (se ve el tejido)
+      c.getContext('2d')!.drawImage(textureTile(id), 0, 0, 240, 156, 0, 0, c.width, c.height)
+    }, 30 + Math.max(0, i) * 60)
+    return () => clearTimeout(timer)
+  }, [id])
+  return (
+    <div className="lz-lib-thumb">
+      <canvas ref={ref} width={160} height={104} />
+    </div>
+  )
+}
+
+/** Ajustes de un pincel propio: nombre, flujo, separación, grano, presión, dispersión, afinado y giro de la punta. */
+function BrushEditor({ asset, onSave, onDelete }: { asset: LienzoAsset; onSave: (name: string, s: LienzoAsset['settings']) => void; onDelete: () => void }) {
+  const [name, setName] = useState(asset.name)
+  const [s, setS] = useState(asset.settings)
+  const base = assetBrush({ ...asset, settings: s })
+  const fields: [keyof BrushPreset & string, string, number, number, number][] = [
+    ['flow', 'Flujo', 0.01, 1, 0.01],
+    ['spacing', 'Separación', 0.01, 3, 0.01],
+    ...(asset.file ? [] : ([['hardness', 'Dureza', 0, 1, 0.05]] as [keyof BrushPreset & string, string, number, number, number][])),
+    ['grain', 'Grano', 0, 1, 0.05],
+    ['pressureSize', 'Presión → tamaño', 0, 1, 0.05],
+    ['pressureOpacity', 'Presión → opacidad', 0, 1, 0.05],
+    ['scatter', 'Dispersión', 0, 2, 0.05],
+    ['taper', 'Afinado', 0, 120, 1],
+  ]
+  return (
+    <div className="lz-brush-editor">
+      <p className="lz-label">Ajustes de «{asset.name}»</p>
+      <input className="lz-input" value={name} onChange={(e) => setName(e.target.value)} aria-label="Nombre del pincel" />
+      {fields.map(([k, label, min, max, step]) => (
+        <div key={k} className="lz-field">
+          <span>
+            {label} <strong>{Number(base[k]).toFixed(step < 1 ? 2 : 0)}</strong>
+          </span>
+          <input type="range" min={min} max={max} step={step} value={Number(base[k])} onChange={(e) => setS({ ...s, [k]: Number(e.target.value) })} />
+        </div>
+      ))}
+      {asset.file && (
+        <label className="lz-toggle">
+          <input type="checkbox" checked={s.orient === true} onChange={(e) => setS({ ...s, orient: e.target.checked })} /> La punta gira con el trazo
+        </label>
+      )}
+      <div className="lz-chips">
+        <button className="lz-chip on" onClick={() => onSave(name.trim() || asset.name, s)}>
+          Guardar cambios
+        </button>
+        <button className="lz-chip danger" onClick={() => confirm(`¿Borrar el pincel «${asset.name}»?`) && onDelete()}>
+          Borrar pincel
+        </button>
+      </div>
+    </div>
+  )
 }

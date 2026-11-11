@@ -104,7 +104,23 @@ Queda para más adelante: agrupar capas, deformar con malla (warp), el time-laps
    - **time-lapse**.
 5. Verificar en tableta real (lápiz y dedos) lo que no se pudo probar: tiradores de transformar, soltar cuellos, arrastrar la perspectiva.
 
-## Fase 3 — Pinceles y texturas propios
+## Fase 3 — Pinceles y texturas propios ✅ hecha (11-11-2026)
+Hecho:
+- **20 texturas** hechas por la app:
+  - telas: denim crudo, lavado y stone, punto, felpa, canalé, waffle, malla fina, media y gruesa, pana, nylon ripstop, lona, piel, ante y borreguito;
+  - efectos: grunge, ruido, papel y desgaste.
+  Se ponen encima de la capa elegida, recortadas a ella y en Superponer; se ajustan escala, giro y opacidad, y se combinan.
+- **Mis texturas:** subir imágenes propias.
+- **Pinceles nuevos:**
+  - Costuras: pespunte simple, doble y triple, pespunte de denim, zigzag, overlock, cadeneta y punto de cruz.
+  - Fornituras: cremallera (del largo que quieras), cremallera fina, botones, botón jeans, remaches, ojetes, anillas y tiradores.
+  - Tejidos: denim, punto, felpa, malla, canalé, pana y puño de canalé.
+  - Desgaste: desgaste 3D, rotos, deshilachado y bigotes.
+  - Pintar: difuminar y acuarela.
+- **Mis pinceles:** importar de Procreate (.brushset/.brush), punta o grano con una imagen, guardar una copia de cualquier pincel y editarlo.
+
+Queda: en producción hay que crear la tabla nueva (`npm run db:migrate:remote`). Probarlo en el iPad.
+
 1. **Biblioteca de texturas** incluida, generada por nosotros, sin cortes y en alta resolución:
    - **Telas:** denim (varios lavados), punto, felpa francesa, waffle, malla (1, 2 y 3), canalé, pana, nylon, piel, ante, borreguito y lona.
    - **Efectos:** grunge, ruido, papel y desgaste.

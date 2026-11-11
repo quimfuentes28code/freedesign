@@ -1,3 +1,4 @@
+import { textureTile } from './textures'
 import { api } from '../api/client'
 import { detailAspect, detailPrims, drawPrims } from '../designer/details'
 import type { Shape } from '../designer/types'
@@ -21,6 +22,8 @@ export class Runtime {
   readonly texts = new Map<string, { key: string; canvas: HTMLCanvasElement }>()
   /** Capas con máscara de recorte ya recortadas (y su base pintada). */
   readonly clips = new Map<string, { key: string; canvas: HTMLCanvasElement; base: HTMLCanvasElement }>()
+  /** Capas de textura ya pintadas. */
+  readonly textures = new Map<string, { key: string; canvas: HTMLCanvasElement }>()
   /** De cada mockup: su encuadre en unidades del dibujo y sus piezas (para pintar una pieza con un toque). */
   readonly mockupInfo = new Map<string, { box: { x: number; y: number; w: number; h: number }; shapes: Shape[] }>()
   /** Capas de pintura con cambios sin subir. */
@@ -66,6 +69,10 @@ export class Runtime {
             g.drawImage(img, 0, 0, this.w, this.h)
           }
           this.loaded.set(l.id, l.file)
+        }
+        if (l.kind === 'texture' && l.file && !this.images.has(l.file)) {
+          const img = await loadImage(fileUrl(l.file))
+          if (img) this.images.set(l.file, img)
         }
         if (l.kind === 'image' && !this.images.has(imageKey(l))) {
           const img = await loadImage(l.asset ?? fileUrl(l.file))
@@ -183,6 +190,15 @@ export function drawLayer(g: CanvasRenderingContext2D, r: Runtime, l: CanvasLaye
     g.translate(l.x, l.y)
     g.rotate((l.rotation * Math.PI) / 180)
     g.drawImage(c, -l.w / 2, -h / 2, l.w, h)
+  } else if (l.kind === 'texture') {
+    // Textura: su azulejo repetido por todo el lienzo, con su escala y su giro
+    const tile = l.file ? r.images.get(l.file) : textureTile(l.texture)
+    const pattern = tile ? g.createPattern(tile, 'repeat') : null
+    if (pattern) {
+      pattern.setTransform(new DOMMatrix().rotate(l.rotation).scale(l.scale))
+      g.fillStyle = pattern
+      g.fillRect(0, 0, r.w, r.h)
+    }
   } else {
     const img = r.images.get(imageKey(l))
     if (img) {
@@ -194,6 +210,21 @@ export function drawLayer(g: CanvasRenderingContext2D, r: Runtime, l: CanvasLaye
     }
   }
   g.restore()
+}
+
+/** Capa de textura pintada en un canvas del tamaño del lienzo (se guarda mientras no cambie). */
+export function textureCanvas(r: Runtime, doc: CanvasDoc, l: Extract<CanvasLayer, { kind: 'texture' }>) {
+  const key = `${JSON.stringify(l)}|${l.file ? r.images.has(l.file) : ''}`
+  const cached = r.textures.get(l.id)
+  if (cached && cached.key === key) return cached.canvas
+  const canvas = cached?.canvas ?? document.createElement('canvas')
+  canvas.width = doc.w
+  canvas.height = doc.h
+  const g = canvas.getContext('2d')!
+  g.clearRect(0, 0, doc.w, doc.h)
+  drawLayer(g, r, l)
+  r.textures.set(l.id, { key, canvas })
+  return canvas
 }
 
 /** Una capa sola en un canvas del tamaño del lienzo. */

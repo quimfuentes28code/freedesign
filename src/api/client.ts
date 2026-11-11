@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type DependencyList } from 'react'
 import type { Client, ClientInput } from '../shared/clients'
 import type { Artwork, ArtworkInput } from '../shared/artworks'
-import type { Design, DesignInput, Detail, HardwarePreset } from '../shared/designs'
+import type { Design, DesignInput, Detail, HardwarePreset, LienzoAsset } from '../shared/designs'
 import type { Material, MaterialInput, Supplier, SupplierInput } from '../shared/library'
 import type { Collection, CollectionInput, FileCategory, Project, ProjectInput, ProjectStatus, ProjectSummary } from '../shared/projects'
 import type { EconomySummary, Expense, ExpenseInput } from '../shared/economy'
@@ -109,6 +109,11 @@ export const api = {
 
   listArtworks: () => request<Artwork[]>('/artworks'),
   listHardware: () => request<HardwarePreset[]>('/hardware'),
+  /** Texturas y pinceles propios del lienzo. */
+  listLienzoAssets: () => request<LienzoAsset[]>('/recursos'),
+  createLienzoAsset: (a: Pick<LienzoAsset, 'kind' | 'name' | 'file' | 'grain' | 'settings'>) => request<LienzoAsset>('/recursos', send('POST', a)),
+  updateLienzoAsset: (id: string, a: Partial<Pick<LienzoAsset, 'name' | 'settings'>>) => request<LienzoAsset>(`/recursos/${id}`, send('PATCH', a)),
+  deleteLienzoAsset: (id: string) => request<void>(`/recursos/${id}`, send('DELETE')),
   createHardware: (name: string, detail: Detail) => request<HardwarePreset>('/hardware', send('POST', { name, detail })),
   deleteHardware: (id: string) => request<void>(`/hardware/${id}`, send('DELETE')),
   getArtwork: (id: string) => request<Artwork>(`/artworks/${id}`),

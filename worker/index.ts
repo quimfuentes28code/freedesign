@@ -8,6 +8,7 @@ import { authRoute, currentUser } from './auth'
 import { clientsRoute } from './clients'
 import { designsRoute } from './designs'
 import { hardwareRoute } from './hardware'
+import { lienzoAssetsRoute } from './lienzo'
 import { filesRoute } from './files'
 import { HttpError, json, type Env } from './http'
 import { materialsRoute, suppliersRoute } from './library'
@@ -81,6 +82,8 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
       return filesRoute(request, env, uid, id)
     case 'hardware':
       return hardwareRoute(request, env, uid, id)
+    case 'recursos':
+      return lienzoAssetsRoute(request, env, uid, id)
     case 'stats':
       if (request.method !== 'GET') break
       return json(await stats(env, uid))

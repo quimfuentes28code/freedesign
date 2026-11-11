@@ -341,6 +341,20 @@ export interface Detail {
 }
 
 /** Fornitura propia guardada en la cuenta (sale en «Mis fornituras» de la biblioteca del lienzo). */
+/** Textura o pincel propio del lienzo (guardado en la cuenta). */
+export interface LienzoAsset {
+  id: string
+  kind: 'textura' | 'pincel'
+  name: string
+  /** Imagen de la textura o de la punta del pincel (vacía si el pincel usa una punta de la app). */
+  file: string
+  /** Grano del pincel, si tiene. */
+  grain: string | null
+  /** Ajustes del pincel (tamaño, separación, presión…) o de la textura. */
+  settings: Record<string, number | boolean | string>
+  createdAt: string
+}
+
 export interface HardwarePreset {
   id: string
   name: string
@@ -482,6 +496,19 @@ export interface ImageLayer extends CanvasLayerBase {
   w: number
   rotation: number
 }
+/**
+ * Textura (tela o efecto) que llena todo el lienzo repitiéndose; normalmente recortada a la capa de debajo y en
+ * Superponer o Luz suave, para darle el tejido a lo pintado.
+ */
+export interface TextureLayer extends CanvasLayerBase {
+  kind: 'texture'
+  /** Textura de la app (id de `TEXTURES`) o, si es propia, vacío y `file`. */
+  texture: string
+  file?: string
+  /** Escala del azulejo (1 = su tamaño) y giro en grados. */
+  scale: number
+  rotation: number
+}
 /** Texto en el lienzo, con cualquier fuente. Centro (x, y) en px; tamaño de letra en px. */
 export interface TextLayer extends CanvasLayerBase {
   kind: 'text'
@@ -503,7 +530,7 @@ export interface TextLayer extends CanvasLayerBase {
   stroke?: string
   strokeWidth?: number
 }
-export type CanvasLayer = PaintLayer | MockupLayer | ImageLayer | DetailLayer | TextLayer
+export type CanvasLayer = PaintLayer | MockupLayer | ImageLayer | DetailLayer | TextLayer | TextureLayer
 
 /** Documento del lienzo: tamaño en píxeles, color del papel y capas (la primera, la de más abajo). */
 export interface CanvasDoc {
