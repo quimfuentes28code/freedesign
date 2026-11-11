@@ -85,6 +85,18 @@ export function runtimeFor(designId: string, doc: CanvasDoc) {
   return r
 }
 
+/** El borrador (lienzo sin guardar) pasa a ser el de un diseño ya creado, con lo pintado y su historial. */
+export function moveRuntime(from: string, to: string) {
+  const r = runtimes.get(from)
+  if (!r) return
+  runtimes.delete(from)
+  runtimes.set(to, r)
+}
+/** Olvida el lienzo en memoria de un diseño (p. ej. para empezar un borrador nuevo). */
+export function dropRuntime(designId: string) {
+  runtimes.delete(designId)
+}
+
 /**
  * Sube las capas de pintura cambiadas y devuelve el documento con sus archivos nuevos. Lo llama el editor antes de
  * guardar el diseño (con cualquier botón de guardar). Después de guardar, `afterSave` borra las versiones viejas.

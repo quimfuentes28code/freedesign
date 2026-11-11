@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from 'react-router'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router'
 import { AuthProvider, GuestOnly, RequireAuth } from './auth/AuthContext'
 import { AppLayout } from './layout/AppLayout'
 import { ProfilePage } from './pages/account/Profile'
@@ -8,7 +8,6 @@ import { ClientsList } from './pages/clients/ClientsList'
 import { Dashboard } from './pages/Dashboard'
 import { StudioHome } from './pages/StudioHome'
 import { DesignEditor } from './pages/designer/DesignEditor'
-import { DesignsList, NewDesign } from './pages/designer/Designs'
 import { Preview3D } from './pages/designer/Preview3D'
 import { Probador } from './pages/designer/Probador'
 import { Lookbook } from './pages/designer/Lookbook'
@@ -45,8 +44,8 @@ export default function App() {
               <Route path="clientes" element={<ClientsList />} />
               <Route path="clientes/nuevo" element={<ClientForm />} />
               <Route path="clientes/:id" element={<ClientForm />} />
-              <Route path="disenador" element={<DesignsList />} />
-              <Route path="disenador/nuevo" element={<NewDesign />} />
+              <Route path="disenador" element={<DesignEditor />} />
+              <Route path="disenador/nuevo" element={<ToDraft />} />
               <Route path="disenador/3d" element={<Preview3D />} />
               <Route path="disenador/probador" element={<Probador />} />
               <Route path="disenador/lookbook" element={<Lookbook />} />
@@ -76,4 +75,10 @@ export default function App() {
       </AuthProvider>
     </BrowserRouter>
   )
+}
+
+/** Enlaces antiguos a «Nuevo diseño»: el Diseñador ya abre un lienzo nuevo (con su cliente y proyecto, si vienen). */
+function ToDraft() {
+  const { search } = useLocation()
+  return <Navigate to={`/disenador${search}`} replace />
 }

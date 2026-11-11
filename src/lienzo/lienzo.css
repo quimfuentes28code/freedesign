@@ -855,3 +855,222 @@
 .lz-overlay.persp {
   overflow: visible;
 }
+
+/* Vista: 2D, 3D o los dos (el 3D a la derecha) */
+.lz-seg {
+  display: flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  margin-right: 6px;
+}
+.lz-seg button {
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--lz-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.lz-seg button.on {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--lz-text);
+}
+.lz-btn svg {
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+}
+.lz-3d {
+  position: absolute;
+  top: 52px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  background: #f4f4f2;
+}
+.lienzo.v3d-side .lz-3d {
+  left: 50%;
+  border-left: 1px solid var(--lz-line);
+}
+.lienzo.v3d-side .lz-viewport {
+  right: 50%;
+}
+.lienzo.v3d-full .lz-side {
+  display: none;
+}
+/* Paneles grandes del editor (Diseños, Prenda) */
+.lz-sheet {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  width: min(920px, calc(100% - 24px));
+  max-height: calc(100% - 76px);
+  overflow: auto;
+  padding: 18px;
+  border-radius: 18px;
+  background: var(--lz-pop);
+  border: 1px solid var(--lz-line);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(16px);
+}
+.lz-sheet.side {
+  left: auto;
+  right: 12px;
+  transform: none;
+  width: min(400px, calc(100% - 24px));
+}
+.lz-sheet h4 {
+  margin: 18px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lz-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.lz-sheet .lz-grid-items {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+}
+.lz-sheet .lz-lib-item {
+  cursor: pointer;
+}
+.lz-sheet .lz-lib-thumb {
+  height: 110px;
+}
+.lz-big {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  min-height: 110px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--lz-text);
+  cursor: pointer;
+  text-align: center;
+  font-size: 13px;
+}
+.lz-big:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.lz-big b {
+  font-size: 26px;
+  font-weight: 300;
+}
+.lz-x {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  font-size: 18px;
+}
+.lz-rows {
+  display: grid;
+  gap: 6px;
+}
+.lz-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.05);
+  text-align: left;
+  cursor: pointer;
+}
+.lz-row:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.lz-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  flex: none;
+}
+.lz-sheet .field span,
+.lz-sheet label {
+  color: var(--lz-muted);
+}
+.lz-sheet input:not([type='checkbox']):not([type='color']),
+.lz-sheet select,
+.lz-sheet textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--lz-line);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--lz-text);
+  font: inherit;
+  user-select: text;
+  -webkit-user-select: text;
+}
+@media (max-width: 760px) {
+  .lienzo.v3d-side .lz-viewport {
+    right: 0;
+    bottom: 45%;
+  }
+  .lienzo.v3d-side .lz-3d {
+    left: 0;
+    top: 55%;
+    border-left: 0;
+  }
+  .lz-seg button {
+    padding: 0 7px;
+  }
+}
+/* Partes del editor de siempre dentro de los paneles oscuros: sobre fondo claro, como papel */
+.lz-light {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f4f4f2;
+  color: #1d1c1a;
+  --text: #1d1c1a;
+  --muted: #6b6a66;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.lz-light button {
+  color: revert;
+}
+.lz-sheet .lz-light input:not([type='checkbox']):not([type='color']),
+.lz-sheet .lz-light select,
+.lz-sheet .lz-light textarea {
+  background: #fff;
+  color: #1d1c1a;
+  border-color: #d8d6d0;
+}
+.lz-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.lz-form .field {
+  display: grid;
+  gap: 4px;
+}
+.lz-error {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: #b3261e;
+  color: #fff;
+}
+.lz-sheet .lz-seg {
+  margin-bottom: 4px;
+}

@@ -109,10 +109,27 @@ interface Props {
   onOptions: (patch: Options) => void
   /** Guardar el diseño (el editor sube antes las capas cambiadas). */
   onSave: () => void
-  onExit: () => void
   saving: boolean
   dirty: boolean
+  /** Abre «Diseños» (empezar uno nuevo, abrir otro) y «Prenda» (modelo, medidas, datos). */
+  onMenu: () => void
+  onGarment: () => void
+  /** Vista 3D: sin, al lado del lienzo o a pantalla completa. */
+  mode3d: Mode3D
+  onMode3d: (m: Mode3D) => void
+  view3d?: ReactNode
+  /** Imagen que el editor pide añadir (p. ej. «Importar imagen» al empezar). */
+  pendingImage?: File | null
+  onPendingImage?: () => void
+  /** Paneles del editor, que flotan encima del lienzo. */
+  children?: ReactNode
 }
+export type Mode3D = 'off' | 'side' | 'full'
+const MODES_3D: { id: Mode3D; label: string; title: string }[] = [
+  { id: 'off', label: '2D', title: 'Solo el lienzo' },
+  { id: 'full', label: '3D', title: 'La prenda en 3D' },
+  { id: 'side', label: '2D + 3D', title: 'El lienzo y, al lado, la prenda en 3D' },
+]
 
 /**
  * Lienzo creativo del Diseñador (como Procreate e Illustrator): mockups de la prenda, capas de pintura con pinceles
@@ -1106,6 +1123,12 @@ export function Lienzo(props: Props) {
       flash(e instanceof Error ? e.message : 'No se ha podido subir la imagen')
     }
   }
+  useEffect(() => {
+    if (!props.pendingImage || loading) return
+    addImage(props.pendingImage)
+    props.onPendingImage?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.pendingImage, loading])
   const patch = (id: string, p: Partial<CanvasLayer>) => change({ ...doc, layers: doc.layers.map((l) => (l.id === id ? ({ ...l, ...p } as CanvasLayer) : l)) })
   const remove = (id: string) => {
     const layers = doc.layers.filter((l) => l.id !== id)
@@ -1195,11 +1218,14 @@ export function Lienzo(props: Props) {
 
   // A pantalla completa, fuera del editor (sus paneles tienen transformaciones que encerrarían el lienzo)
   return createPortal(
-    <div className="lienzo">
+    <div className={`lienzo v3d-${props.mode3d}`}>
       <header className="lz-top">
         <div className="lz-left">
-          <button className="lz-btn" onClick={props.onExit} title="Volver al diseño técnico">
-            ← Diseño
+          <button className="lz-btn" onClick={props.onMenu} title="Empezar un diseño nuevo o abrir otro">
+            <Icon d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM11 11h5v5h-5z" /> Diseños
+          </button>
+          <button className="lz-btn" onClick={props.onGarment} title="La prenda: modelo, piezas, medidas y datos del diseño">
+            Prenda
           </button>
           <button className={panel === 'acciones' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'acciones' ? null : 'acciones')} title="Acciones: añadir, exportar">
             <Icon d="M10 3.5l1.6 3.8 4 .4-3 2.7.9 4-3.5-2.1-3.5 2.1.9-4-3-2.7 4-.4z" />
@@ -1222,6 +1248,13 @@ export function Lienzo(props: Props) {
           <span className="lz-title">{props.name}</span>
         </div>
         <div className="lz-right">
+          <div className="lz-seg" role="group" aria-label="Vista">
+            {MODES_3D.map((m) => (
+              <button key={m.id} className={props.mode3d === m.id ? 'on' : ''} onClick={() => props.onMode3d(m.id)} title={m.title}>
+                {m.label}
+              </button>
+            ))}
+          </div>
           <span className="lz-save">{props.saving ? 'Guardando…' : props.dirty ? 'Sin guardar' : 'Guardado'}</span>
           <button className="lz-btn primary" onClick={props.onSave} disabled={!props.dirty || props.saving} title="Guardar (Ctrl+S)">
             Guardar
@@ -1625,6 +1658,8 @@ export function Lienzo(props: Props) {
           </button>
         </Pop>
       )}
+      {props.mode3d !== 'off' && <div className="lz-3d">{props.view3d}</div>}
+      {props.children}
       {panel === 'acciones' && (
         <Pop className="lz-pop left" title="Acciones">
           <p className="lz-label">Añadir</p>
