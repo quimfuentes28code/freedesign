@@ -1,0 +1,179 @@
+/*
+ * Modo oscuro de toda la app (como Procreate o Illustrator): grafito neutro, paneles flotantes oscuros y el color
+ * de acento azul. Se carga la última, así manda sobre el resto. Lo que es «papel» (la zona del dibujo técnico, las
+ * hojas A4 de la ficha, las miniaturas de las prendas) se queda claro, como el lienzo en blanco de esas apps.
+ */
+
+:root {
+  --bg: #141416;
+  --panel: #232326;
+  --text: #f2f2f3;
+  --muted: #a1a1a6;
+  --border: #36363a;
+  --accent: #3d8bfd;
+  --accent-text: #ffffff;
+  --soft: #1b1b1e;
+  --danger: #ff6b61;
+  --ok: #5fc27a;
+  color-scheme: dark;
+}
+
+/* Todo lo que antes tenía letra oscura sobre su fondo claro: ahora letra clara sobre su fondo oscuro */
+html :is(
+    .page,
+    .card,
+    .button,
+    .chip,
+    input,
+    select,
+    textarea,
+    .tag,
+    .tool,
+    .zoom,
+    .canvas,
+    .canvas-context,
+    .tool-rail,
+    .print-row,
+    .print-thumb,
+    .file-tile,
+    .photo-drop,
+    .material-option,
+    .material-pop,
+    .material-photo,
+    .font-current,
+    .font-pop,
+    .detail-kind,
+    .template-pick,
+    .art-pick,
+    .artwork-tile,
+    .shape-menu-panel,
+    .chart-tip,
+    .step,
+    .colorway-chip,
+    .compare-card,
+    .probador-item,
+    .account-type button,
+    .expense-total,
+    .totals div,
+    .editor-panel,
+    .editor-layers,
+    .studio .panel,
+    .studio-editor .editor-header,
+    .segmented
+  ) {
+  --text: #f2f2f3;
+  --muted: #a1a1a6;
+  --border: #36363a;
+  color: var(--text);
+}
+
+body {
+  background:
+    radial-gradient(ellipse 70% 55% at 85% -10%, rgb(61 139 253 / 0.08), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 0% 110%, rgb(255 255 255 / 0.03), transparent 70%),
+    var(--bg);
+  color: var(--text);
+}
+
+/* Menú lateral y paneles flotantes: cristal oscuro */
+html .sidebar {
+  background: rgb(30 30 33 / 0.82);
+  border-color: rgb(255 255 255 / 0.07);
+  box-shadow: 0 20px 50px rgb(0 0 0 / 0.45), 0 2px 8px rgb(0 0 0 / 0.3);
+}
+html .card {
+  border-color: rgb(255 255 255 / 0.06);
+  box-shadow: 0 14px 36px rgb(0 0 0 / 0.35), 0 1px 3px rgb(0 0 0 / 0.3);
+}
+html .editor.studio-editor :is(.editor-header, .editor-layers, .editor-panel, .editor-main),
+html .creator .creator-main,
+html .creator > .editor-panel {
+  background: rgb(32 32 35 / 0.9);
+  border-color: rgb(255 255 255 / 0.07);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.3);
+}
+html .design-3d-bar,
+html .studio .busy {
+  background: rgb(32 32 35 / 0.86);
+  color: var(--text);
+}
+
+/* El plató de fotos de fondo queda tras un velo oscuro */
+html .studio-veil {
+  background: rgb(14 14 16 / 0.86);
+}
+
+/* Pestañas */
+html .tabs .tab.active {
+  background: #3a3a3e;
+  color: #ffffff;
+}
+
+/* Avisos (antes crema con letra marrón) */
+html .canvas-context.hint,
+html .canvas-hint.active,
+html .production-note {
+  background: #33261a;
+  border-color: #6b4a1f;
+  color: #ffcf99;
+}
+
+/* Botón activo de las herramientas: el azul del acento, más claro sobre oscuro */
+html :is(.tool.active, .rail-button.active, .creator-tools .button.active) {
+  color: #6aa6ff;
+}
+
+html .no-3d p {
+  color: var(--muted);
+}
+
+/* Formularios: fondo hundido para que se distingan del panel */
+html :is(input, select, textarea):not([type='checkbox'], [type='radio'], [type='range'], [type='color']) {
+  background: var(--soft);
+  color: var(--text);
+  border-color: var(--border);
+}
+html select option {
+  background: #232326;
+  color: #f2f2f3;
+}
+
+/* --- Lo que es papel: se queda claro --- */
+
+/* Zona del dibujo técnico 2D (como el lienzo en blanco de Procreate) */
+html .canvas-stage,
+html .canvas-stage.line-mode {
+  background: #f4f3f1;
+  --text: #1d1c1a;
+  --muted: #74706a;
+  --border: #e2dfd9;
+  --panel: #ffffff;
+  --soft: #f7f5f2;
+}
+
+/* Hojas A4 de la ficha técnica (se imprimen) */
+html .sheet {
+  --text: #1d1c1a;
+  --muted: #74706a;
+  --border: #e2dfd9;
+  --panel: #ffffff;
+  --soft: #f7f5f2;
+  --accent: #1d1c1a;
+  --accent-text: #ffffff;
+  color: var(--text);
+}
+
+/* En los apartados, el plató de fotos queda detrás de un velo oscuro (en la portada se ve tal cual) */
+html .studio-backdrop:not(.live)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgb(14 14 16 / 0.78);
+  pointer-events: none;
+}
+
+/* Miniaturas de las prendas: sobre papel claro (una prenda negra no se pierde en el fondo oscuro) */
+html :is(.design-thumb, .mini-thumb, .probador-item svg, .compare-card svg, .lookbook-flats svg, .lookbook-refs img) {
+  background: #f1f0ee;
+  border-radius: 10px;
+}
