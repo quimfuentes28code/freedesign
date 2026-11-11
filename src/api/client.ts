@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type DependencyList } from 'react'
 import type { Client, ClientInput } from '../shared/clients'
 import type { Artwork, ArtworkInput } from '../shared/artworks'
-import type { Design, DesignInput } from '../shared/designs'
+import type { Design, DesignInput, Detail, HardwarePreset } from '../shared/designs'
 import type { Material, MaterialInput, Supplier, SupplierInput } from '../shared/library'
 import type { Collection, CollectionInput, FileCategory, Project, ProjectInput, ProjectStatus, ProjectSummary } from '../shared/projects'
 import type { EconomySummary, Expense, ExpenseInput } from '../shared/economy'
@@ -108,6 +108,9 @@ export const api = {
   deleteDesign: (id: string) => request<void>(`/designs/${id}`, send('DELETE')),
 
   listArtworks: () => request<Artwork[]>('/artworks'),
+  listHardware: () => request<HardwarePreset[]>('/hardware'),
+  createHardware: (name: string, detail: Detail) => request<HardwarePreset>('/hardware', send('POST', { name, detail })),
+  deleteHardware: (id: string) => request<void>(`/hardware/${id}`, send('DELETE')),
   getArtwork: (id: string) => request<Artwork>(`/artworks/${id}`),
   createArtwork: (a: ArtworkInput) => request<Artwork>('/artworks', send('POST', a)),
   updateArtwork: (id: string, a: ArtworkInput) => request<Artwork>(`/artworks/${id}`, send('PUT', a)),

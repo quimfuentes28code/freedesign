@@ -340,6 +340,14 @@ export interface Detail {
   mirror?: boolean
 }
 
+/** Fornitura propia guardada en la cuenta (sale en «Mis fornituras» de la biblioteca del lienzo). */
+export interface HardwarePreset {
+  id: string
+  name: string
+  detail: Detail
+  createdAt: string
+}
+
 /** Estilo de las fornituras que trae la prenda base (botones de la tapeta, cremallera y su tirador). */
 export interface HardwareStyle {
   buttons?: ButtonStyle

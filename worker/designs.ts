@@ -270,7 +270,7 @@ function readArt(raw: unknown): DetailArt | null {
   return { artworkId: text(a.artworkId) || null, file, aspect: Math.max(0.05, finite(a.aspect, 1)) }
 }
 
-function readDetail(raw: unknown): Detail | null {
+export function readDetail(raw: unknown): Detail | null {
   if (!raw || typeof raw !== 'object') return null
   const d = raw as Record<string, unknown>
   const kind = oneOf(d.kind, DETAIL_KINDS, 'boton')

@@ -248,9 +248,30 @@ export function floodMask(source: HTMLCanvasElement, x: number, y: number, toler
   return count ? mask : null
 }
 
+/** Logos de las fornituras (se cargan una vez; al llegar, se avisa para volver a pintar). */
+const artImages = new Map<string, HTMLImageElement | null>()
+const artListeners = new Set<() => void>()
+export function onArtLoaded(fn: () => void) {
+  artListeners.add(fn)
+  return () => {
+    artListeners.delete(fn)
+  }
+}
+function artImage(file: string) {
+  if (!artImages.has(file)) {
+    artImages.set(file, null)
+    loadImage(fileUrl(file)).then((img) => {
+      artImages.set(file, img)
+      for (const fn of artListeners) fn()
+    })
+  }
+  return artImages.get(file) ?? null
+}
+
 /** Fornitura pintada en un canvas (a buena resolución para su tamaño en el lienzo). */
 export function detailCanvas(r: Runtime, l: DetailLayer) {
-  const key = JSON.stringify([l.detail, Math.round(l.w / 50)])
+  const art = l.detail.art?.file
+  const key = JSON.stringify([l.detail, Math.round(l.w / 50), art ? !!artImages.get(art) : 0])
   const cached = r.details.get(l.id)
   if (cached?.key === key) return cached.canvas
   const d = l.detail
@@ -263,7 +284,7 @@ export function detailCanvas(r: Runtime, l: DetailLayer) {
   const k = px / d.w
   g.translate(c.width / 2, c.height / 2)
   g.scale(k, k)
-  drawPrims(g, detailPrims({ ...d, x: 0, y: 0, rotation: 0 }), () => null)
+  drawPrims(g, detailPrims({ ...d, x: 0, y: 0, rotation: 0 }), artImage)
   r.details.set(l.id, { key, canvas: c })
   return c
 }

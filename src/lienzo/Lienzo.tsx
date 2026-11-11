@@ -20,15 +20,19 @@ import {
   type CanvasDoc,
   type CanvasLayer,
   type DesignData,
+  type Detail,
   type DetailKind,
   type DetailLayer,
+  type HardwarePreset,
   type MockupLayer,
   type PaintLayer,
 } from '../shared/designs'
 import type { Material } from '../shared/library'
 import { BRUSHES, paperGrain, Stroke, union, type BrushPreset, type Rect, type Symmetry } from './brushes'
 import { ColorPicker } from './ColorPicker'
-import { afterSave, compose, detailCanvas, floodMask, garmentMask, grab, pieceAt, registerFlush, runtimeFor, uploadDirty, type Runtime } from './engine'
+import { afterSave, compose, detailCanvas, floodMask, garmentMask, grab, onArtLoaded, pieceAt, registerFlush, runtimeFor, uploadDirty, type Runtime } from './engine'
+import type { Artwork } from '../shared/artworks'
+import { fileUrl as fileOf } from '../shared/library'
 import './lienzo.css'
 
 type Tool = 'brush' | 'eraser' | 'picker' | 'fill' | 'move'
@@ -125,6 +129,14 @@ export function Lienzo(props: Props) {
   const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState<string | null>(null)
   const { user } = useAuth()
+  // Fornituras propias y gráficos de la cuenta (para la biblioteca y los logos de botones, tiradores y parches)
+  const [presets, setPresets] = useState<HardwarePreset[]>([])
+  const [artworks, setArtworks] = useState<Artwork[]>([])
+  useEffect(() => {
+    api.listHardware().then(setPresets).catch(() => {})
+    api.listArtworks().then(setArtworks).catch(() => {})
+  }, [])
+  useEffect(() => onArtLoaded(() => redraw()), [])
 
   const docRef = useRef(doc)
   docRef.current = doc
@@ -710,13 +722,13 @@ export function Lienzo(props: Props) {
     insertAbove({ id: uid(), kind: 'mockup', name: e.name, view: 'front', x: x - w / 2, y: y - w * 0.6, w, style: 'linea', template: e.template.id, options: opts, pieces: {}, visible: true, locked: false, opacity: 1, blend: 'normal' })
     setTool('move')
   }
-  /** Fornitura nueva (con su estilo), centrada en (x, y). Su ancho en el lienzo sale de su tamaño real. */
-  const addDetail = (kind: DetailKind, style: string | null, x: number, y: number) => {
-    const base = DETAIL_DEFAULTS[kind]
-    const detail = { ...base, ...(style ? { style } : {}), id: uid(), view: 'front' as const, x: 0, y: 0 }
+  /** Fornitura nueva (de la biblioteca o una propia), centrada en (x, y). Su ancho en el lienzo sale de su tamaño real. */
+  const addDetail = (from: Detail, label: string, x: number, y: number) => {
+    const detail = { ...from, id: uid(), view: 'front' as const, x: 0, y: 0 }
+    const base = detail
     // 1 unidad del dibujo = 0,5 cm; en el lienzo, unos 8 px por cm (una prenda ocupa ~600 px)
     const w = Math.max(20, base.w * 4)
-    const name = DETAIL_KINDS.find((k) => k.id === kind)?.label ?? 'Fornitura'
+    const name = label || (DETAIL_KINDS.find((k) => k.id === detail.kind)?.label ?? 'Fornitura')
     insertAbove({ id: uid(), kind: 'detail', name, detail, x, y, w, rotation: base.rotation, visible: true, locked: false, opacity: 1, blend: 'normal' })
     setTool('move')
   }
@@ -731,7 +743,7 @@ export function Lienzo(props: Props) {
     const inside = clientX !== null && clientY !== null && clientX > rect.left && clientX < rect.right && clientY > rect.top && clientY < rect.bottom
     const p = inside ? toDoc(clientX!, clientY!) : center()
     if (item.kind === 'garment') addGarment(item.id, p.x, p.y)
-    else addDetail(item.detail, item.style, p.x, p.y)
+    else addDetail(item.detail, item.label, p.x, p.y)
   }
   useEffect(() => {
     if (!carry) return
@@ -1033,7 +1045,15 @@ export function Lienzo(props: Props) {
       )}
       {panel === 'biblioteca' && (
         <Pop className="lz-pop left wide" title="Biblioteca">
-          <Library materials={materials} onStart={(item, e) => setCarry({ item, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, moved: false })} />
+          <Library
+            materials={materials}
+            presets={presets}
+            onDeletePreset={(p) => {
+              setPresets((list) => list.filter((x) => x.id !== p.id))
+              api.deleteHardware(p.id).catch(() => flash('No se ha podido borrar'))
+            }}
+            onStart={(item, e) => setCarry({ item, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, moved: false })}
+          />
         </Pop>
       )}
       {panel === 'opciones' && layer?.kind === 'mockup' && (
@@ -1077,6 +1097,16 @@ export function Lienzo(props: Props) {
                 active={l.id === active}
                 thumb={l.kind === 'paint' ? r.layer(l.id) : l.kind === 'mockup' ? r.mockups.get(l.id) : l.kind === 'detail' ? detailCanvas(r, l) : undefined}
                 onOptions={() => setPanel('opciones')}
+                artworks={artworks}
+                onSavePreset={async (name, detail) => {
+                  try {
+                    const p = await api.createHardware(name, detail)
+                    setPresets((list) => [p, ...list])
+                    flash(`«${name}» guardada en Mis fornituras`)
+                  } catch (e) {
+                    flash(e instanceof Error ? e.message : 'No se ha podido guardar')
+                  }
+                }}
                 image={l.kind === 'image' ? r.images.get(l.file)?.src : undefined}
                 onSelect={() => setActive(l.id)}
                 onPatch={(p) => {
@@ -1320,6 +1350,8 @@ function LayerRow(props: {
   onMerge: () => void
   onClear?: () => void
   onOptions: () => void
+  artworks: Artwork[]
+  onSavePreset: (name: string, detail: Detail) => void
 }) {
   const { layer: l, active } = props
   const thumbRef = useRef<HTMLCanvasElement>(null)
@@ -1398,7 +1430,7 @@ function LayerRow(props: {
               Cambiar cuello, capucha, bolsillos…
             </button>
           )}
-          {l.kind === 'detail' && <DetailOptions layer={l} onPatch={props.onPatch} />}
+          {l.kind === 'detail' && <DetailOptions layer={l} onPatch={props.onPatch} artworks={props.artworks} onSavePreset={props.onSavePreset} />}
           {(l.kind === 'mockup' || l.kind === 'image' || l.kind === 'detail') && (
             <div className="lz-field">
               <span>
@@ -1459,7 +1491,10 @@ function LayerRow(props: {
 void union
 
 /** Lo que se puede arrastrar desde la biblioteca. */
-type LibraryItem = { kind: 'garment'; id: string; label: string } | { kind: 'detail'; detail: DetailKind; style: string | null; label: string }
+type LibraryItem = { kind: 'garment'; id: string; label: string } | { kind: 'detail'; detail: Detail; label: string }
+
+/** Fornitura de la biblioteca: la de serie de su tipo, con un estilo. */
+const stock = (kind: DetailKind, style: string | null): Detail => ({ ...DETAIL_DEFAULTS[kind], ...(style ? { style } : {}), id: 'stock', view: 'front', x: 0, y: 0 })
 
 /** Fornituras de la biblioteca: cada tipo con sus estilos (cremalleras metálicas, invisibles, botones de 2 o 4 agujeros…). */
 const HARDWARE: { kind: DetailKind; styles: (string | null)[] }[] = DETAIL_KINDS.map((k) => ({
@@ -1468,8 +1503,18 @@ const HARDWARE: { kind: DetailKind; styles: (string | null)[] }[] = DETAIL_KINDS
 }))
 
 /** Biblioteca visual: prendas del catálogo y fornituras, para tocar (al centro) o arrastrar al lienzo. */
-function Library({ materials, onStart }: { materials: Map<string, import('../shared/library').Material>; onStart: (item: LibraryItem, e: React.PointerEvent) => void }) {
-  const [tab, setTab] = useState<'prendas' | 'fornituras'>('prendas')
+function Library({
+  materials,
+  presets,
+  onDeletePreset,
+  onStart,
+}: {
+  materials: Map<string, import('../shared/library').Material>
+  presets: HardwarePreset[]
+  onDeletePreset: (p: HardwarePreset) => void
+  onStart: (item: LibraryItem, e: React.PointerEvent) => void
+}) {
+  const [tab, setTab] = useState<'prendas' | 'fornituras' | 'mias'>('prendas')
   const [kind, setKind] = useState<DetailKind>('cremallera')
   const body = useMemo(() => standardBody('M'), [])
   return (
@@ -1481,9 +1526,35 @@ function Library({ materials, onStart }: { materials: Map<string, import('../sha
         <button className={tab === 'fornituras' ? 'lz-chip on' : 'lz-chip'} onClick={() => setTab('fornituras')}>
           Fornituras y detalles
         </button>
+        <button className={tab === 'mias' ? 'lz-chip on' : 'lz-chip'} onClick={() => setTab('mias')}>
+          Mis fornituras{presets.length ? ` (${presets.length})` : ''}
+        </button>
       </div>
       <p className="lz-muted">Arrastra al lienzo o toca para ponerlo en el centro.</p>
-      {tab === 'prendas' ? (
+      {tab === 'mias' ? (
+        presets.length ? (
+          <div className="lz-grid-items">
+            {presets.map((p) => (
+              <div key={p.id} className="lz-lib-wrap">
+                <button className="lz-lib-item" onPointerDown={(ev) => onStart({ kind: 'detail', detail: p.detail, label: p.name }, ev)} title={p.name}>
+                  <div className="lz-lib-thumb">
+                    <DetailThumb detail={p.detail} />
+                  </div>
+                  <span>{p.name}</span>
+                </button>
+                <button className="lz-lib-del" onClick={() => onDeletePreset(p)} title="Quitar de mis fornituras" aria-label={`Quitar ${p.name}`}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="lz-muted">
+            Aún no tienes fornituras propias. Pon una en el lienzo (una cremallera, un botón, un parche…), ajústala a tu gusto (tipo, tirador, colores, tu
+            logo) y, en sus ajustes de la capa, toca «Guardar en mis fornituras».
+          </p>
+        )
+      ) : tab === 'prendas' ? (
         <div className="lz-grid-items">
           {NEW_DESIGN_CATALOG.map((e) => {
             const data = { ...defaultDesign(e.template, e.options), prints: [] } as DesignData
@@ -1510,9 +1581,9 @@ function Library({ materials, onStart }: { materials: Map<string, import('../sha
             {HARDWARE.find((h) => h.kind === kind)!.styles.map((style) => {
               const label = DETAIL_STYLES[kind]?.find((x) => x.id === style)?.label ?? DETAIL_KINDS.find((k) => k.id === kind)?.label ?? ''
               return (
-                <button key={style ?? 'x'} className="lz-lib-item" onPointerDown={(ev) => onStart({ kind: 'detail', detail: kind, style, label }, ev)}>
+                <button key={style ?? 'x'} className="lz-lib-item" onPointerDown={(ev) => onStart({ kind: 'detail', detail: stock(kind, style), label: DETAIL_KINDS.find((k) => k.id === kind)?.label ?? label }, ev)}>
                   <div className="lz-lib-thumb">
-                    <DetailThumb kind={kind} style={style} />
+                    <DetailThumb detail={stock(kind, style)} />
                   </div>
                   <span>{label}</span>
                 </button>
@@ -1526,17 +1597,19 @@ function Library({ materials, onStart }: { materials: Map<string, import('../sha
 }
 
 /** Miniatura de una fornitura con su estilo. */
-function DetailThumb({ kind, style }: { kind: DetailKind; style: string | null }) {
+function DetailThumb({ detail }: { detail: Detail }) {
   const ref = useRef<HTMLCanvasElement>(null)
+  const key = JSON.stringify(detail)
+  const [, again] = useReducer((n: number) => n + 1, 0)
+  useEffect(() => onArtLoaded(again), [])
   useEffect(() => {
     const c = ref.current
     if (!c) return
-    const base = DETAIL_DEFAULTS[kind]
     const layer: DetailLayer = {
-      id: `thumb-${kind}-${style}`,
+      id: `thumb-${key}`,
       kind: 'detail',
       name: '',
-      detail: { ...base, ...(style ? { style } : {}), id: 'thumb', view: 'front', x: 0, y: 0 },
+      detail,
       x: 0,
       y: 0,
       w: 120,
@@ -1551,17 +1624,30 @@ function DetailThumb({ kind, style }: { kind: DetailKind; style: string | null }
     g.clearRect(0, 0, c.width, c.height)
     const k = Math.min((c.width * 0.8) / src.width, (c.height * 0.8) / src.height)
     g.drawImage(src, (c.width - src.width * k) / 2, (c.height - src.height * k) / 2, src.width * k, src.height * k)
-  }, [kind, style])
+  })
   return <canvas ref={ref} width={120} height={90} />
 }
 /** Memoria aparte para las miniaturas de la biblioteca. */
 const thumbRuntime = { details: new Map() } as unknown as Runtime
 
 /** Ajustes de una fornitura: estilo, tirador, colores y largo. */
-function DetailOptions({ layer: l, onPatch }: { layer: DetailLayer; onPatch: (p: Partial<CanvasLayer>) => void }) {
+function DetailOptions({
+  layer: l,
+  onPatch,
+  artworks,
+  onSavePreset,
+}: {
+  layer: DetailLayer
+  onPatch: (p: Partial<CanvasLayer>) => void
+  artworks: Artwork[]
+  onSavePreset: (name: string, detail: Detail) => void
+}) {
   const d = l.detail
   const set = (p: Partial<DetailLayer['detail']>) => onPatch({ detail: { ...d, ...p } } as Partial<CanvasLayer>)
   const styles = DETAIL_STYLES[d.kind]
+  const [naming, setNaming] = useState<string | null>(null)
+  // Llevan logo: botones, tirador de la cremallera, parches y etiquetas
+  const withArt = d.kind === 'boton' || d.kind === 'parche' || d.kind === 'etiqueta' || (d.kind === 'cremallera' && d.puller === 'logo')
   return (
     <>
       {styles && (
@@ -1607,6 +1693,53 @@ function DetailOptions({ layer: l, onPatch }: { layer: DetailLayer; onPatch: (p:
             Largo <strong>{Math.round((d.length ?? 100) / 2)} cm</strong>
           </span>
           <input type="range" min={6} max={400} step={2} value={d.length ?? 100} onChange={(e) => set({ length: Number(e.target.value) })} />
+        </div>
+      )}
+      {withArt && (
+        <>
+          <p className="lz-label">{d.kind === 'cremallera' ? 'Logo del tirador' : 'Tu logo o gráfico'}</p>
+          {artworks.length ? (
+            <div className="lz-art-list">
+              <button className={!d.art ? 'lz-art on' : 'lz-art'} onClick={() => set({ art: null })} title="Sin logo">
+                Sin logo
+              </button>
+              {artworks.map((a) => (
+                <button
+                  key={a.id}
+                  className={d.art?.file === a.file ? 'lz-art on' : 'lz-art'}
+                  onClick={() => set({ art: { artworkId: a.id, file: a.file, aspect: a.height / Math.max(1, a.width) } })}
+                  title={a.name}
+                >
+                  <img src={fileOf(a.file)} alt={a.name} />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="lz-muted">Crea o sube tus logos en Biblioteca → Gráficos y salen aquí.</p>
+          )}
+          {d.kind === 'boton' && d.art && d.style !== 'logo' && styles?.some((s) => s.id === 'logo') && (
+            <button className="lz-chip" onClick={() => set({ style: 'logo' })}>
+              Botón con la forma del logo
+            </button>
+          )}
+        </>
+      )}
+      {naming === null ? (
+        <button className="lz-btn" onClick={() => setNaming(l.name)} title="Para usarla en cualquier diseño desde la biblioteca">
+          Guardar en mis fornituras
+        </button>
+      ) : (
+        <div className="lz-save-row">
+          <input className="lz-hex" autoFocus value={naming} onChange={(e) => setNaming(e.target.value)} placeholder="Nombre (p. ej. Cremallera metal dorada)" />
+          <button
+            className="lz-btn primary"
+            onClick={() => {
+              onSavePreset(naming.trim() || l.name, d)
+              setNaming(null)
+            }}
+          >
+            Guardar
+          </button>
         </div>
       )}
     </>
