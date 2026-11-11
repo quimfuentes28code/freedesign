@@ -391,6 +391,72 @@ export interface Tracing {
   locked?: boolean
 }
 
+/** Modos de fusión de una capa del lienzo (los de CSS / canvas). */
+export const BLEND_MODES = [
+  { id: 'normal', label: 'Normal' },
+  { id: 'multiply', label: 'Multiplicar' },
+  { id: 'screen', label: 'Trama' },
+  { id: 'overlay', label: 'Superponer' },
+  { id: 'soft-light', label: 'Luz suave' },
+  { id: 'darken', label: 'Oscurecer' },
+  { id: 'lighten', label: 'Aclarar' },
+  { id: 'color-burn', label: 'Subexponer' },
+  { id: 'color-dodge', label: 'Sobreexponer' },
+] as const
+export type BlendMode = (typeof BLEND_MODES)[number]['id']
+
+/** Lo común a todas las capas del lienzo. */
+interface CanvasLayerBase {
+  id: string
+  name: string
+  visible: boolean
+  locked: boolean
+  /** 0 a 1. */
+  opacity: number
+  blend: BlendMode
+}
+/** Capa de pintura (píxeles, guardados como PNG en Workers KV). */
+export interface PaintLayer extends CanvasLayerBase {
+  kind: 'paint'
+  /** Imagen guardada (vacía si la capa aún no tiene nada pintado o no se ha guardado). */
+  file: string | null
+  /** Bloquear transparencia: solo se pinta donde ya hay algo pintado en la capa. */
+  alphaLock?: boolean
+}
+/** Mockup: el dibujo de la prenda del diseño (una vista), colocado en el lienzo. */
+export interface MockupLayer extends CanvasLayerBase {
+  kind: 'mockup'
+  view: 'front' | 'back' | 'side'
+  /** Esquina de arriba a la izquierda y ancho, en píxeles del lienzo. */
+  x: number
+  y: number
+  w: number
+  /** Dibujo a color (con colores y materiales de cada pieza) o en línea (gris claro con contorno, para pintar encima). */
+  style: 'color' | 'linea'
+}
+/** Imagen pegada o subida (inspiración, foto, referencia). */
+export interface ImageLayer extends CanvasLayerBase {
+  kind: 'image'
+  file: string
+  /** Alto / ancho. */
+  aspect: number
+  x: number
+  y: number
+  w: number
+  rotation: number
+}
+export type CanvasLayer = PaintLayer | MockupLayer | ImageLayer
+
+/** Documento del lienzo: tamaño en píxeles, color del papel y capas (la primera, la de más abajo). */
+export interface CanvasDoc {
+  w: number
+  h: number
+  paper: string
+  layers: CanvasLayer[]
+  /** Contador de cambios de los píxeles (solo en el navegador: avisa de que hay cambios sin guardar). */
+  rev?: number
+}
+
 export interface DesignData {
   /** Opciones de la prenda base (corte, largos, detalles…), por id de opción. */
   options: Record<string, string | boolean>
@@ -414,6 +480,8 @@ export interface DesignData {
   tracings?: Tracing[]
   /** Plantilla de la marca: aparece al crear un diseño nuevo, como punto de partida. */
   brandTemplate?: boolean
+  /** Lienzo creativo (capas de pintura, mockups e imágenes), ver src/lienzo/. */
+  canvas?: CanvasDoc
   /** Detalles colocados a mano (botones, cremalleras, parches…). */
   details?: Detail[]
   /** Estilo de los botones y la cremallera que trae la prenda base. */

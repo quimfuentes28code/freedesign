@@ -19,8 +19,7 @@ import {
   type Drawing,
   type HardwareStyle,
   type Print,
-  type Tracing,
-} from '../src/shared/designs'
+  type Tracing, BLEND_MODES, type CanvasDoc, type CanvasLayer } from '../src/shared/designs'
 import { isFileKey } from './files'
 import { HttpError, json, noContent, now, ownedRef, readBody, required, text, type Env } from './http'
 
@@ -153,8 +152,37 @@ async function readDesign(request: Request, env: Env, uid: string): Promise<Desi
       ...(details.length ? { details } : {}),
       ...(hardware ? { hardware } : {}),
       ...(blocks.length ? { blocks } : {}),
+      ...(readCanvas(data.canvas) ? { canvas: readCanvas(data.canvas)! } : {}),
     },
   }
+}
+
+/** Lienzo creativo: tamaño, papel y capas (las de pintura e imágenes apuntan a archivos de KV). */
+function readCanvas(raw: unknown): CanvasDoc | null {
+  if (!raw || typeof raw !== 'object') return null
+  const c = raw as Record<string, unknown>
+  const w = Math.round(Math.min(4096, Math.max(256, finite(c.w, 2000))))
+  const h = Math.round(Math.min(4096, Math.max(256, finite(c.h, 1400))))
+  const layers: CanvasLayer[] = []
+  for (const r of Array.isArray(c.layers) ? c.layers.slice(0, 60) : []) {
+    if (!r || typeof r !== 'object') continue
+    const l = r as Record<string, unknown>
+    const base = {
+      id: text(l.id) || crypto.randomUUID(),
+      name: text(l.name).slice(0, 60) || 'Capa',
+      visible: l.visible !== false,
+      locked: l.locked === true,
+      opacity: Math.min(1, Math.max(0, finite(l.opacity, 1))),
+      blend: oneOf(l.blend, BLEND_MODES, 'normal'),
+    }
+    const file = text(l.file)
+    if (l.kind === 'paint') layers.push({ ...base, kind: 'paint', file: isFileKey(file) ? file : null, ...(l.alphaLock === true ? { alphaLock: true } : {}) })
+    else if (l.kind === 'mockup')
+      layers.push({ ...base, kind: 'mockup', view: viewOf(l.view), x: finite(l.x, 0), y: finite(l.y, 0), w: Math.max(20, finite(l.w, 600)), style: l.style === 'linea' ? 'linea' : 'color' })
+    else if (l.kind === 'image' && isFileKey(file))
+      layers.push({ ...base, kind: 'image', file, aspect: Math.max(0.05, finite(l.aspect, 1)), x: finite(l.x, 0), y: finite(l.y, 0), w: Math.max(4, finite(l.w, 400)), rotation: finite(l.rotation, 0) })
+  }
+  return { w, h, paper: hex(c.paper, '#ffffff'), layers }
 }
 
 function readPieces(raw: unknown): DesignData['pieces'] {

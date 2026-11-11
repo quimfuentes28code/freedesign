@@ -29,6 +29,8 @@ export interface ExportOptions {
   name: string
   /** Debajo del título en el PDF: prenda, medidas… */
   subtitle: string
+  /** Sin papel blanco detrás (mockups del lienzo). */
+  transparent?: boolean
 }
 
 const GAP = 24
@@ -116,7 +118,7 @@ async function composeSvg(t: GarmentTemplate, data: DesignData, materials: Map<s
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${Math.round(width * 2)}" height="${Math.round(total * 2)}" viewBox="0 0 ${width.toFixed(2)} ${total.toFixed(2)}" font-family="${FONT}">` +
       (css ? `<defs><style>${css}</style></defs>` : '') +
-      `<rect width="100%" height="100%" fill="#ffffff"/>${parts.join('')}</svg>`
+      `${o.transparent ? '' : '<rect width="100%" height="100%" fill="#ffffff"/>'}${parts.join('')}</svg>`
     return { svg, width, height: total }
   } finally {
     root.unmount()
@@ -181,4 +183,26 @@ export function download(blob: Blob, file: string) {
   a.click()
   a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+/**
+ * Mockup para el lienzo: una vista de la prenda pintada en un canvas con el fondo transparente, `px` píxeles de ancho.
+ * Devuelve también su proporción (alto / ancho).
+ */
+export async function mockupCanvas(t: GarmentTemplate, data: DesignData, materials: Map<string, Material>, body: Body, view: View, mode: 'color' | 'linea', px: number) {
+  const { svg, width, height } = await composeSvg(t, data, materials, body, { format: 'png', views: [view], mode, dims: false, notes: false, name: '', subtitle: '', transparent: true })
+  const scale = px / width
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
+  try {
+    const img = new Image()
+    img.src = url
+    await img.decode()
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(width * scale)
+    canvas.height = Math.round(height * scale)
+    canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+    return { canvas, aspect: height / width }
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }

@@ -121,6 +121,11 @@ export const api = {
     return api.createArtwork({ name, file: key, width, height, data: null, tags: '' })
   },
 
+  /** Sube una imagen tal cual (sin reducirla: las capas del lienzo) y devuelve su clave. */
+  uploadBlob: (blob: Blob) => request<{ key: string }>('/files', { method: 'POST', body: blob, headers: { 'Content-Type': blob.type } }),
+  /** Borra un archivo de la cuenta (p. ej. la versión anterior de una capa del lienzo). */
+  deleteFile: (key: string) => request<void>(`/files/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+
   /** Sube una imagen (reducida antes en el navegador) y devuelve su clave. */
   uploadImage: async (file: File) => {
     const blob = await shrinkImage(file)

@@ -23,11 +23,14 @@ import { ExportMenu } from './ExportMenu'
 import { PrintsPanel } from './PrintsPanel'
 import { Fold } from './Fold'
 import { useHistory } from './useHistory'
+import { Lienzo } from '../../lienzo/Lienzo'
+import { afterSave, flushCanvas } from '../../lienzo/engine'
 import './designer.css'
 import './studio-editor.css'
 
-type ViewMode = '2d' | '3d' | 'ambas'
+type ViewMode = 'lienzo' | '2d' | '3d' | 'ambas'
 const VIEW_MODES: { id: ViewMode; label: string; title: string }[] = [
+  { id: 'lienzo', label: 'Lienzo', title: 'Lienzo creativo: dibuja, pinta y monta el diseño sobre la prenda' },
   { id: '2d', label: 'Diseño 2D', title: 'Dibujo técnico' },
   { id: '3d', label: 'Ver en 3D', title: 'El diseño sobre el maniquí en 3D' },
   { id: 'ambas', label: '2D + 3D', title: 'Las dos vistas a la vez' },
@@ -87,11 +90,11 @@ export function DesignEditor() {
   const [comparing, setComparing] = useState(false)
   // Herramienta para dividir la pieza seleccionada con una línea (bloque de color)
   const [blockTool, setBlockTool] = useState(false)
-  const [mode, setMode] = useState<ViewMode>(() => stored<{ v: ViewMode }>('fd:editor-mode-v2', { v: '2d' }).v)
+  const [mode, setMode] = useState<ViewMode>(() => stored<{ v: ViewMode }>('fd:editor-mode-v3', { v: 'lienzo' }).v)
   const [settings, setSettings] = useState<CanvasSettings>(() => stored('fd:canvas', DEFAULT_SETTINGS))
   const changeMode = (m: ViewMode) => {
     setMode(m)
-    store('fd:editor-mode-v2', { v: m })
+    store('fd:editor-mode-v3', { v: m })
   }
   const changeSettings = (s: CanvasSettings) => {
     setSettings(s)
@@ -117,8 +120,13 @@ export function DesignEditor() {
     setSaving(true)
     setError(null)
     try {
-      await api.updateDesign(id, design)
-      setSaved(JSON.stringify(design))
+      // Antes, las capas pintadas del lienzo se suben como imágenes
+      const canvas = await flushCanvas(id)
+      const next = canvas ? { ...design, data: { ...design.data, canvas } } : design
+      if (canvas) history.set(next)
+      await api.updateDesign(id, next)
+      setSaved(JSON.stringify(next))
+      afterSave(id)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -501,6 +509,21 @@ export function DesignEditor() {
 
       <div className="editor-main">
         <ColorwaysBar template={template} data={design.data} onChange={(d) => setDesign({ ...design, data: d })} comparing={comparing} onCompare={setComparing} />
+        {mode === 'lienzo' && id && (
+          <Lienzo
+            designId={id}
+            name={design.name}
+            template={template}
+            data={design.data}
+            materials={materials}
+            body={body}
+            onChange={(canvas) => history.set({ ...design, data: { ...design.data, canvas } })}
+            onSave={save}
+            onExit={() => changeMode('2d')}
+            saving={saving}
+            dirty={dirty}
+          />
+        )}
         <div className={`editor-views mode-${mode}`}>
           {mode !== '3d' &&
             (comparing ? (
@@ -561,7 +584,7 @@ export function DesignEditor() {
                 }}
               />
             ))}
-          {mode !== '2d' && <Design3D template={template} data={design.data} materials={materials} client={client} designId={id} />}
+          {(mode === '3d' || mode === 'ambas') && <Design3D template={template} data={design.data} materials={materials} client={client} designId={id} />}
         </div>
       </div>
 
