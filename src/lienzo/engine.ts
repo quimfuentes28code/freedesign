@@ -1,7 +1,8 @@
 import { api } from '../api/client'
 import { detailAspect, detailPrims, drawPrims } from '../designer/details'
 import type { Shape } from '../designer/types'
-import type { CanvasDoc, CanvasLayer, DetailLayer, PaintLayer } from '../shared/designs'
+import type { CanvasDoc, CanvasLayer, DetailLayer, PaintLayer, TextLayer } from '../shared/designs'
+import { loadFont } from '../designer/fonts'
 import { fileUrl } from '../shared/library'
 import type { Rect } from './brushes'
 
@@ -16,6 +17,8 @@ export class Runtime {
   readonly images = new Map<string, HTMLImageElement>()
   /** Fornituras ya pintadas (se rehacen al cambiar su forma o color). */
   readonly details = new Map<string, { key: string; canvas: HTMLCanvasElement }>()
+  /** Textos ya pintados. */
+  readonly texts = new Map<string, { key: string; canvas: HTMLCanvasElement }>()
   /** De cada mockup: su encuadre en unidades del dibujo y sus piezas (para pintar una pieza con un toque). */
   readonly mockupInfo = new Map<string, { box: { x: number; y: number; w: number; h: number }; shapes: Shape[] }>()
   /** Capas de pintura con cambios sin subir. */
@@ -167,6 +170,11 @@ export function compose(r: Runtime, doc: CanvasDoc, opts: { paper?: boolean; ski
     else if (l.kind === 'mockup') {
       const m = r.mockups.get(l.id)
       if (m) g.drawImage(m, l.x, l.y, l.w, (l.w * m.height) / m.width)
+    } else if (l.kind === 'text') {
+      const c = textCanvas(r, l)
+      g.translate(l.x, l.y)
+      g.rotate((l.rotation * Math.PI) / 180)
+      g.drawImage(c, -c.width / 4, -c.height / 4, c.width / 2, c.height / 2)
     } else if (l.kind === 'detail') {
       const c = detailCanvas(r, l)
       const h = (l.w * c.height) / c.width
@@ -267,7 +275,6 @@ export function floodMask(source: HTMLCanvasElement, x: number, y: number, toler
 
 /** Logos de las fornituras (se cargan una vez; al llegar, se avisa para volver a pintar). */
 const artImages = new Map<string, HTMLImageElement | null>()
-const artListeners = new Set<() => void>()
 export function onArtLoaded(fn: () => void) {
   artListeners.add(fn)
   return () => {
@@ -283,6 +290,97 @@ function artImage(file: string) {
     })
   }
   return artImages.get(file) ?? null
+}
+
+/** Quien quiere saber cuándo llega una imagen o una fuente (para volver a pintar). */
+const artListeners = new Set<() => void>()
+
+/** Fuente CSS de un texto. */
+export const textFont = (l: Pick<TextLayer, 'italic' | 'bold' | 'size' | 'font'>) => `${l.italic ? 'italic ' : ''}${l.bold ? 700 : 400} ${l.size}px ${l.font}`
+
+/**
+ * Texto pintado en un canvas al doble de resolución (se dibuja a la mitad). Varias líneas centradas, espaciado entre
+ * letras, contorno y, con una sola línea, en arco. Si la fuente aún no ha llegado, se pide y avisa al llegar.
+ */
+export function textCanvas(r: Runtime, l: TextLayer) {
+  const css = textFont(l)
+  const ready = document.fonts.check(css)
+  if (!ready) loadFont(l.font).then(() => artListeners.forEach((fn) => fn()))
+  const key = JSON.stringify([l.text, css, l.color, l.letterSpacing, l.arc, l.stroke, l.strokeWidth, ready])
+  const cached = r.texts.get(l.id)
+  if (cached?.key === key) return cached.canvas
+  const k = 2
+  const probe = document.createElement('canvas').getContext('2d')!
+  probe.font = css
+  const spacing = l.letterSpacing ?? 0
+  const widthOf = (s: string) => probe.measureText(s).width + Math.max(0, s.length - 1) * spacing
+  const lines = l.text.split('\n')
+  const lineH = l.size * 1.18
+  const pad = (l.strokeWidth ?? 0) + l.size * 0.25
+  const arc = lines.length === 1 && l.arc ? (l.arc / 100) * Math.PI : 0
+  const textW = Math.max(1, ...lines.map(widthOf))
+  let w = textW + pad * 2
+  let h = lineH * lines.length + pad * 2
+  const R = arc ? textW / Math.abs(arc) : 0
+  if (arc) {
+    const sag = R * (1 - Math.cos(Math.min(Math.PI, Math.abs(arc)) / 2))
+    w = Math.max(w, Math.min(textW, 2 * R) + l.size + pad * 2)
+    h = lineH + sag + pad * 2 + l.size * 0.3
+  }
+  const c = document.createElement('canvas')
+  c.width = Math.max(2, Math.ceil(w * k))
+  c.height = Math.max(2, Math.ceil(h * k))
+  const g = c.getContext('2d')!
+  g.scale(k, k)
+  g.font = css
+  g.textBaseline = 'middle'
+  g.textAlign = 'center'
+  g.lineJoin = 'round'
+  const paintChar = (s: string, x: number, y: number) => {
+    if (l.stroke) {
+      g.strokeStyle = l.stroke
+      g.lineWidth = (l.strokeWidth ?? 4) * 2
+      g.strokeText(s, x, y)
+    }
+    g.fillStyle = l.color
+    g.fillText(s, x, y)
+  }
+  const paintLine = (s: string, cx: number, y: number) => {
+    if (!spacing) return paintChar(s, cx, y)
+    // Letra a letra para el espaciado
+    let x = cx - widthOf(s) / 2
+    g.textAlign = 'left'
+    for (const ch of s) {
+      if (l.stroke) {
+        g.strokeStyle = l.stroke
+        g.lineWidth = (l.strokeWidth ?? 4) * 2
+        g.strokeText(ch, x, y)
+      }
+      g.fillStyle = l.color
+      g.fillText(ch, x, y)
+      x += probe.measureText(ch).width + spacing
+    }
+    g.textAlign = 'center'
+  }
+  if (arc) {
+    // En arco: cada letra sobre un círculo de radio R (hacia arriba si el arco es positivo)
+    const up = arc > 0
+    const cy = up ? pad + l.size * 0.6 + R : h - pad - l.size * 0.6 - R
+    let a = -Math.abs(arc) / 2
+    for (const ch of lines[0]) {
+      const cw = probe.measureText(ch).width
+      const step = (cw + spacing) / R
+      const mid = a + cw / R / 2
+      g.save()
+      g.translate(w / 2 + Math.sin(mid) * R, cy - (up ? 1 : -1) * Math.cos(mid) * R)
+      g.rotate(up ? mid : -mid)
+      paintChar(ch, 0, 0)
+      g.restore()
+      a += step
+    }
+  } else lines.forEach((s, i) => paintLine(s, w / 2, pad + lineH * (i + 0.5)))
+  r.texts.set(l.id, { key, canvas: c })
+  return c
 }
 
 /** Fornitura pintada en un canvas (a buena resolución para su tamaño en el lienzo). */

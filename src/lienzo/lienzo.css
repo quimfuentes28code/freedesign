@@ -739,3 +739,119 @@
   max-height: 92%;
   object-fit: contain;
 }
+
+/* Texto */
+.lz-font .font-current {
+  width: 100%;
+}
+.lz-text-opts textarea {
+  width: 100%;
+  resize: vertical;
+}
+.lz-lib-thumb.checker {
+  background: repeating-conic-gradient(#e7e7e7 0% 25%, #f7f7f7 0% 50%) 50% / 14px 14px;
+}
+
+/* Estampados del bote */
+.lz-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--lz-line);
+  margin: 0 4px;
+}
+.lienzo .lz-select {
+  width: auto;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--lz-text);
+  border: 1px solid var(--lz-line);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.lz-mini-color input[type='color'] {
+  width: 32px;
+  height: 30px;
+  padding: 1px;
+}
+.lz-swatch-canvas {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--lz-line);
+}
+.lz-inline-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--lz-muted);
+}
+.lz-inline-range input {
+  width: 110px;
+  accent-color: var(--lz-accent);
+}
+.lz-toolbar {
+  flex-wrap: wrap;
+  max-width: calc(100% - 120px);
+}
+
+/* Selección y transformar */
+.lz-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.lz-ants {
+  fill: rgb(61 139 253 / 0.08);
+  stroke: #3d8bfd;
+  stroke-dasharray: 10 8;
+  animation: lz-ants 0.8s linear infinite;
+}
+@keyframes lz-ants {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+.lz-floating {
+  position: absolute;
+  transform-origin: 50% 50%;
+  outline: 2px dashed #3d8bfd;
+  cursor: move;
+  touch-action: none;
+}
+.lz-handle {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  margin: -13px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #3d8bfd;
+  touch-action: none;
+}
+.lz-handle.corner {
+  right: 0;
+  bottom: 0;
+  margin: 0 -13px -13px 0;
+  cursor: nwse-resize;
+  transform-origin: 100% 100%;
+}
+.lz-handle.rotate {
+  left: 50%;
+  top: -50px;
+  margin: 0;
+  cursor: grab;
+  transform-origin: 50% 100%;
+}
+
+/* Cuellos: la miniatura enseña sobre todo la parte de arriba */
+.lz-lib-thumb.neck {
+  align-items: start;
+}
+.lz-lib-thumb.neck svg {
+  height: 160%;
+  max-height: none;
+}
+
+.lz-overlay.persp {
+  overflow: visible;
+}

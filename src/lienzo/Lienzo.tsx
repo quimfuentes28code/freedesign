@@ -7,6 +7,7 @@ import { LOOK_ANGLES, LOOK_SCENES, lookPrompt, type LookScene } from '../designe
 import { FlatView } from '../designer/FlatView'
 import { drawScale } from '../designer/measures'
 import { reshapePockets } from '../designer/pocketShape'
+import { DEFAULT_SIZE, pieceTile } from '../designer/surfaces'
 import { defaultDesign, getTemplate, NEW_DESIGN_CATALOG } from '../designer/templates'
 import type { GarmentTemplate, Options } from '../designer/types'
 import { DETAIL_DEFAULTS } from '../pages/designer/DetailsPanel'
@@ -27,17 +28,21 @@ import {
   type HardwarePreset,
   type MockupLayer,
   type PaintLayer,
+  type Surface,
+  type SurfaceKind,
+  type TextLayer,
 } from '../shared/designs'
 import type { Material } from '../shared/library'
 import { BRUSHES, paperGrain, Stroke, union, type BrushPreset, type Rect, type Symmetry } from './brushes'
 import { ColorPicker } from './ColorPicker'
-import { afterSave, compose, detailCanvas, floodMask, garmentMask, grab, imageKey, loadImage, onArtLoaded, pieceAt, registerFlush, runtimeFor, uploadDirty, type Runtime } from './engine'
+import { afterSave, compose, detailCanvas, floodMask, garmentMask, grab, imageKey, loadImage, onArtLoaded, pieceAt, registerFlush, runtimeFor, textCanvas, uploadDirty, type Runtime } from './engine'
+import { FontPicker } from '../components/FontPicker'
 import { MOCKUPS, type MockupAsset } from './mockups'
 import type { Artwork } from '../shared/artworks'
 import { fileUrl as fileOf } from '../shared/library'
 import './lienzo.css'
 
-type Tool = 'brush' | 'eraser' | 'picker' | 'fill' | 'move'
+type Tool = 'brush' | 'eraser' | 'picker' | 'fill' | 'move' | 'text' | 'select'
 type Panel = 'brushes' | 'layers' | 'color' | 'ajustes' | 'acciones' | 'biblioteca' | 'opciones' | 'ia' | null
 
 interface Settings {
@@ -56,8 +61,13 @@ interface Settings {
   inside: boolean
   /** Bote: pinta la pieza de la prenda que se toca o rellena la zona cerrada de lo pintado. */
   fillMode: 'pieza' | 'zona'
+  /** Con qué rellena el bote: color liso o un estampado (con su segundo color, tamaño en cm y, si es imagen, el archivo). */
+  fillPattern: { kind: SurfaceKind; color2: string; size: number; angle: number; file?: string }
+  /** Guía de perspectiva: sin, de 1 o de 2 puntos de fuga (en fracción del lienzo). */
+  perspective: 0 | 1 | 2
+  vps: [number, number][]
 }
-const DEFAULTS: Settings = { brush: 'tecnica', eraser: 'aeroduro', color: '#1d1c1a', recent: [], sizes: {}, opacities: {}, streamline: {}, symmetry: 'none', grid: false, gridSize: 50, inside: false, fillMode: 'pieza' }
+const DEFAULTS: Settings = { brush: 'tecnica', eraser: 'aeroduro', color: '#1d1c1a', recent: [], sizes: {}, opacities: {}, streamline: {}, symmetry: 'none', grid: false, gridSize: 50, inside: false, fillMode: 'pieza', fillPattern: { kind: 'liso', color2: '#ffffff', size: 3, angle: 0 }, perspective: 0, vps: [[0.5, 0.42], [0.08, 0.42], [0.92, 0.42]] }
 const KEY = 'fd:lienzo'
 function loadSettings(): Settings {
   try {
@@ -95,7 +105,7 @@ interface Props {
    * Cambiar el color de una pieza de la prenda del propio diseño (y, a la vez, el lienzo, si cambia: el mockup pasa a
    * verse a color).
    */
-  onPieceColor: (piece: string, color: string, canvas?: CanvasDoc) => void
+  onPieceColor: (piece: string, color: string, canvas?: CanvasDoc, surface?: Surface | null) => void
   onOptions: (patch: Options) => void
   /** Guardar el diseño (el editor sube antes las capas cambiadas). */
   onSave: () => void
@@ -252,7 +262,9 @@ export function Lienzo(props: Props) {
   }, [props.dirty, props.saving, designId])
 
   const layer = doc.layers.find((l) => l.id === active) ?? null
-  const paintLayer = layer?.kind === 'paint' ? layer : null
+  // Capa de pintura con la que se trabaja: la elegida o, si se ha elegido otra cosa (un texto, una prenda), la de pintura
+  // más alta (si no, el pincel no hacía nada y no se entendía por qué)
+  const paintLayer = layer?.kind === 'paint' ? layer : (([...doc.layers].reverse().find((l) => l.kind === 'paint') as PaintLayer | undefined) ?? null)
 
   // --- Coordenadas: de la pantalla al lienzo ---
   const toDoc = (clientX: number, clientY: number) => {
@@ -423,6 +435,170 @@ export function Lienzo(props: Props) {
     setSettings({ recent: [c, ...settings.recent.filter((x) => x !== c)].slice(0, 14) })
   }
 
+  // --- Selección a mano (lazo) y transformar ---
+  const [lasso, setLasso] = useState<number[] | null>(null)
+  const [selection, setSelection] = useState<Path2D | null>(null)
+  const [selectionPts, setSelectionPts] = useState<number[] | null>(null)
+  /** Trozo levantado para transformar: su imagen, dónde estaba y cómo se ha movido, escalado y girado. */
+  const [floating, setFloating] = useState<{ layer: string; canvas: HTMLCanvasElement; x: number; y: number; w: number; h: number; dx: number; dy: number; scale: number; rot: number; before: ImageData } | null>(null)
+  const clearSelection = () => {
+    setSelection(null)
+    setSelectionPts(null)
+  }
+  const selTarget = () => {
+    if (!paintLayer) {
+      flash('Elige una capa de pintura (en «Capas»)')
+      return null
+    }
+    if (paintLayer.locked) {
+      flash('La capa está bloqueada')
+      return null
+    }
+    return paintLayer
+  }
+  const all = () => ({ x0: 0, y0: 0, x1: doc.w, y1: doc.h })
+  /** Aplica una operación sobre la capa de pintura dentro de la selección, con su paso de deshacer. */
+  const withSelection = (fn: (g: CanvasRenderingContext2D, path: Path2D) => void) => {
+    const l = selTarget()
+    if (!l || !selection) return
+    const lc = r.layer(l.id)
+    const before = grab(lc, all())
+    const g = lc.getContext('2d')!
+    g.save()
+    fn(g, selection)
+    g.restore()
+    r.history.push({ kind: 'pixels', layer: l.id, rect: all(), before, after: grab(lc, all()) })
+    r.dirty.add(l.id)
+    touch()
+    redraw()
+  }
+  const selErase = () => withSelection((g, p) => (g.clip(p), g.clearRect(0, 0, doc.w, doc.h)))
+  const selFill = () => withSelection((g, p) => ((g.fillStyle = settings.color), g.fill(p)))
+  /** Copia (o corta) lo seleccionado a una capa de pintura nueva, encima. */
+  const selToLayer = (cut: boolean) => {
+    const l = selTarget()
+    if (!l || !selection) return
+    const id = uid()
+    const nc = r.layer(id)
+    const ng = nc.getContext('2d')!
+    ng.save()
+    ng.clip(selection)
+    ng.drawImage(r.layer(l.id), 0, 0)
+    ng.restore()
+    r.dirty.add(id)
+    if (cut) selErase()
+    insertAbove({ id, kind: 'paint', name: `${l.name} (${cut ? 'cortado' : 'copia'})`, file: null, visible: true, locked: false, opacity: 1, blend: 'normal' })
+    clearSelection()
+  }
+  /** Levanta lo seleccionado (o la capa entera) para moverlo, escalarlo y girarlo. */
+  const startTransform = () => {
+    const l = selTarget()
+    if (!l) return
+    const lc = r.layer(l.id)
+    const before = grab(lc, all())
+    // Caja de lo que se levanta: la de la selección o la de lo pintado en la capa
+    let x0 = 0
+    let y0 = 0
+    let x1 = doc.w
+    let y1 = doc.h
+    if (selectionPts) {
+      x0 = Infinity
+      y0 = Infinity
+      x1 = -Infinity
+      y1 = -Infinity
+      for (let i = 0; i < selectionPts.length; i += 2) {
+        x0 = Math.min(x0, selectionPts[i])
+        x1 = Math.max(x1, selectionPts[i])
+        y0 = Math.min(y0, selectionPts[i + 1])
+        y1 = Math.max(y1, selectionPts[i + 1])
+      }
+    } else {
+      const b = paintedBox(lc)
+      if (!b) return flash('La capa está vacía')
+      ;[x0, y0, x1, y1] = b
+    }
+    x0 = Math.max(0, Math.floor(x0))
+    y0 = Math.max(0, Math.floor(y0))
+    x1 = Math.min(doc.w, Math.ceil(x1))
+    y1 = Math.min(doc.h, Math.ceil(y1))
+    const w = Math.max(1, x1 - x0)
+    const h = Math.max(1, y1 - y0)
+    const piece = document.createElement('canvas')
+    piece.width = w
+    piece.height = h
+    const pg = piece.getContext('2d')!
+    pg.save()
+    pg.translate(-x0, -y0)
+    if (selection) pg.clip(selection)
+    pg.drawImage(lc, 0, 0)
+    pg.restore()
+    // Se quita de la capa mientras se transforma
+    const g = lc.getContext('2d')!
+    g.save()
+    if (selection) g.clip(selection)
+    g.clearRect(0, 0, doc.w, doc.h)
+    g.restore()
+    setFloating({ layer: l.id, canvas: piece, x: x0, y: y0, w, h, dx: 0, dy: 0, scale: 1, rot: 0, before })
+    clearSelection()
+    redraw()
+  }
+  /** Deja lo transformado en la capa (o lo devuelve como estaba). */
+  const endTransform = (apply: boolean) => {
+    const f = floating
+    if (!f) return
+    const lc = r.layer(f.layer)
+    const g = lc.getContext('2d')!
+    if (apply) {
+      g.save()
+      g.translate(f.x + f.w / 2 + f.dx, f.y + f.h / 2 + f.dy)
+      g.rotate((f.rot * Math.PI) / 180)
+      g.scale(f.scale, f.scale)
+      g.drawImage(f.canvas, -f.w / 2, -f.h / 2)
+      g.restore()
+      r.history.push({ kind: 'pixels', layer: f.layer, rect: all(), before: f.before, after: grab(lc, all()) })
+      r.dirty.add(f.layer)
+      touch()
+    } else g.putImageData(f.before, 0, 0)
+    setFloating(null)
+    redraw()
+  }
+  /** Arrastre de un tirador del trozo levantado: mover, escalar (esquina) o girar. */
+  const dragFloating = (e: React.PointerEvent, mode: 'move' | 'scale' | 'rotate') => {
+    e.stopPropagation()
+    e.preventDefault()
+    const f0 = floating
+    if (!f0) return
+    const el = e.currentTarget as HTMLElement
+    try {
+      el.setPointerCapture(e.pointerId)
+    } catch {
+      // Puntero ya suelto: se sigue sin captura
+    }
+    const start = toDoc(e.clientX, e.clientY)
+    const cx = f0.x + f0.w / 2 + f0.dx
+    const cy = f0.y + f0.h / 2 + f0.dy
+    const d0 = Math.hypot(start.x - cx, start.y - cy) || 1
+    const a0 = Math.atan2(start.y - cy, start.x - cx)
+    const move = (ev: PointerEvent) => {
+      const p = toDoc(ev.clientX, ev.clientY)
+      if (mode === 'move') setFloating((f) => f && { ...f, dx: f0.dx + p.x - start.x, dy: f0.dy + p.y - start.y })
+      else if (mode === 'scale') setFloating((f) => f && { ...f, scale: Math.max(0.05, f0.scale * (Math.hypot(p.x - cx, p.y - cy) / d0)) })
+      else {
+        let rot = f0.rot + ((Math.atan2(p.y - cy, p.x - cx) - a0) * 180) / Math.PI
+        // Se ajusta a 0, 45, 90… si está muy cerca
+        const snap = Math.round(rot / 45) * 45
+        if (Math.abs(rot - snap) < 3) rot = snap
+        setFloating((f) => f && { ...f, rot })
+      }
+    }
+    const up = () => {
+      el.removeEventListener('pointermove', move)
+      el.removeEventListener('pointerup', up)
+    }
+    el.addEventListener('pointermove', move)
+    el.addEventListener('pointerup', up)
+  }
+
   // --- Cuentagotas, bote y mover ---
   const pick = (x: number, y: number) => {
     const c = compose(r, doc)
@@ -451,12 +627,19 @@ export function Lienzo(props: Props) {
           r.history.push({ kind: 'doc', before: docRef.current, after: next })
           docRef.current = next
         }
-        return props.onPieceColor(hit.piece, settings.color, next)
+        return props.onPieceColor(hit.piece, settings.color, next, fillSurface())
       }
-      return patch(hit.layer.id, { ...(toColor ? { style: 'color' } : {}), pieces: { ...hit.layer.pieces, [hit.piece]: { color: settings.color } } })
+      const surface = fillSurface()
+      return patch(hit.layer.id, { ...(toColor ? { style: 'color' } : {}), pieces: { ...hit.layer.pieces, [hit.piece]: { color: settings.color, ...(surface ? { surface } : {}) } } })
     }
     if (!target) return flash('Añade una capa de pintura para rellenar')
     fillZone(target, x, y)
+  }
+  /** Estampado elegido en el bote (o null si es color liso). */
+  const fillSurface = (): Surface | null => {
+    const p = settings.fillPattern
+    if (!p || p.kind === 'liso') return null
+    return { kind: p.kind, color2: p.color2, color3: '#6b7280', size: p.size || DEFAULT_SIZE[p.kind] || 3, angle: p.angle, ...(p.file ? { file: p.file } : {}) }
   }
   /** Rellena la zona cerrada por líneas alrededor de (x, y), en la capa de pintura `layer`. */
   const fillZone = (layer: PaintLayer, x: number, y: number) => {
@@ -476,7 +659,15 @@ export function Lienzo(props: Props) {
     g.drawImage(mask, 0, 0)
     g.filter = 'none'
     g.globalCompositeOperation = 'source-in'
-    g.fillStyle = settings.color
+    // Color liso o estampado (el azulejo del Diseñador, a unos 10 px por cm del lienzo y girado)
+    const surface = fillSurface()
+    const tile = surface ? pieceTile({ color: settings.color, surface }) : null
+    if (tile && !tile.stretch) {
+      const pattern = g.createPattern(tile.canvas, 'repeat')!
+      const k = (tile.cm * 10) / tile.canvas.width
+      pattern.setTransform(new DOMMatrix().rotate(surface!.angle).scale(k))
+      g.fillStyle = pattern
+    } else g.fillStyle = settings.color
     g.fillRect(0, 0, doc.w, doc.h)
     if (paintLayer.alphaLock) {
       g.globalCompositeOperation = 'destination-in'
@@ -543,7 +734,11 @@ export function Lienzo(props: Props) {
     if (loading) return
     setPanel(null)
     const el = viewport.current!
-    el.setPointerCapture(e.pointerId)
+    try {
+      el.setPointerCapture(e.pointerId)
+    } catch {
+      // Puntero ya suelto: se sigue sin captura
+    }
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType, t: performance.now(), sx: e.clientX, sy: e.clientY })
     if (e.pointerType === 'pen') penSeen.current = true
     const touches = [...pointers.current.values()].filter((p) => p.type === 'touch')
@@ -564,6 +759,17 @@ export function Lienzo(props: Props) {
     if (tool === 'brush' || tool === 'eraser') startStroke(e, tool === 'eraser')
     else if (tool === 'picker') pick(p.x, p.y)
     else if (tool === 'fill') fill(p.x, p.y)
+    else if (tool === 'select') {
+      if (floating) return
+      clearSelection()
+      setLasso([p.x, p.y])
+    } else if (tool === 'text') {
+      // Toca un texto para editarlo; en otro sitio, uno nuevo
+      const hit = [...doc.layers].reverse().find((l): l is TextLayer => l.kind === 'text' && l.visible && Math.abs(l.x - p.x) < l.size * Math.max(2, l.text.length * 0.3) && Math.abs(l.y - p.y) < l.size)
+      if (hit) setActive(hit.id)
+      else addText(p.x, p.y)
+      setPanel('layers')
+    }
     else if (tool === 'move' && layer && !layer.locked) moving.current = { x: p.x, y: p.y, layer, dx: 0, dy: 0, pointer: e.pointerId }
   }
   const onPointerMove = (e: ReactPointerEvent) => {
@@ -599,6 +805,12 @@ export function Lienzo(props: Props) {
       return
     }
     if (stroke.current) return moveStroke(e)
+    if (lasso && tool === 'select') {
+      const p = toDoc(e.clientX, e.clientY)
+      const n = lasso.length
+      if (Math.hypot(p.x - lasso[n - 2], p.y - lasso[n - 1]) > 3) setLasso([...lasso, p.x, p.y])
+      return
+    }
     const m = moving.current
     if (m && e.pointerId === m.pointer) {
       const p = toDoc(e.clientX, e.clientY)
@@ -626,6 +838,18 @@ export function Lienzo(props: Props) {
       return
     }
     if (stroke.current) return endStroke(e)
+    if (lasso) {
+      if (lasso.length >= 8) {
+        const path = new Path2D()
+        path.moveTo(lasso[0], lasso[1])
+        for (let i = 2; i < lasso.length; i += 2) path.lineTo(lasso[i], lasso[i + 1])
+        path.closePath()
+        setSelection(path)
+        setSelectionPts(lasso)
+      }
+      setLasso(null)
+      return
+    }
     if (moving.current) endMove()
   }
 
@@ -688,13 +912,20 @@ export function Lienzo(props: Props) {
         else if (k === 'i') setTool('picker')
         else if (k === 'g') setTool('fill')
         else if (k === 'v') setTool('move')
+        else if (k === 't') setTool('text')
+        else if (k === 's') setTool('select')
+        else if (k === 'enter' && floating) endTransform(true)
         else if (k === '0') {
           userMoved.current = false
           fit()
         }
         else if (k === '[') setSize(Math.max(1, Math.round(size / 1.2)))
         else if (k === ']') setSize(Math.min(500, Math.round(size * 1.2 + 1)))
-        else if (k === 'escape') setPanel(null)
+        else if (k === 'escape') {
+          setPanel(null)
+          if (floating) endTransform(false)
+          else clearSelection()
+        }
         else if (k === 'delete' || k === 'backspace') {
           // (en el lienzo no borra lo seleccionado del dibujo técnico)
         } else return
@@ -763,6 +994,39 @@ export function Lienzo(props: Props) {
     insertBase({ id: uid(), kind: 'mockup', name: e.name, view: 'front', x: x - w / 2, y: y - w * 0.6, w, style: 'linea', template: e.template.id, options: opts, pieces: {}, visible: true, locked: false, opacity: 1, blend: 'normal' })
     setTool('move')
   }
+  /** Cuello o capucha soltado sobre una prenda editable: se le pone si esa prenda lo tiene. */
+  const applyOption = (item: Extract<LibraryItem, { kind: 'option' }>, x: number, y: number) => {
+    const target = [...doc.layers].reverse().find((l): l is MockupLayer => {
+      if (l.kind !== 'mockup' || !l.visible) return false
+      const m = r.mockups.get(l.id)
+      const h = m ? (l.w * m.height) / m.width : l.w
+      return x >= l.x && x <= l.x + l.w && y >= l.y && y <= l.y + h
+    })
+    if (!target) return flash('Suéltalo encima de una prenda editable (las de «Prendas editables» o la de tu diseño)')
+    const t = target.template ? getTemplate(target.template) : template
+    const opt = t?.options.find((o) => o.id === item.option)
+    const ok = opt && (opt.type === 'toggle' ? typeof item.value === 'boolean' : opt.choices.some((c) => c.id === item.value))
+    if (!t || !ok) return flash(`${t?.name ?? 'Esta prenda'} no tiene «${item.label}»`)
+    if (target.template) patch(target.id, { options: { ...target.options, [item.option]: item.value } })
+    else props.onOptions({ [item.option]: item.value })
+    setActive(target.id)
+    flash(`${t.name}: ${item.label}`)
+  }
+  /** Texto nuevo en (x, y), con el color elegido y la última fuente usada. */
+  const addText = (x: number, y: number) => {
+    const n = doc.layers.filter((l) => l.kind === 'text').length + 1
+    const last = [...doc.layers].reverse().find((l): l is TextLayer => l.kind === 'text')
+    insertAbove({ id: uid(), kind: 'text', name: `Texto ${n}`, text: 'TU TEXTO', font: last?.font ?? "'Anton', sans-serif", size: last?.size ?? 90, color: settings.color, x, y, rotation: 0, visible: true, locked: false, opacity: 1, blend: 'normal' })
+  }
+  /** Gráfico de la Biblioteca (logo, estampado) como capa de imagen, centrado en (x, y). */
+  const addArtwork = async (a: Artwork, x: number, y: number) => {
+    const img = await loadImage(fileOf(a.file))
+    if (img) r.images.set(a.file, img)
+    const aspect = a.height / Math.max(1, a.width)
+    const w = aspect > 1 ? 300 / aspect : 360
+    insertAbove({ id: uid(), kind: 'image', name: a.name, file: a.file, aspect, x: x - w / 2, y: y - (w * aspect) / 2, w, rotation: 0, visible: true, locked: false, opacity: 1, blend: 'normal' })
+    setTool('move')
+  }
   /** Mockup de la biblioteca (imagen), centrado en (x, y). */
   const addMockupAsset = async (m: MockupAsset, x: number, y: number) => {
     const img = await loadImage(m.file)
@@ -794,6 +1058,8 @@ export function Lienzo(props: Props) {
     const p = { x: Math.min(doc.w - 60, Math.max(60, raw.x)), y: Math.min(doc.h - 60, Math.max(60, raw.y)) }
     if (item.kind === 'garment') addGarment(item.id, p.x, p.y)
     else if (item.kind === 'mockup') addMockupAsset(item.asset, p.x, p.y)
+    else if (item.kind === 'art') addArtwork(item.artwork, p.x, p.y)
+    else if (item.kind === 'option') applyOption(item, raw.x, raw.y)
     else addDetail(item.detail, item.label, p.x, p.y)
   }
   useEffect(() => {
@@ -924,7 +1190,7 @@ export function Lienzo(props: Props) {
 
   const brand = (user?.brandColors ?? []).map((c) => c.hex)
   const transform = `translate(${view.x}px, ${view.y}px) rotate(${view.r}rad) scale(${view.s})`
-  const cursor = tool === 'move' ? 'move' : tool === 'picker' || tool === 'fill' ? 'crosshair' : 'none'
+  const cursor = tool === 'move' ? 'move' : tool === 'text' ? 'text' : tool === 'select' ? 'crosshair' : tool === 'picker' || tool === 'fill' ? 'crosshair' : 'none'
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
 
   // A pantalla completa, fuera del editor (sus paneles tienen transformaciones que encerrarían el lienzo)
@@ -947,6 +1213,9 @@ export function Lienzo(props: Props) {
           <button className={panel === 'ia' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'ia' ? null : 'ia')} title="Imagen con IA: texto preparado para Gemini o ChatGPT">
             <Icon d="M10 2.5l1.4 3.6 3.6 1.4-3.6 1.4L10 12.5 8.6 8.9 5 7.5l3.6-1.4zM15 12l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8zM5 13l.6 1.4 1.4.6-1.4.6L5 17l-.6-1.4L3 15l1.4-.6z" />
           </button>
+          <button className={tool === 'select' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('select')} title="Selección a mano (S): rodea una zona para moverla, escalarla, girarla, copiarla o borrarla">
+            <Icon d="M10 3.5c4 0 6.5 1.8 6.5 4.2S14 12 10 12 3.5 10.1 3.5 7.7 6 3.5 10 3.5zM6 11.5l-1.5 5 2-1 1 1.5" />
+          </button>
           <button className={tool === 'move' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('move')} title="Mover la capa (V)">
             <Icon d="M10 2.5v15M2.5 10h15M10 2.5l-2.5 2.5M10 2.5l2.5 2.5M10 17.5l-2.5-2.5M10 17.5l2.5-2.5M2.5 10l2.5-2.5M2.5 10l2.5 2.5M17.5 10l-2.5-2.5M17.5 10l-2.5 2.5" />
           </button>
@@ -962,6 +1231,9 @@ export function Lienzo(props: Props) {
           </button>
           <button className={tool === 'eraser' ? 'lz-icon on' : 'lz-icon'} onClick={() => (tool === 'eraser' ? setPanel(panel === 'brushes' ? null : 'brushes') : setTool('eraser'))} title="Borrador (E) — toca otra vez para elegir su pincel">
             <Icon d="M7 16.5h9M3.5 12.5l7-7 5 5-6 6H7z" />
+          </button>
+          <button className={tool === 'text' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('text')} title="Texto (T): toca el lienzo para escribir">
+            <Icon d="M4 5V3.5h12V5M10 3.5v13M7.5 16.5h5" />
           </button>
           <button className={tool === 'picker' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('picker')} title="Cuentagotas (I)">
             <Icon d="M13 3.5l3.5 3.5-2 2-3.5-3.5zM11 5.5l-7 7v3h3l7-7" />
@@ -1033,6 +1305,19 @@ export function Lienzo(props: Props) {
                 />
               )
             }
+            if (l.kind === 'text') {
+              const c = textCanvas(r, l)
+              const w = c.width / 2
+              const h = c.height / 2
+              return (
+                <div
+                  key={l.id + c.width + c.height}
+                  className={l.id === active && (tool === 'move' || tool === 'text') ? 'lz-item selected' : 'lz-item'}
+                  style={{ ...style, left: l.x - w / 2 + (off?.dx ?? 0), top: l.y - h / 2 + (off?.dy ?? 0), width: w, height: h, transform: `rotate(${l.rotation}deg)` }}
+                  ref={(el) => mount(el, c)}
+                />
+              )
+            }
             if (l.kind === 'detail') {
               const c = detailCanvas(r, l)
               const h = (l.w * c.height) / c.width
@@ -1057,6 +1342,50 @@ export function Lienzo(props: Props) {
               </div>
             )
           })}
+          {(lasso || selectionPts) && (
+            <svg className="lz-overlay" viewBox={`0 0 ${doc.w} ${doc.h}`} width={doc.w} height={doc.h}>
+              <polygon points={(lasso ?? selectionPts)!.join(' ')} className="lz-ants" style={{ strokeWidth: 2 / view.s }} />
+            </svg>
+          )}
+          {floating && (
+            <div
+              className="lz-floating"
+              style={{
+                left: floating.x + floating.dx,
+                top: floating.y + floating.dy,
+                width: floating.w,
+                height: floating.h,
+                transform: `rotate(${floating.rot}deg) scale(${floating.scale})`,
+              }}
+              ref={(el) => {
+                if (el && el.firstChild !== floating.canvas) {
+                  el.replaceChildren(floating.canvas)
+                  floating.canvas.className = 'lz-layer-canvas'
+                }
+              }}
+              onPointerDown={(e) => dragFloating(e, 'move')}
+            >
+              <span className="lz-handle corner" style={{ transform: `scale(${1 / (view.s * floating.scale)})` }} onPointerDown={(e) => dragFloating(e, 'scale')} />
+              <span className="lz-handle rotate" style={{ transform: `translateX(-50%) scale(${1 / (view.s * floating.scale)})` }} onPointerDown={(e) => dragFloating(e, 'rotate')} />
+            </div>
+          )}
+          {settings.perspective > 0 && (
+            <PerspectiveGuide
+              w={doc.w}
+              h={doc.h}
+              points={(settings.perspective === 1 ? [settings.vps[0]] : [settings.vps[1], settings.vps[2]]).map(([x, y]) => [x * doc.w, y * doc.h] as [number, number])}
+              scale={view.s}
+              onMove={(i, x, y) => {
+                const vps = [...settings.vps] as [number, number][]
+                const k = settings.perspective === 1 ? 0 : i + 1
+                vps[k] = [x / doc.w, y / doc.h]
+                // Con dos puntos, los dos en el mismo horizonte
+                if (settings.perspective === 2) vps[k === 1 ? 2 : 1] = [vps[k === 1 ? 2 : 1][0], y / doc.h]
+                setSettings({ vps })
+              }}
+              toDoc={toDoc}
+            />
+          )}
           {settings.grid && <div className="lz-grid" style={{ backgroundSize: `${settings.gridSize}px ${settings.gridSize}px` }} />}
           {settings.symmetry !== 'none' && (
             <>
@@ -1081,6 +1410,49 @@ export function Lienzo(props: Props) {
         {notice && <div className="lz-notice">{notice}</div>}
       </div>
 
+      {tool === 'select' && (
+        <div className="lz-toolbar" onPointerDown={(e) => e.stopPropagation()}>
+          {floating ? (
+            <>
+              <span>Arrastra para mover; la esquina escala y el punto de arriba gira.</span>
+              <button className="lz-chip on" onClick={() => endTransform(true)}>
+                Aplicar (Intro)
+              </button>
+              <button className="lz-chip" onClick={() => endTransform(false)}>
+                Cancelar (Esc)
+              </button>
+            </>
+          ) : selection ? (
+            <>
+              <button className="lz-chip on" onClick={startTransform}>
+                Transformar
+              </button>
+              <button className="lz-chip" onClick={() => selToLayer(false)}>
+                Copiar a capa nueva
+              </button>
+              <button className="lz-chip" onClick={() => selToLayer(true)}>
+                Cortar a capa nueva
+              </button>
+              <button className="lz-chip" onClick={selFill}>
+                Rellenar
+              </button>
+              <button className="lz-chip" onClick={selErase}>
+                Borrar
+              </button>
+              <button className="lz-chip" onClick={clearSelection}>
+                Quitar selección
+              </button>
+            </>
+          ) : (
+            <>
+              <span>Rodea a mano la zona de la capa de pintura que quieras tocar.</span>
+              <button className="lz-chip" onClick={startTransform} title="Mover, escalar y girar todo lo pintado en la capa">
+                Transformar la capa entera
+              </button>
+            </>
+          )}
+        </div>
+      )}
       {tool === 'fill' && (
         <div className="lz-toolbar" onPointerDown={(e) => e.stopPropagation()}>
           <span>Bote:</span>
@@ -1090,6 +1462,15 @@ export function Lienzo(props: Props) {
           <button className={settings.fillMode === 'zona' ? 'lz-chip on' : 'lz-chip'} onClick={() => setSettings({ fillMode: 'zona' })} title="Rellena la zona cerrada por líneas en la capa de pintura">
             Zona pintada
           </button>
+          <span className="lz-sep" />
+          <PatternPicker value={settings.fillPattern} color={settings.color} onChange={(fillPattern) => setSettings({ fillPattern })} onUpload={async (file) => {
+            try {
+              const { key } = await api.uploadImage(file)
+              setSettings({ fillPattern: { ...settings.fillPattern, kind: 'imagen', file: key, size: settings.fillPattern.size || 20 } })
+            } catch (e) {
+              flash(e instanceof Error ? e.message : 'No se ha podido subir la imagen')
+            }
+          }} />
         </div>
       )}
       {carry && carry.moved && (
@@ -1101,6 +1482,7 @@ export function Lienzo(props: Props) {
         <Pop className="lz-pop left wide" title="Biblioteca">
           <Library
             materials={materials}
+            artworks={artworks}
             presets={presets}
             onDeletePreset={(p) => {
               setPresets((list) => list.filter((x) => x.id !== p.id))
@@ -1159,7 +1541,7 @@ export function Lienzo(props: Props) {
                 key={l.id}
                 layer={l}
                 active={l.id === active}
-                thumb={l.kind === 'paint' ? r.layer(l.id) : l.kind === 'mockup' ? r.mockups.get(l.id) : l.kind === 'detail' ? detailCanvas(r, l) : undefined}
+                thumb={l.kind === 'paint' ? r.layer(l.id) : l.kind === 'mockup' ? r.mockups.get(l.id) : l.kind === 'detail' ? detailCanvas(r, l) : l.kind === 'text' ? textCanvas(r, l) : undefined}
                 onOptions={() => setPanel('opciones')}
                 artworks={artworks}
                 onSavePreset={async (name, detail) => {
@@ -1205,6 +1587,21 @@ export function Lienzo(props: Props) {
               </button>
             ))}
           </div>
+          <p className="lz-label">Perspectiva</p>
+          <div className="lz-chips">
+            {(
+              [
+                [0, 'Sin perspectiva'],
+                [1, '1 punto de fuga'],
+                [2, '2 puntos de fuga'],
+              ] as [0 | 1 | 2, string][]
+            ).map(([id, label]) => (
+              <button key={id} className={settings.perspective === id ? 'lz-chip on' : 'lz-chip'} onClick={() => setSettings({ perspective: id })}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {settings.perspective > 0 && <p className="lz-muted">Arrastra los puntos azules para colocar el horizonte y los puntos de fuga.</p>}
           <label className="lz-toggle">
             <input type="checkbox" checked={settings.grid} onChange={(e) => setSettings({ grid: e.target.checked })} /> Cuadrícula
           </label>
@@ -1431,7 +1828,7 @@ function LayerRow(props: {
     g.drawImage(props.thumb, (c.width - props.thumb.width * k) / 2, (c.height - props.thumb.height * k) / 2, props.thumb.width * k, props.thumb.height * k)
   })
   const [editing, setEditing] = useState(false)
-  const kind = l.kind === 'paint' ? 'Pintura' : l.kind === 'mockup' ? 'Prenda' : l.kind === 'detail' ? 'Fornitura' : 'Imagen'
+  const kind = l.kind === 'paint' ? 'Pintura' : l.kind === 'mockup' ? 'Prenda' : l.kind === 'detail' ? 'Fornitura' : l.kind === 'text' ? 'Texto' : 'Imagen'
   return (
     <div className={active ? 'lz-layer-row on' : 'lz-layer-row'}>
       <div className="lz-layer-main" onClick={props.onSelect}>
@@ -1497,6 +1894,7 @@ function LayerRow(props: {
               Cambiar cuello, capucha, bolsillos…
             </button>
           )}
+          {l.kind === 'text' && <TextOptions layer={l} onPatch={props.onPatch} />}
           {l.kind === 'detail' && <DetailOptions layer={l} onPatch={props.onPatch} artworks={props.artworks} onSavePreset={props.onSavePreset} />}
           {(l.kind === 'mockup' || l.kind === 'image' || l.kind === 'detail') && (
             <div className="lz-field">
@@ -1506,7 +1904,7 @@ function LayerRow(props: {
               <input type="range" min={l.kind === 'detail' ? 8 : 60} max={2400} step={l.kind === 'detail' ? 2 : 10} value={l.w} onChange={(e) => props.onPatch({ w: Number(e.target.value) })} />
             </div>
           )}
-          {(l.kind === 'image' || l.kind === 'detail') && (
+          {(l.kind === 'image' || l.kind === 'detail' || l.kind === 'text') && (
             <div className="lz-field">
               <span>
                 Giro <strong>{Math.round(l.rotation)}°</strong>
@@ -1558,7 +1956,10 @@ function LayerRow(props: {
 void union
 
 /** Lo que se puede arrastrar desde la biblioteca. */
-type LibraryItem = { kind: 'garment'; id: string; label: string } | { kind: 'mockup'; asset: MockupAsset; label: string } | { kind: 'detail'; detail: Detail; label: string }
+type LibraryItem =
+  | { kind: 'garment'; id: string; label: string }
+  | { kind: 'option'; option: string; value: string | boolean; label: string }
+  | { kind: 'art'; artwork: Artwork; label: string } | { kind: 'mockup'; asset: MockupAsset; label: string } | { kind: 'detail'; detail: Detail; label: string }
 
 /** Fornitura de la biblioteca: la de serie de su tipo, con un estilo. */
 const stock = (kind: DetailKind, style: string | null): Detail => ({ ...DETAIL_DEFAULTS[kind], ...(style ? { style } : {}), id: 'stock', view: 'front', x: 0, y: 0 })
@@ -1572,16 +1973,18 @@ const HARDWARE: { kind: DetailKind; styles: (string | null)[] }[] = DETAIL_KINDS
 /** Biblioteca visual: prendas del catálogo y fornituras, para tocar (al centro) o arrastrar al lienzo. */
 function Library({
   materials,
+  artworks,
   presets,
   onDeletePreset,
   onStart,
 }: {
   materials: Map<string, import('../shared/library').Material>
+  artworks: Artwork[]
   presets: HardwarePreset[]
   onDeletePreset: (p: HardwarePreset) => void
   onStart: (item: LibraryItem, e: React.PointerEvent) => void
 }) {
-  const [tab, setTab] = useState<'mockups' | 'prendas' | 'fornituras' | 'mias'>('mockups')
+  const [tab, setTab] = useState<'mockups' | 'prendas' | 'cuellos' | 'graficos' | 'fornituras' | 'mias'>('mockups')
   const [kind, setKind] = useState<DetailKind>('cremallera')
   const body = useMemo(() => standardBody('M'), [])
   return (
@@ -1593,6 +1996,12 @@ function Library({
         <button className={tab === 'prendas' ? 'lz-chip on' : 'lz-chip'} onClick={() => setTab('prendas')} title="Prendas del Diseñador: se les cambia el cuello, la capucha… y se pintan por piezas">
           Prendas editables
         </button>
+        <button className={tab === 'cuellos' ? 'lz-chip on' : 'lz-chip'} onClick={() => setTab('cuellos')} title="Arrástralos encima de una prenda editable">
+          Cuellos y capuchas
+        </button>
+        <button className={tab === 'graficos' ? 'lz-chip on' : 'lz-chip'} onClick={() => setTab('graficos')} title="Tus logos y estampados de Biblioteca → Gráficos">
+          Gráficos
+        </button>
         <button className={tab === 'fornituras' ? 'lz-chip on' : 'lz-chip'} onClick={() => setTab('fornituras')}>
           Fornituras y detalles
         </button>
@@ -1601,7 +2010,36 @@ function Library({
         </button>
       </div>
       <p className="lz-muted">Arrastra al lienzo o toca para ponerlo en el centro.</p>
-      {tab === 'mockups' ? (
+      {tab === 'cuellos' ? (
+        <>
+          <p className="lz-muted">Suéltalos encima de una prenda editable (la de tu diseño o las de «Prendas editables»).</p>
+          <div className="lz-grid-items">
+            {NECKS.map((n) => (
+              <button key={n.option + String(n.value)} className="lz-lib-item" onPointerDown={(ev) => onStart({ kind: 'option', option: n.option, value: n.value, label: n.label }, ev)} title={n.label}>
+                <div className="lz-lib-thumb neck">
+                  <FlatView template={n.template} data={n.data} view="front" materials={materials} mode="linea" />
+                </div>
+                <span>{n.label}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : tab === 'graficos' ? (
+        artworks.length ? (
+          <div className="lz-grid-items">
+            {artworks.map((a) => (
+              <button key={a.id} className="lz-lib-item" onPointerDown={(ev) => onStart({ kind: 'art', artwork: a, label: a.name }, ev)} title={a.name}>
+                <div className="lz-lib-thumb checker">
+                  <img src={fileOf(a.file)} alt={a.name} draggable={false} />
+                </div>
+                <span>{a.name}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="lz-muted">Aún no tienes gráficos. Créalos o súbelos en Biblioteca → Gráficos y salen aquí.</p>
+        )
+      ) : tab === 'mockups' ? (
         <div className="lz-grid-items">
           {MOCKUPS.map((m) => (
             <button key={m.id} className="lz-lib-item" onPointerDown={(ev) => onStart({ kind: 'mockup', asset: m, label: m.name }, ev)} title={m.name}>
@@ -1834,7 +2272,9 @@ function mockupSource(l: MockupLayer, own: GarmentTemplate, data: DesignData, bo
   if (!t) return null
   const base = defaultDesign(t, l.options)
   // Lo que no se ha pintado, en gris muy claro (como el mockup en línea)
-  const pieces = Object.fromEntries(Object.entries(base.pieces).map(([k, v]) => [k, { ...v, color: l.pieces?.[k]?.color ?? (l.style === 'color' ? '#ebebea' : v.color) }]))
+  const pieces = Object.fromEntries(
+    Object.entries(base.pieces).map(([k, v]) => [k, { ...v, color: l.pieces?.[k]?.color ?? (l.style === 'color' ? '#ebebea' : v.color), ...(l.pieces?.[k]?.surface ? { surface: l.pieces[k].surface } : {}) }]),
+  )
   const kind = l.options?.genero === 'mujer' ? 'mujer' : 'hombre'
   return { t, data: { ...base, pieces, prints: [] } as DesignData, body: standardBody('M', kind) }
 }
@@ -1961,5 +2401,253 @@ function AiPanel({ design, materials, female, onExport }: { design: import('../s
       </div>
       {copied && <p className="lz-muted">Texto copiado: pégalo en la IA con Ctrl+V.</p>}
     </div>
+  )
+}
+
+/** Ajustes de un texto: lo que dice, fuente, tamaño, color, negrita, cursiva, espaciado, arco y contorno. */
+function TextOptions({ layer: l, onPatch }: { layer: TextLayer; onPatch: (p: Partial<CanvasLayer>) => void }) {
+  const set = (p: Partial<TextLayer>) => onPatch(p as Partial<CanvasLayer>)
+  return (
+    <div className="lz-text-opts">
+      <label className="lz-field">
+        <span>Texto</span>
+        <textarea className="lz-hex" rows={2} value={l.text} onChange={(e) => set({ text: e.target.value })} />
+      </label>
+      <div className="lz-font">
+        <FontPicker value={l.font} onChange={(font) => set({ font })} label="Fuente" />
+      </div>
+      <div className="lz-field">
+        <span>
+          Tamaño <strong>{Math.round(l.size)} px</strong>
+        </span>
+        <input type="range" min={10} max={500} step={1} value={l.size} onChange={(e) => set({ size: Number(e.target.value) })} />
+      </div>
+      <div className="lz-color-pair">
+        <label className="lz-field">
+          <span>Color</span>
+          <input type="color" value={l.color} onChange={(e) => set({ color: e.target.value })} />
+        </label>
+        <label className="lz-field">
+          <span>Contorno</span>
+          <input type="color" value={l.stroke ?? '#ffffff'} onChange={(e) => set({ stroke: e.target.value, strokeWidth: l.strokeWidth ?? 4 })} />
+        </label>
+      </div>
+      <div className="lz-chips">
+        <button className={l.bold ? 'lz-chip on' : 'lz-chip'} onClick={() => set({ bold: !l.bold })}>
+          <strong>N</strong> Negrita
+        </button>
+        <button className={l.italic ? 'lz-chip on' : 'lz-chip'} onClick={() => set({ italic: !l.italic })}>
+          <em>C</em> Cursiva
+        </button>
+        {l.stroke && (
+          <button className="lz-chip" onClick={() => set({ stroke: undefined, strokeWidth: undefined })}>
+            Sin contorno
+          </button>
+        )}
+      </div>
+      {l.stroke && (
+        <div className="lz-field">
+          <span>
+            Grosor del contorno <strong>{l.strokeWidth ?? 4} px</strong>
+          </span>
+          <input type="range" min={1} max={40} step={1} value={l.strokeWidth ?? 4} onChange={(e) => set({ strokeWidth: Number(e.target.value) })} />
+        </div>
+      )}
+      <div className="lz-field">
+        <span>
+          Espacio entre letras <strong>{l.letterSpacing ?? 0} px</strong>
+        </span>
+        <input type="range" min={-20} max={120} step={1} value={l.letterSpacing ?? 0} onChange={(e) => set({ letterSpacing: Number(e.target.value) || undefined })} />
+      </div>
+      <div className="lz-field">
+        <span>
+          Arco <strong>{l.arc ?? 0}</strong>
+        </span>
+        <input type="range" min={-100} max={100} step={1} value={l.arc ?? 0} onChange={(e) => set({ arc: Number(e.target.value) || undefined })} />
+      </div>
+    </div>
+  )
+}
+
+/** Estampados del bote (los mismos de las piezas del Diseñador). */
+const FILL_PATTERNS: { id: SurfaceKind; label: string }[] = [
+  { id: 'liso', label: 'Color liso' },
+  { id: 'rayas', label: 'Rayas' },
+  { id: 'cuadros', label: 'Cuadros' },
+  { id: 'escoces', label: 'Escocés' },
+  { id: 'patagallo', label: 'Pata de gallo' },
+  { id: 'diplomatica', label: 'Diplomática' },
+  { id: 'zigzag', label: 'Zigzag' },
+  { id: 'lunares', label: 'Lunares' },
+  { id: 'camuflaje', label: 'Camuflaje' },
+  { id: 'tiedye', label: 'Tie-dye' },
+  { id: 'imagen', label: 'Tu tela' },
+]
+
+/** Con qué rellena el bote: color liso o estampado, con su segundo color y su tamaño. */
+function PatternPicker({
+  value,
+  color,
+  onChange,
+  onUpload,
+}: {
+  value: Settings['fillPattern']
+  color: string
+  onChange: (v: Settings['fillPattern']) => void
+  onUpload: (f: File) => void
+}) {
+  const v = value ?? { kind: 'liso' as SurfaceKind, color2: '#ffffff', size: 3, angle: 0 }
+  return (
+    <>
+      <select value={v.kind} onChange={(e) => onChange({ ...v, kind: e.target.value as SurfaceKind, size: DEFAULT_SIZE[e.target.value] ?? v.size })} title="Rellenar con color liso o con un estampado" className="lz-select">
+        {FILL_PATTERNS.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.label}
+          </option>
+        ))}
+      </select>
+      {v.kind !== 'liso' && (
+        <>
+          <PatternSwatch value={v} color={color} />
+          {v.kind !== 'imagen' ? (
+            <label className="lz-mini-color" title="Segundo color del estampado">
+              <input type="color" value={v.color2} onChange={(e) => onChange({ ...v, color2: e.target.value })} />
+            </label>
+          ) : (
+            <label className="lz-chip" title="Sube una muestra de tu tela (se repite)">
+              {v.file ? 'Cambiar tela' : 'Subir tela'}
+              <input type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
+            </label>
+          )}
+          <label className="lz-inline-range" title="Tamaño del dibujo que se repite">
+            <span>{v.size} cm</span>
+            <input type="range" min={0.5} max={v.kind === 'imagen' || v.kind === 'camuflaje' || v.kind === 'tiedye' ? 80 : 20} step={0.5} value={v.size} onChange={(e) => onChange({ ...v, size: Number(e.target.value) })} />
+          </label>
+        </>
+      )}
+    </>
+  )
+}
+
+/** Muestra pequeña del estampado elegido. */
+function PatternSwatch({ value, color }: { value: Settings['fillPattern']; color: string }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const c = ref.current
+    if (!c) return
+    const g = c.getContext('2d')!
+    const tile = pieceTile({ color, surface: { kind: value.kind, color2: value.color2, color3: '#6b7280', size: value.size, angle: value.angle, ...(value.file ? { file: value.file } : {}) } })
+    g.clearRect(0, 0, c.width, c.height)
+    if (!tile) return
+    const p = g.createPattern(tile.canvas, 'repeat')!
+    p.setTransform(new DOMMatrix().scale(Math.max(0.03, Math.min(0.25, 10 / value.size / 10))))
+    g.fillStyle = p
+    g.fillRect(0, 0, c.width, c.height)
+  })
+  return <canvas ref={ref} width={30} height={30} className="lz-swatch-canvas" />
+}
+
+/** Caja de lo que hay pintado en un canvas (en px), o null si está vacío. Se mira en pequeño, rápido. */
+function paintedBox(c: HTMLCanvasElement): [number, number, number, number] | null {
+  const k = 0.125
+  const s = document.createElement('canvas')
+  s.width = Math.ceil(c.width * k)
+  s.height = Math.ceil(c.height * k)
+  const g = s.getContext('2d', { willReadFrequently: true })!
+  g.drawImage(c, 0, 0, s.width, s.height)
+  const d = g.getImageData(0, 0, s.width, s.height).data
+  let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity]
+  for (let y = 0; y < s.height; y++)
+    for (let x = 0; x < s.width; x++)
+      if (d[(y * s.width + x) * 4 + 3]) {
+        x0 = Math.min(x0, x)
+        x1 = Math.max(x1, x)
+        y0 = Math.min(y0, y)
+        y1 = Math.max(y1, y)
+      }
+  if (!Number.isFinite(x0)) return null
+  return [(x0 - 1) / k, (y0 - 1) / k, (x1 + 2) / k, (y1 + 2) / k]
+}
+
+/**
+ * Cuellos y capuchas de la biblioteca: cada tipo de cuello de las prendas del catálogo (una vez cada uno) y la
+ * capucha, con la miniatura de una prenda que lo lleva.
+ */
+const NECKS: { option: string; value: string | boolean; label: string; template: GarmentTemplate; data: DesignData }[] = (() => {
+  const out: { option: string; value: string | boolean; label: string; template: GarmentTemplate; data: DesignData }[] = []
+  const seen = new Set<string>()
+  for (const e of NEW_DESIGN_CATALOG) {
+    const t = e.template
+    for (const o of t.options) {
+      if (o.id === 'cuello' && o.type === 'choice')
+        for (const c of o.choices) {
+          if (seen.has(c.id)) continue
+          seen.add(c.id)
+          out.push({ option: 'cuello', value: c.id, label: c.id === 'capucha' ? 'Capucha' : `Cuello ${c.label.toLowerCase()}`, template: t, data: { ...defaultDesign(t, { ...e.options, cuello: c.id }), prints: [] } as DesignData })
+        }
+      if (o.id === 'capucha' && o.type === 'toggle' && !seen.has('capucha-toggle')) {
+        seen.add('capucha-toggle')
+        out.push({ option: 'capucha', value: true, label: 'Capucha (sudadera)', template: t, data: { ...defaultDesign(t, { ...e.options, capucha: true }), prints: [] } as DesignData })
+        out.push({ option: 'capucha', value: false, label: 'Sin capucha (sudadera)', template: t, data: { ...defaultDesign(t, { ...e.options, capucha: false }), prints: [] } as DesignData })
+      }
+    }
+  }
+  return out
+})()
+
+/** Guía de perspectiva: líneas que salen de cada punto de fuga y el horizonte; los puntos se arrastran. */
+function PerspectiveGuide({
+  w,
+  h,
+  points,
+  scale,
+  onMove,
+  toDoc,
+}: {
+  w: number
+  h: number
+  points: [number, number][]
+  scale: number
+  onMove: (i: number, x: number, y: number) => void
+  toDoc: (x: number, y: number) => { x: number; y: number }
+}) {
+  const L = Math.hypot(w, h) * 2
+  const sw = 1.2 / scale
+  return (
+    <svg className="lz-overlay persp" viewBox={`0 0 ${w} ${h}`} width={w} height={h}>
+      <line x1={-L} y1={points[0][1]} x2={L} y2={points[0][1]} stroke="#3d8bfd" strokeWidth={sw * 1.6} opacity={0.7} />
+      {points.map(([px, py], i) => (
+        <g key={i}>
+          {Array.from({ length: 36 }, (_, k) => {
+            const a = (k / 36) * Math.PI * 2
+            return <line key={k} x1={px} y1={py} x2={px + Math.cos(a) * L} y2={py + Math.sin(a) * L} stroke="#3d8bfd" strokeWidth={sw} opacity={0.35} />
+          })}
+          <circle
+            cx={px}
+            cy={py}
+            r={12 / scale}
+            fill="#ffffff"
+            stroke="#3d8bfd"
+            strokeWidth={3 / scale}
+            style={{ pointerEvents: 'auto', cursor: 'grab' }}
+            onPointerDown={(e) => {
+              e.stopPropagation()
+              const el = e.currentTarget
+              el.setPointerCapture(e.pointerId)
+              const move = (ev: PointerEvent) => {
+                const p = toDoc(ev.clientX, ev.clientY)
+                onMove(i, p.x, p.y)
+              }
+              const up = () => {
+                el.removeEventListener('pointermove', move)
+                el.removeEventListener('pointerup', up)
+              }
+              el.addEventListener('pointermove', move)
+              el.addEventListener('pointerup', up)
+            }}
+          />
+        </g>
+      ))}
+    </svg>
   )
 }

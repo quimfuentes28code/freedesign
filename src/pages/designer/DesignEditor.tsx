@@ -518,13 +518,13 @@ export function DesignEditor() {
             materials={materials}
             body={body}
             onChange={(canvas) => history.set({ ...design, data: { ...design.data, canvas } })}
-            onPieceColor={(piece, color, canvas) =>
+            onPieceColor={(piece, color, canvas, surface) =>
               history.set({
                 ...design,
                 data: {
                   ...design.data,
                   ...(canvas ? { canvas } : {}),
-                  pieces: { ...design.data.pieces, [piece]: { ...design.data.pieces[piece], color, colorName: undefined, colorCode: undefined } },
+                  pieces: { ...design.data.pieces, [piece]: { ...design.data.pieces[piece], color, colorName: undefined, colorCode: undefined, surface: surface ?? undefined } },
                 },
               })
             }

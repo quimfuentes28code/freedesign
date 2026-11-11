@@ -447,7 +447,7 @@ export interface MockupLayer extends CanvasLayerBase {
    */
   template?: string
   options?: Record<string, string | boolean>
-  pieces?: Record<string, { color: string }>
+  pieces?: Record<string, { color: string; surface?: Surface }>
 }
 /** Fornitura o detalle (cremallera, botón, cordón, parche…) colocado en el lienzo. Centro (x, y) y ancho en px. */
 export interface DetailLayer extends CanvasLayerBase {
@@ -472,7 +472,28 @@ export interface ImageLayer extends CanvasLayerBase {
   w: number
   rotation: number
 }
-export type CanvasLayer = PaintLayer | MockupLayer | ImageLayer | DetailLayer
+/** Texto en el lienzo, con cualquier fuente. Centro (x, y) en px; tamaño de letra en px. */
+export interface TextLayer extends CanvasLayerBase {
+  kind: 'text'
+  text: string
+  /** Pila CSS de la fuente (`'Anton', sans-serif`). */
+  font: string
+  size: number
+  color: string
+  x: number
+  y: number
+  rotation: number
+  bold?: boolean
+  italic?: boolean
+  /** Espacio entre letras (px). */
+  letterSpacing?: number
+  /** Arco: −100 a 100 (positivo, hacia arriba). Solo con una línea. */
+  arc?: number
+  /** Contorno (color y grosor en px). */
+  stroke?: string
+  strokeWidth?: number
+}
+export type CanvasLayer = PaintLayer | MockupLayer | ImageLayer | DetailLayer | TextLayer
 
 /** Documento del lienzo: tamaño en píxeles, color del papel y capas (la primera, la de más abajo). */
 export interface CanvasDoc {

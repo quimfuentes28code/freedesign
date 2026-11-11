@@ -180,10 +180,11 @@ function readCanvas(raw: unknown): CanvasDoc | null {
     else if (l.kind === 'mockup') {
       const options: Record<string, string | boolean> = {}
       for (const [k, v] of Object.entries((l.options as Record<string, unknown>) ?? {}).slice(0, 60)) if (typeof v === 'string' || typeof v === 'boolean') options[k.slice(0, 40)] = typeof v === 'string' ? v.slice(0, 40) : v
-      const pieces: Record<string, { color: string }> = {}
+      const pieces: Record<string, { color: string; surface?: Surface }> = {}
       for (const [k, v] of Object.entries((l.pieces as Record<string, unknown>) ?? {}).slice(0, 40)) {
         const color = hex((v as Record<string, unknown> | null)?.color, '')
-        if (color) pieces[k.slice(0, 40)] = { color }
+        const surface = readSurface((v as Record<string, unknown> | null)?.surface)
+        if (color) pieces[k.slice(0, 40)] = { color, ...(surface ? { surface } : {}) }
       }
       layers.push({
         ...base,
@@ -194,6 +195,24 @@ function readCanvas(raw: unknown): CanvasDoc | null {
         w: Math.max(20, finite(l.w, 600)),
         style: l.style === 'linea' ? 'linea' : 'color',
         ...(text(l.template) ? { template: text(l.template).slice(0, 40), options, pieces } : {}),
+      })
+    } else if (l.kind === 'text') {
+      const stroke = hex(l.stroke, '')
+      layers.push({
+        ...base,
+        kind: 'text',
+        text: text(l.text).slice(0, 400) || 'Texto',
+        font: text(l.font).slice(0, 120) || 'Inter, sans-serif',
+        size: Math.min(800, Math.max(4, finite(l.size, 80))),
+        color: hex(l.color, '#1d1c1a'),
+        x: finite(l.x, 0),
+        y: finite(l.y, 0),
+        rotation: finite(l.rotation, 0),
+        ...(l.bold === true ? { bold: true } : {}),
+        ...(l.italic === true ? { italic: true } : {}),
+        ...(finite(l.letterSpacing, 0) ? { letterSpacing: Math.max(-50, Math.min(200, finite(l.letterSpacing, 0))) } : {}),
+        ...(finite(l.arc, 0) ? { arc: Math.max(-100, Math.min(100, finite(l.arc, 0))) } : {}),
+        ...(stroke ? { stroke, strokeWidth: Math.max(0.5, Math.min(60, finite(l.strokeWidth, 4))) } : {}),
       })
     } else if (l.kind === 'detail') {
       const detail = readDetail(l.detail)
