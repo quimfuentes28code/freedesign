@@ -22,6 +22,7 @@ import { ProjectDetail } from './pages/projects/ProjectDetail'
 import { ProjectsPage } from './pages/projects/ProjectsPage'
 import { ProductionPage } from './pages/production/ProductionPage'
 import { TechPackPage } from './pages/production/TechPack'
+import { PatternPage } from './pages/production/Pattern'
 import { EconomyPage } from './pages/economy/EconomyPage'
 import { ExpensesPage } from './pages/economy/Expenses'
 import { NotFound } from './pages/Sections'
@@ -56,6 +57,7 @@ export default function App() {
               <Route path="proyectos/:id" element={<ProjectDetail />} />
               <Route path="produccion" element={<ProductionPage />} />
               <Route path="produccion/ficha/:id" element={<TechPackPage />} />
+              <Route path="produccion/patron/:id" element={<PatternPage />} />
               <Route path="biblioteca" element={<MaterialsCatalog />} />
               <Route path="biblioteca/nuevo" element={<MaterialForm />} />
               <Route path="biblioteca/graficos" element={<ArtworksList />} />

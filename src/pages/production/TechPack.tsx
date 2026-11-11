@@ -122,6 +122,11 @@ export function TechPackPage() {
           <Link to={`/proyectos/${id}`} className="button">
             Volver al proyecto
           </Link>
+          {design && (
+            <Link to={`/produccion/patron/${design.id}`} className="button" title="Las piezas del patrón, para imprimir a tamaño real">
+              Patrón
+            </Link>
+          )}
           <button className="button" onClick={() => window.print()} disabled={!template}>
             Imprimir / PDF
           </button>

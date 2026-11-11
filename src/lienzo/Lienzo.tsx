@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { api } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import { mockupCanvas } from '../designer/exportFlat'
+import { LOOK_ANGLES, LOOK_SCENES, lookPrompt, type LookScene } from '../designer/lookbook'
 import { FlatView } from '../designer/FlatView'
 import { drawScale } from '../designer/measures'
 import { reshapePockets } from '../designer/pocketShape'
@@ -36,7 +37,7 @@ import { fileUrl as fileOf } from '../shared/library'
 import './lienzo.css'
 
 type Tool = 'brush' | 'eraser' | 'picker' | 'fill' | 'move'
-type Panel = 'brushes' | 'layers' | 'color' | 'ajustes' | 'acciones' | 'biblioteca' | 'opciones' | null
+type Panel = 'brushes' | 'layers' | 'color' | 'ajustes' | 'acciones' | 'biblioteca' | 'opciones' | 'ia' | null
 
 interface Settings {
   brush: string
@@ -893,6 +894,9 @@ export function Lienzo(props: Props) {
           <button className={panel === 'biblioteca' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'biblioteca' ? null : 'biblioteca')} title="Biblioteca: prendas y fornituras para arrastrar al lienzo">
             <Icon d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM13.5 11v5M11 13.5h5" />
           </button>
+          <button className={panel === 'ia' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'ia' ? null : 'ia')} title="Imagen con IA: texto preparado para Gemini o ChatGPT">
+            <Icon d="M10 2.5l1.4 3.6 3.6 1.4-3.6 1.4L10 12.5 8.6 8.9 5 7.5l3.6-1.4zM15 12l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8zM5 13l.6 1.4 1.4.6-1.4.6L5 17l-.6-1.4L3 15l1.4-.6z" />
+          </button>
           <button className={tool === 'move' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('move')} title="Mover la capa (V)">
             <Icon d="M10 2.5v15M2.5 10h15M10 2.5l-2.5 2.5M10 2.5l2.5 2.5M10 17.5l-2.5-2.5M10 17.5l2.5-2.5M2.5 10l2.5-2.5M2.5 10l2.5 2.5M17.5 10l-2.5-2.5M17.5 10l-2.5 2.5" />
           </button>
@@ -1066,6 +1070,16 @@ export function Lienzo(props: Props) {
           />
         </Pop>
       )}
+      {panel === 'ia' && (
+        <Pop className="lz-pop left wide" title="Imagen con IA">
+          <AiPanel
+            design={{ id: designId, name: props.name, template: template.id, data, clientId: null, projectId: null } as unknown as import('../shared/designs').Design}
+            materials={materials}
+            female={data.options.genero === 'mujer'}
+            onExport={exportPng}
+          />
+        </Pop>
+      )}
       {panel === 'brushes' && (
         <Pop className="lz-pop right" title={tool === 'eraser' ? 'Pincel del borrador' : 'Biblioteca de pinceles'}>
           <BrushLibrary
@@ -1188,6 +1202,9 @@ export function Lienzo(props: Props) {
           <p className="lz-muted">También puedes pegar una imagen con Ctrl+V.</p>
           <p className="lz-label">Compartir</p>
           <div className="lz-chips">
+            <a className="lz-chip" href={`/produccion/patron/${designId}`} title="Las piezas del patrón de la prenda, para imprimir a tamaño real">
+              Ver el patrón
+            </a>
             <button className="lz-chip" onClick={exportPng}>
               Exportar PNG
             </button>
@@ -1802,6 +1819,83 @@ function GarmentOptions({ layer, own, materials, onChange }: { layer: MockupLaye
           </div>
         )
       })}
+    </div>
+  )
+}
+
+/**
+ * Pedir una imagen a una IA externa (Gemini o ChatGPT), sin coste en la app: prepara el texto con todo el detalle de
+ * la prenda (el del Lookbook), lo copia y abre la IA en una ventana al lado. La imagen que devuelva se pega en el
+ * lienzo con Ctrl+V (queda como capa de imagen) o se sube con «Imagen…».
+ */
+function AiPanel({ design, materials, female, onExport }: { design: import('../shared/designs').Design; materials: Map<string, import('../shared/library').Material>; female: boolean; onExport: () => void }) {
+  const [scene, setScene] = useState<LookScene>(LOOK_SCENES[0].id)
+  const [extra, setExtra] = useState('')
+  const base = useMemo(
+    () =>
+      lookPrompt({
+        items: [{ role: 'Prenda', design }],
+        materials,
+        kind: female ? 'mujer' : 'hombre',
+        shoes: '',
+        shoesText: '',
+        scene,
+        sceneText: '',
+        angles: [LOOK_ANGLES[0].id],
+        extra,
+      }),
+    [design, materials, female, scene, extra],
+  )
+  const [text, setText] = useState(base)
+  useEffect(() => setText(base), [base])
+  const [copied, setCopied] = useState(false)
+  const open = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+    } catch {
+      setCopied(false)
+    }
+    // Ventana a un lado de la pantalla (si el navegador lo permite)
+    const w = Math.min(560, Math.round(window.screen.availWidth * 0.4))
+    window.open(url, 'fd-ia', `popup,width=${w},height=${window.screen.availHeight},left=${window.screen.availWidth - w},top=0`)
+  }
+  return (
+    <div className="lz-ai">
+      <p className="lz-muted">
+        Prepara el texto con todo el detalle de la prenda. Al abrir la IA, el texto queda copiado: pégalo allí (Ctrl+V) junto con la imagen del lienzo como
+        referencia. Cuando tengas la imagen, cópiala y pégala aquí con Ctrl+V: queda como una capa.
+      </p>
+      <p className="lz-label">Escenario</p>
+      <div className="lz-chips">
+        {LOOK_SCENES.filter((x) => x.id !== 'otro').map((x) => (
+          <button key={x.id} className={scene === x.id ? 'lz-chip on' : 'lz-chip'} onClick={() => setScene(x.id)}>
+            {x.label}
+          </button>
+        ))}
+      </div>
+      <label className="lz-field">
+        <span>Algo más (pose, capucha puesta, chaqueta abierta…)</span>
+        <input className="lz-hex" value={extra} onChange={(e) => setExtra(e.target.value)} />
+      </label>
+      <label className="lz-field">
+        <span>Texto para la IA (lo puedes retocar)</span>
+        <textarea className="lz-hex lz-prompt" value={text} onChange={(e) => setText(e.target.value)} rows={10} />
+      </label>
+      <div className="lz-chips">
+        <button className="lz-btn" onClick={onExport} title="Descarga el lienzo como PNG para adjuntarlo a la IA como referencia">
+          Descargar el lienzo (referencia)
+        </button>
+      </div>
+      <div className="lz-chips">
+        <button className="lz-btn primary" onClick={() => open('https://gemini.google.com/app')}>
+          Copiar y abrir Gemini
+        </button>
+        <button className="lz-btn" onClick={() => open('https://chatgpt.com/')}>
+          Copiar y abrir ChatGPT
+        </button>
+      </div>
+      {copied && <p className="lz-muted">Texto copiado: pégalo en la IA con Ctrl+V.</p>}
     </div>
   )
 }
