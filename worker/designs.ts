@@ -199,8 +199,8 @@ function readCanvas(raw: unknown): CanvasDoc | null {
       const detail = readDetail(l.detail)
       if (detail) layers.push({ ...base, kind: 'detail', detail, x: finite(l.x, 0), y: finite(l.y, 0), w: Math.max(4, finite(l.w, 80)), rotation: finite(l.rotation, 0) })
     }
-    else if (l.kind === 'image' && isFileKey(file))
-      layers.push({ ...base, kind: 'image', file, aspect: Math.max(0.05, finite(l.aspect, 1)), x: finite(l.x, 0), y: finite(l.y, 0), w: Math.max(4, finite(l.w, 400)), rotation: finite(l.rotation, 0) })
+    else if (l.kind === 'image' && (isFileKey(file) || /^\/mockups\/[a-z0-9-]+\.png$/.test(text(l.asset))))
+      layers.push({ ...base, kind: 'image', file: isFileKey(file) ? file : '', ...(isFileKey(file) ? {} : { asset: text(l.asset) }), aspect: Math.max(0.05, finite(l.aspect, 1)), x: finite(l.x, 0), y: finite(l.y, 0), w: Math.max(4, finite(l.w, 400)), rotation: finite(l.rotation, 0) })
   }
   return { w, h, paper: hex(c.paper, '#ffffff'), layers }
 }

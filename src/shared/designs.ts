@@ -461,7 +461,10 @@ export interface DetailLayer extends CanvasLayerBase {
 /** Imagen pegada o subida (inspiración, foto, referencia). */
 export interface ImageLayer extends CanvasLayerBase {
   kind: 'image'
+  /** Archivo subido (en Workers KV); vacío si es una imagen de la app (`asset`). */
   file: string
+  /** Imagen de la app (p. ej. un mockup de `/mockups/`): cuenta como prenda para pintar solo dentro y para el bote. */
+  asset?: string
   /** Alto / ancho. */
   aspect: number
   x: number

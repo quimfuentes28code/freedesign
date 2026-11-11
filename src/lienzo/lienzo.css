@@ -733,3 +733,9 @@
   font-size: 12px;
   line-height: 1.45;
 }
+
+.lz-lib-thumb img {
+  max-width: 92%;
+  max-height: 92%;
+  object-fit: contain;
+}

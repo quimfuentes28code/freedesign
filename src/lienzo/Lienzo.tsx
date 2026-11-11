@@ -31,7 +31,8 @@ import {
 import type { Material } from '../shared/library'
 import { BRUSHES, paperGrain, Stroke, union, type BrushPreset, type Rect, type Symmetry } from './brushes'
 import { ColorPicker } from './ColorPicker'
-import { afterSave, compose, detailCanvas, floodMask, garmentMask, grab, onArtLoaded, pieceAt, registerFlush, runtimeFor, uploadDirty, type Runtime } from './engine'
+import { afterSave, compose, detailCanvas, floodMask, garmentMask, grab, imageKey, loadImage, onArtLoaded, pieceAt, registerFlush, runtimeFor, uploadDirty, type Runtime } from './engine'
+import { MOCKUPS, type MockupAsset } from './mockups'
 import type { Artwork } from '../shared/artworks'
 import { fileUrl as fileOf } from '../shared/library'
 import './lienzo.css'
@@ -173,6 +174,18 @@ export function Lienzo(props: Props) {
     const s = Math.min((width - 140) / doc.w, (height - 60) / doc.h)
     setView({ s, r: 0, x: (width - doc.w * s) / 2, y: (height - doc.h * s) / 2 })
   }, [doc.w, doc.h])
+  // Mientras no se mueva el lienzo a mano, se vuelve a encajar al cambiar el tamaño de la ventana (al abrir, la
+  // pantalla aún no tenía su tamaño y el papel quedaba pequeño y a un lado)
+  const userMoved = useRef(false)
+  useEffect(() => {
+    const el = viewport.current
+    if (!el) return
+    const ro = new ResizeObserver(() => {
+      if (!userMoved.current) fit()
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [fit])
   useEffect(() => {
     let alive = true
     r.load(doc).then(() => {
@@ -418,9 +431,16 @@ export function Lienzo(props: Props) {
     setSettings({ color: hex })
   }
   const fill = (x: number, y: number) => {
+    // Capa en la que pinta el bote: la de pintura elegida o, si no, la de pintura más alta
+    const target = paintLayer ?? ([...doc.layers].reverse().find((l) => l.kind === 'paint') as PaintLayer | undefined) ?? null
     if (settings.fillMode === 'pieza') {
       const hit = pieceAt(r, doc, x, y)
-      if (!hit) return flash('Toca una pieza de una prenda (o cambia el bote a «Zona pintada»)')
+      if (!hit) {
+        // Mockup de imagen: se rellena la zona que se ha tocado, entre sus líneas
+        const inGarment = garmentMask(r, doc).getContext('2d')!.getImageData(Math.floor(x), Math.floor(y), 1, 1).data[3] > 0
+        if (inGarment && target) return fillZone(target, x, y)
+        return flash('Toca una pieza de una prenda (o cambia el bote a «Zona pintada»)')
+      }
       remember(settings.color)
       // En línea no se ven los colores: la prenda pasa a verse a color (lo que no se ha pintado sigue en gris claro)
       const toColor = hit.layer.style === 'linea'
@@ -435,7 +455,13 @@ export function Lienzo(props: Props) {
       }
       return patch(hit.layer.id, { ...(toColor ? { style: 'color' } : {}), pieces: { ...hit.layer.pieces, [hit.piece]: { color: settings.color } } })
     }
-    if (!paintLayer || paintLayer.locked) return flash('Elige una capa de pintura sin bloquear')
+    if (!target) return flash('Añade una capa de pintura para rellenar')
+    fillZone(target, x, y)
+  }
+  /** Rellena la zona cerrada por líneas alrededor de (x, y), en la capa de pintura `layer`. */
+  const fillZone = (layer: PaintLayer, x: number, y: number) => {
+    const paintLayer = layer
+    if (paintLayer.locked) return flash('La capa de pintura está bloqueada')
     const mask = floodMask(compose(r, doc), x, y)
     if (!mask) return
     const lc = r.layer(paintLayer.id)
@@ -562,11 +588,13 @@ export function Lienzo(props: Props) {
       const ox = g.view.x - mx
       const oy = g.view.y - my
       const f = s / g.view.s
+      userMoved.current = true
       setView({ s, r: g.view.r + rot, x: mx + (ox * cos - oy * sin) * f + (now.mid.x - g.mid.x), y: my + (ox * sin + oy * cos) * f + (now.mid.y - g.mid.y) })
       return
     }
     if (panning.current) {
       const p = panning.current
+      userMoved.current = true
       setView({ ...p.view, x: p.view.x + e.clientX - p.x, y: p.view.y + e.clientY - p.y })
       return
     }
@@ -602,6 +630,7 @@ export function Lienzo(props: Props) {
   }
 
   const onWheel = (e: React.WheelEvent) => {
+    userMoved.current = true
     const rect = viewport.current!.getBoundingClientRect()
     const mx = e.clientX - rect.left
     const my = e.clientY - rect.top
@@ -659,7 +688,10 @@ export function Lienzo(props: Props) {
         else if (k === 'i') setTool('picker')
         else if (k === 'g') setTool('fill')
         else if (k === 'v') setTool('move')
-        else if (k === '0') fit()
+        else if (k === '0') {
+          userMoved.current = false
+          fit()
+        }
         else if (k === '[') setSize(Math.max(1, Math.round(size / 1.2)))
         else if (k === ']') setSize(Math.min(500, Math.round(size * 1.2 + 1)))
         else if (k === 'escape') setPanel(null)
@@ -706,13 +738,21 @@ export function Lienzo(props: Props) {
     change({ ...doc, layers })
     setActive(l.id)
   }
+  /** Prendas y mockups: debajo de todas las capas de pintura (son la base; si no, tapaban lo pintado). */
+  const insertBase = (l: CanvasLayer) => {
+    const i = doc.layers.findIndex((x) => x.kind === 'paint')
+    const layers = [...doc.layers]
+    layers.splice(i < 0 ? layers.length : i, 0, l)
+    change({ ...doc, layers })
+    setActive(l.id)
+  }
   const addPaint = () => {
     const n = doc.layers.filter((l) => l.kind === 'paint').length + 1
     insertAbove({ id: uid(), kind: 'paint', name: `Capa ${n}`, file: null, visible: true, locked: false, opacity: 1, blend: 'normal' })
   }
   const addMockup = (view: MockupLayer['view']) => {
     const label = view === 'front' ? 'Delantero' : view === 'back' ? 'Espalda' : 'Lateral'
-    insertAbove({ id: uid(), kind: 'mockup', name: `Prenda · ${label}`, view, x: doc.w / 2 - 400, y: 120, w: 800, style: 'linea', visible: true, locked: false, opacity: 1, blend: 'normal' })
+    insertBase({ id: uid(), kind: 'mockup', name: `Prenda · ${label}`, view, x: doc.w / 2 - 400, y: 120, w: 800, style: 'linea', visible: true, locked: false, opacity: 1, blend: 'normal' })
   }
   /** Prenda del catálogo como mockup nuevo, centrada en (x, y). */
   const addGarment = (entryId: string, x: number, y: number) => {
@@ -720,7 +760,15 @@ export function Lienzo(props: Props) {
     if (!e) return
     const w = e.template.family === 'head' ? 420 : 620
     const opts = { ...defaultDesign(e.template, e.options).options }
-    insertAbove({ id: uid(), kind: 'mockup', name: e.name, view: 'front', x: x - w / 2, y: y - w * 0.6, w, style: 'linea', template: e.template.id, options: opts, pieces: {}, visible: true, locked: false, opacity: 1, blend: 'normal' })
+    insertBase({ id: uid(), kind: 'mockup', name: e.name, view: 'front', x: x - w / 2, y: y - w * 0.6, w, style: 'linea', template: e.template.id, options: opts, pieces: {}, visible: true, locked: false, opacity: 1, blend: 'normal' })
+    setTool('move')
+  }
+  /** Mockup de la biblioteca (imagen), centrado en (x, y). */
+  const addMockupAsset = async (m: MockupAsset, x: number, y: number) => {
+    const img = await loadImage(m.file)
+    if (img) r.images.set(m.file, img)
+    const w = m.aspect > 1 ? 420 : Math.min(900, 380 / m.aspect)
+    insertBase({ id: uid(), kind: 'image', name: m.name, file: '', asset: m.file, aspect: m.aspect, x: x - w / 2, y: y - (w * m.aspect) / 2, w, rotation: 0, visible: true, locked: false, opacity: 1, blend: 'normal' })
     setTool('move')
   }
   /** Fornitura nueva (de la biblioteca o una propia), centrada en (x, y). Su ancho en el lienzo sale de su tamaño real. */
@@ -742,8 +790,10 @@ export function Lienzo(props: Props) {
   const dropItem = (item: LibraryItem, clientX: number | null, clientY: number | null) => {
     const rect = viewport.current!.getBoundingClientRect()
     const inside = clientX !== null && clientY !== null && clientX > rect.left && clientX < rect.right && clientY > rect.top && clientY < rect.bottom
-    const p = inside ? toDoc(clientX!, clientY!) : center()
+    const raw = inside ? toDoc(clientX!, clientY!) : center()
+    const p = { x: Math.min(doc.w - 60, Math.max(60, raw.x)), y: Math.min(doc.h - 60, Math.max(60, raw.y)) }
     if (item.kind === 'garment') addGarment(item.id, p.x, p.y)
+    else if (item.kind === 'mockup') addMockupAsset(item.asset, p.x, p.y)
     else addDetail(item.detail, item.label, p.x, p.y)
   }
   useEffect(() => {
@@ -995,7 +1045,7 @@ export function Lienzo(props: Props) {
                 />
               )
             }
-            const img = r.images.get(l.file)
+            const img = r.images.get(imageKey(l))
             const h = l.w * l.aspect
             return (
               <div
@@ -1121,7 +1171,7 @@ export function Lienzo(props: Props) {
                     flash(e instanceof Error ? e.message : 'No se ha podido guardar')
                   }
                 }}
-                image={l.kind === 'image' ? r.images.get(l.file)?.src : undefined}
+                image={l.kind === 'image' ? r.images.get(imageKey(l))?.src : undefined}
                 onSelect={() => setActive(l.id)}
                 onPatch={(p) => {
                   patch(l.id, p)
@@ -1508,7 +1558,7 @@ function LayerRow(props: {
 void union
 
 /** Lo que se puede arrastrar desde la biblioteca. */
-type LibraryItem = { kind: 'garment'; id: string; label: string } | { kind: 'detail'; detail: Detail; label: string }
+type LibraryItem = { kind: 'garment'; id: string; label: string } | { kind: 'mockup'; asset: MockupAsset; label: string } | { kind: 'detail'; detail: Detail; label: string }
 
 /** Fornitura de la biblioteca: la de serie de su tipo, con un estilo. */
 const stock = (kind: DetailKind, style: string | null): Detail => ({ ...DETAIL_DEFAULTS[kind], ...(style ? { style } : {}), id: 'stock', view: 'front', x: 0, y: 0 })
@@ -1531,14 +1581,17 @@ function Library({
   onDeletePreset: (p: HardwarePreset) => void
   onStart: (item: LibraryItem, e: React.PointerEvent) => void
 }) {
-  const [tab, setTab] = useState<'prendas' | 'fornituras' | 'mias'>('prendas')
+  const [tab, setTab] = useState<'mockups' | 'prendas' | 'fornituras' | 'mias'>('mockups')
   const [kind, setKind] = useState<DetailKind>('cremallera')
   const body = useMemo(() => standardBody('M'), [])
   return (
     <div className="lz-library">
       <div className="lz-chips">
-        <button className={tab === 'prendas' ? 'lz-chip on' : 'lz-chip'} onClick={() => setTab('prendas')}>
-          Prendas
+        <button className={tab === 'mockups' ? 'lz-chip on' : 'lz-chip'} onClick={() => setTab('mockups')} title="Dibujos planos para pintar encima">
+          Mockups
+        </button>
+        <button className={tab === 'prendas' ? 'lz-chip on' : 'lz-chip'} onClick={() => setTab('prendas')} title="Prendas del Diseñador: se les cambia el cuello, la capucha… y se pintan por piezas">
+          Prendas editables
         </button>
         <button className={tab === 'fornituras' ? 'lz-chip on' : 'lz-chip'} onClick={() => setTab('fornituras')}>
           Fornituras y detalles
@@ -1548,7 +1601,18 @@ function Library({
         </button>
       </div>
       <p className="lz-muted">Arrastra al lienzo o toca para ponerlo en el centro.</p>
-      {tab === 'mias' ? (
+      {tab === 'mockups' ? (
+        <div className="lz-grid-items">
+          {MOCKUPS.map((m) => (
+            <button key={m.id} className="lz-lib-item" onPointerDown={(ev) => onStart({ kind: 'mockup', asset: m, label: m.name }, ev)} title={m.name}>
+              <div className="lz-lib-thumb">
+                <img src={m.file} alt={m.name} draggable={false} />
+              </div>
+              <span>{m.name}</span>
+            </button>
+          ))}
+        </div>
+      ) : tab === 'mias' ? (
         presets.length ? (
           <div className="lz-grid-items">
             {presets.map((p) => (

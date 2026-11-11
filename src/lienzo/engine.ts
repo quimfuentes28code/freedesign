@@ -62,9 +62,9 @@ export class Runtime {
           }
           this.loaded.set(l.id, l.file)
         }
-        if (l.kind === 'image' && !this.images.has(l.file)) {
-          const img = await loadImage(fileUrl(l.file))
-          if (img) this.images.set(l.file, img)
+        if (l.kind === 'image' && !this.images.has(imageKey(l))) {
+          const img = await loadImage(l.asset ?? fileUrl(l.file))
+          if (img) this.images.set(imageKey(l), img)
         }
       }),
     )
@@ -174,7 +174,7 @@ export function compose(r: Runtime, doc: CanvasDoc, opts: { paper?: boolean; ski
       g.rotate((l.rotation * Math.PI) / 180)
       g.drawImage(c, -l.w / 2, -h / 2, l.w, h)
     } else {
-      const img = r.images.get(l.file)
+      const img = r.images.get(imageKey(l))
       if (img) {
         const h = l.w * l.aspect
         g.translate(l.x + l.w / 2, l.y + h / 2)
@@ -197,11 +197,28 @@ export function garmentMask(r: Runtime, doc: CanvasDoc) {
   out.height = doc.h
   const g = out.getContext('2d')!
   for (const l of doc.layers) {
-    if (l.kind !== 'mockup' || !l.visible) continue
-    const m = r.mockups.get(l.id)
-    if (m) g.drawImage(m, l.x, l.y, l.w, (l.w * m.height) / m.width)
+    if (!l.visible) continue
+    if (l.kind === 'mockup') {
+      const m = r.mockups.get(l.id)
+      if (m) g.drawImage(m, l.x, l.y, l.w, (l.w * m.height) / m.width)
+    } else if (l.kind === 'image' && l.asset) {
+      // Los mockups de la biblioteca (imágenes con el fondo transparente) también son prenda
+      const img = r.images.get(imageKey(l))
+      if (!img) continue
+      const h = l.w * l.aspect
+      g.save()
+      g.translate(l.x + l.w / 2, l.y + h / 2)
+      g.rotate((l.rotation * Math.PI) / 180)
+      g.drawImage(img, -l.w / 2, -h / 2, l.w, h)
+      g.restore()
+    }
   }
   return out
+}
+
+/** Clave de la imagen de una capa de imagen (archivo subido o imagen de la app). */
+export function imageKey(l: { file: string; asset?: string }) {
+  return l.asset ?? l.file
 }
 
 /**
