@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent, type WheelEvent } from 'react'
 import { api, imageSize } from '../../api/client'
 import { Callouts, CmGrid, Dimensions, newCallout, ScaleBar } from '../../designer/annotations'
-import { DrawingsLayer, smoothPoints, TracingLayer, type Brush, type DrawTool } from '../../designer/drawings'
+import { DrawingsLayer, TracingLayer, type Brush, type DrawTool } from '../../designer/drawings'
 import { CX } from '../../designer/geometry'
 import { unitsOf } from '../../designer/prints'
 import { FlatView, type FlatContext } from '../../designer/FlatView'
@@ -238,6 +238,7 @@ export function Canvas(props: Props) {
         tool={blockPiece ? 'line' : v === current || view === 'all' ? tool : null}
         brush={blockPiece ? { color: '#db2777', width: 0.8, dash: true } : settings.brush}
         snap={settings.grid ? unitsOf(template) : null}
+        onUpdate={(d) => onDrawings(drawings.map((x) => (x.id === d.id ? d : x)))}
         onAdd={(d) => {
           if (!blockPiece) return onDrawings([...drawings, d])
           // La línea divide la pieza: toma el otro color la parte donde no está el centro de la pieza (la más pequeña)
@@ -438,17 +439,20 @@ export function Canvas(props: Props) {
                   <span style={{ background: (selectedDraw ? selectedDraw.fill : settings.brush.fill) ?? '#000' }} />
                 </label>
               )}
-              {(!selectedDraw || selectedDraw.kind === 'free') && (
-                <label className="toggle small-toggle" title="Suaviza el trazo a mano al soltarlo: sin temblores ni trompicones">
-                  <input type="checkbox" checked={settings.brush.smooth !== false} onChange={(e) => onSettings({ ...settings, brush: { ...settings.brush, smooth: e.target.checked } })} />
-                  Suavizar
+              {(selectedDraw ? selectedDraw.kind === 'free' : tool === 'free') && (
+                <label className="toggle small-toggle" title="Cuánto se suaviza el trazo a mano: a la izquierda, tal cual; a la derecha, muy suave. Se puede cambiar después">
+                  Suavizado
+                  <input
+                    type="range"
+                    min={0}
+                    max={3}
+                    step={0.1}
+                    value={(selectedDraw ? selectedDraw.smooth : typeof settings.brush.smooth === 'number' ? settings.brush.smooth : 1) ?? 0}
+                    onChange={(e) => setBrush({ smooth: Number(e.target.value) || 0 })}
+                  />
                 </label>
               )}
-              {selectedDraw?.kind === 'free' && (
-                <button className="tool" onClick={() => onDrawings(drawings.map((d) => (d.id === selectedDraw.id ? { ...d, points: smoothPoints(d.points, 1.6) } : d)))} title="Suaviza más este trazo">
-                  Suavizar más
-                </button>
-              )}
+              {selectedDraw && !selectedDraw.locked && !tool && <span className="muted small">Arrastra los puntos para cambiar la forma (el del centro de una línea la curva)</span>}
               {(selectedDraw ? ['rect', 'triangle', 'diamond', 'star'].includes(selectedDraw.kind) : tool && ['rect', 'triangle', 'diamond', 'star'].includes(tool)) && (
                 <label className="toggle small-toggle" title="Redondea las esquinas de la forma">
                   Esquinas

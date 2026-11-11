@@ -28,8 +28,8 @@ export interface Brush {
   fill?: string
   /** Esquinas redondeadas (rectángulo, triángulo, rombo, estrella). */
   round?: number
-  /** Suaviza el trazo a mano al soltarlo (sin temblores ni trompicones). */
-  smooth?: boolean
+  /** Suavizado del trazo a mano (0 = tal cual, 3 = muy suave). */
+  smooth?: number
 }
 
 /** Contorno cerrado por unos puntos, con las esquinas redondeadas (`r`: 0 en pico, 1 muy redondas). */
@@ -54,11 +54,25 @@ function roundedPolygon(pts: [number, number][], r: number) {
  * Suaviza un trazo a mano: quita los puntos que sobran (temblores) y redondea los quiebros. Puntos x0, y0, x1, y1…
  */
 export function smoothPoints(points: number[], strength = 1) {
-  const pts: [number, number][] = []
-  for (let i = 0; i + 1 < points.length; i += 2) pts.push([points[i], points[i + 1]])
-  if (pts.length < 4) return points
+  if (strength <= 0) return points
+  const raw: [number, number][] = []
+  for (let i = 0; i + 1 < points.length; i += 2) raw.push([points[i], points[i + 1]])
+  if (raw.length < 4) return points
+  // 0. Media con los puntos vecinos (quita el temblor de la mano; los extremos no se mueven)
+  const w = Math.max(1, Math.round(strength * 1.5))
+  const pts = raw.map((p, i): [number, number] => {
+    if (i === 0 || i === raw.length - 1) return p
+    const r = Math.min(w, i, raw.length - 1 - i)
+    let x = 0
+    let y = 0
+    for (let k = -r; k <= r; k++) {
+      x += raw[i + k][0]
+      y += raw[i + k][1]
+    }
+    return [x / (2 * r + 1), y / (2 * r + 1)]
+  })
   // 1. Simplificar (Ramer-Douglas-Peucker): fuera los puntos a menos de `eps` de la línea que los une
-  const eps = 0.9 * strength
+  const eps = 0.6 * strength
   const keep = new Uint8Array(pts.length)
   keep[0] = keep[pts.length - 1] = 1
   const stack: [number, number][] = [[0, pts.length - 1]]
@@ -83,7 +97,7 @@ export function smoothPoints(points: number[], strength = 1) {
   }
   let out = pts.filter((_, i) => keep[i])
   // 2. Redondear (Chaikin): cada tramo se cambia por dos puntos a 1/4 y 3/4, conservando los extremos
-  for (let it = 0; it < 2; it++) {
+  for (let it = 0; it < 2 + Math.floor(strength / 1.5); it++) {
     if (out.length < 3) break
     const next: [number, number][] = [out[0]]
     for (let i = 0; i < out.length - 1; i++) {
@@ -100,13 +114,23 @@ export function smoothPoints(points: number[], strength = 1) {
 /** Trazos con sus copias reflejadas (los que van en simétrico). */
 const mirrored = (drawings: Drawing[]) => withMirrors({ drawings } as DesignData).drawings ?? drawings
 
+/** Punto de en medio de una recta separado `off` hacia su izquierda. */
+export function bendPoint(x0: number, y0: number, x1: number, y1: number, off: number): [number, number] {
+  const len = Math.hypot(x1 - x0, y1 - y0) || 1
+  return [(x0 + x1) / 2 + (-(y1 - y0) / len) * off, (y0 + y1) / 2 + ((x1 - x0) / len) * off]
+}
+
 /** Trazado SVG de un dibujo. El lápiz se suaviza con curvas entre los puntos medios. */
 export function drawingPath(d: Drawing) {
   const p = d.points
   const [x0, y0, x1, y1] = [p[0], p[1], p[p.length - 2], p[p.length - 1]]
   switch (d.kind) {
-    case 'line':
-      return `M${x0} ${y0} L${x1} ${y1}`
+    case 'line': {
+      if (!d.bend) return `M${x0} ${y0} L${x1} ${y1}`
+      // Curvada: pasa por el punto de en medio separado `bend` de la recta (el control va al doble)
+      const [cx, cy] = bendPoint(x0, y0, x1, y1, d.bend * 2)
+      return `M${x0} ${y0} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${x1} ${y1}`
+    }
     case 'rect':
       if (d.round) return roundedPolygon([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], d.round)
       return `M${x0} ${y0} H${x1} V${y1} H${x0} Z`
@@ -142,6 +166,7 @@ export function drawingPath(d: Drawing) {
       return roundedPolygon(star, d.round ?? 0)
     }
     default: {
+      if (d.smooth && p.length >= 8) return drawingPath({ ...d, smooth: 0, points: smoothPoints(p, d.smooth) })
       if (p.length < 6) return `M${x0} ${y0} L${x1} ${y1}`
       let d2 = `M${x0} ${y0}`
       for (let i = 2; i < p.length - 2; i += 2) {
@@ -202,10 +227,105 @@ interface LayerProps {
   /** Ajustar los puntos a la cuadrícula de 1 cm. */
   snap: number | null
   onAdd: (d: Drawing) => void
+  /** Cambiar un trazo ya hecho (arrastrando sus puntos). */
+  onUpdate?: (d: Drawing) => void
+}
+
+/**
+ * Puntos para cambiar la forma del trazo seleccionado: los extremos y la curva de una línea, las esquinas de una forma
+ * y, en el lápiz, unos cuantos a lo largo del trazo que arrastran con suavidad a los de alrededor.
+ */
+function ShapeHandles({ d, toSvg, onUpdate }: { d: Drawing; toSvg: (e: ReactPointerEvent) => readonly [number, number]; onUpdate: (d: Drawing) => void }) {
+  const drag = useRef<{ k: number; start: Drawing; x: number; y: number } | null>(null)
+  const p = d.points
+  const n = p.length / 2
+  type H = { x: number; y: number; k: number }
+  const handles: H[] = []
+  if (d.kind === 'free') {
+    const count = Math.min(14, Math.max(3, Math.round(n / 6)))
+    for (let j = 0; j < count; j++) {
+      const k = Math.round((j / (count - 1)) * (n - 1))
+      handles.push({ x: p[k * 2], y: p[k * 2 + 1], k })
+    }
+  } else {
+    handles.push({ x: p[0], y: p[1], k: 0 }, { x: p[p.length - 2], y: p[p.length - 1], k: n - 1 })
+    if (d.kind === 'line') {
+      const [mx, my] = bendPoint(p[0], p[1], p[2], p[3], d.bend ?? 0)
+      handles.push({ x: mx, y: my, k: -1 })
+    }
+  }
+  const move = (e: ReactPointerEvent) => {
+    const g = drag.current
+    if (!g) return
+    e.stopPropagation()
+    const [x, y] = toSvg(e)
+    const dx = x - g.x
+    const dy = y - g.y
+    const src = g.start.points
+    if (g.k === -1) {
+      // Curva de la línea: la distancia del puntero a la recta, con su signo
+      const [x0, y0, x1, y1] = src
+      const len = Math.hypot(x1 - x0, y1 - y0) || 1
+      const off = ((x - (x0 + x1) / 2) * -(y1 - y0) + (y - (y0 + y1) / 2) * (x1 - x0)) / len
+      return onUpdate({ ...g.start, bend: Math.abs(off) < 0.8 ? undefined : Math.round(off * 10) / 10 })
+    }
+    const pts = [...src]
+    if (g.start.kind === 'free') {
+      // Arrastra los puntos de alrededor con una campana (más lejos, menos)
+      const reach = Math.max(3, (n / Math.min(14, Math.max(3, Math.round(n / 6)))) * 1.4)
+      for (let i = 0; i < n; i++) {
+        const w = Math.exp(-(((i - g.k) / reach) ** 2))
+        if (w < 0.01) continue
+        pts[i * 2] = Math.round((src[i * 2] + dx * w) * 10) / 10
+        pts[i * 2 + 1] = Math.round((src[i * 2 + 1] + dy * w) * 10) / 10
+      }
+    } else {
+      pts[g.k * 2] = Math.round((src[g.k * 2] + dx) * 10) / 10
+      pts[g.k * 2 + 1] = Math.round((src[g.k * 2 + 1] + dy) * 10) / 10
+    }
+    onUpdate({ ...g.start, points: pts })
+  }
+  const end = (e: ReactPointerEvent) => {
+    if (!drag.current) return
+    e.stopPropagation()
+    drag.current = null
+  }
+  return (
+    <g>
+      {handles.map((h, i) => (
+        <circle
+          key={i}
+          cx={h.x}
+          cy={h.y}
+          r={h.k === -1 ? 2.6 : 2.2}
+          fill={h.k === -1 ? '#2563eb' : '#ffffff'}
+          stroke="#2563eb"
+          strokeWidth={0.8}
+          style={{ cursor: 'grab' }}
+          onPointerDown={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            const [x, y] = toSvg(e)
+            drag.current = { k: h.k, start: d, x, y }
+            try {
+              ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
+            } catch {
+              // Sin puntero activo
+            }
+          }}
+          onPointerMove={move}
+          onPointerUp={end}
+          onPointerCancel={end}
+        >
+          <title>{h.k === -1 ? 'Arrastra para curvar la línea' : 'Arrastra para cambiar la forma'}</title>
+        </circle>
+      ))}
+    </g>
+  )
 }
 
 /** Trazos editables: clic para seleccionar; con una herramienta activa, arrastrar sobre el plano dibuja uno nuevo. */
-export function DrawingsLayer({ ctx, drawings, view, selected, onSelect, tool, brush, snap, onAdd }: LayerProps) {
+export function DrawingsLayer({ ctx, drawings, view, selected, onSelect, tool, brush, snap, onAdd, onUpdate }: LayerProps) {
   const [draft, setDraft] = useState<Drawing | null>(null)
   const drawing = useRef(false)
   const toSvg = (e: ReactPointerEvent) => {
@@ -250,9 +370,9 @@ export function DrawingsLayer({ ctx, drawings, view, selected, onSelect, tool, b
     drawing.current = false
     const p = draft.points
     const size = Math.hypot(p[p.length - 2] - p[0], p[p.length - 1] - p[1])
-    // El trazo a mano se suaviza al soltarlo (salvo que se haya quitado «Suavizar»)
-    const smooth = draft.kind === 'free' && brush.smooth !== false
-    if (size > 1 || p.length > 6) onAdd(smooth ? { ...draft, points: smoothPoints(p) } : draft)
+    // El trazo a mano guarda su suavizado (se aplica al pintarlo); las formas no lo llevan
+    const smooth = draft.kind === 'free' ? (typeof brush.smooth === 'number' ? brush.smooth : 1) : 0
+    if (size > 1 || p.length > 6) onAdd({ ...draft, smooth: smooth || undefined })
     setDraft(null)
   }
 
@@ -283,6 +403,10 @@ export function DrawingsLayer({ ctx, drawings, view, selected, onSelect, tool, b
             </g>
           )
         })}
+      {(() => {
+        const sel = !tool && onUpdate ? drawings.find((d) => d.id === selected && d.view === view && !d.hidden && !d.locked) : undefined
+        return sel ? <ShapeHandles d={sel} toSvg={toSvg} onUpdate={onUpdate!} /> : null
+      })()}
       {draft && mirrored([draft]).map((d) => <Stroke key={d.id} d={d} path={drawingPath(d)} />)}
       {tool && (
         <rect

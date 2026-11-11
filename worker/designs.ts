@@ -200,6 +200,8 @@ function readDrawing(raw: unknown): Drawing | null {
     ...(/^#[0-9a-f]{6}$/i.test(text(d.fill)) ? { fill: text(d.fill) } : {}),
     ...(d.mirror === true ? { mirror: true } : {}),
     ...(finite(d.round, 0) > 0 ? { round: Math.min(1, finite(d.round, 0)) } : {}),
+    ...(finite(d.smooth, 0) > 0 ? { smooth: Math.min(4, finite(d.smooth, 0)) } : {}),
+    ...(finite(d.bend, 0) ? { bend: Math.max(-400, Math.min(400, finite(d.bend, 0))) } : {}),
     ...(d.quilt === true ? { quilt: true } : {}),
     ...(d.hidden === true ? { hidden: true } : {}),
     ...(d.locked === true ? { locked: true } : {}),

@@ -364,6 +364,10 @@ export interface Drawing {
   fill?: string
   /** Esquinas redondeadas de las formas con esquinas (0 = en pico, 1 = muy redondas). */
   round?: number
+  /** Suavizado del trazo a mano (0 = tal cual, 3 = muy suave); se aplica al pintarlo, así se puede cambiar después. */
+  smooth?: number
+  /** Curva de una línea: cuánto se separa su centro de la recta (unidades del lienzo, a la izquierda del sentido). */
+  bend?: number
   /** Canal de acolchado dibujado a mano: pespunte con el relieve del relleno a los lados. */
   quilt?: boolean
   hidden?: boolean
