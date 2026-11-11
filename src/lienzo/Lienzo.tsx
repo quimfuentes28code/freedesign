@@ -38,6 +38,7 @@ import type { Material } from '../shared/library'
 import { BRUSHES, grainFor, registerBrushImages, Stroke, union, type BrushPreset, type Rect, type Symmetry } from './brushes'
 import { grainFromImage, importProcreate, pngOf, tipFromImage } from './brushImport'
 import { TEXTURES, textureTile, type TextureDef } from './textures'
+import { autoShade, lightOf, shadeOf, type LightFrom, type ShadeStyle } from './shading'
 import { ColorPicker } from './ColorPicker'
 import { afterSave, clipBaseOf, clippedLayer, compose, textureCanvas, detailCanvas, floodMask, garmentMask, grab, imageKey, loadImage, onArtLoaded, pieceAt, refreshClip, registerFlush, runtimeFor, textCanvas, uploadDirty, type Runtime } from './engine'
 import { FontPicker } from '../components/FontPicker'
@@ -47,7 +48,7 @@ import { fileUrl as fileOf } from '../shared/library'
 import './lienzo.css'
 
 type Tool = 'brush' | 'eraser' | 'picker' | 'fill' | 'move' | 'text' | 'select'
-type Panel = 'brushes' | 'layers' | 'color' | 'ajustes' | 'acciones' | 'biblioteca' | 'opciones' | 'ia' | null
+type Panel = 'brushes' | 'layers' | 'color' | 'ajustes' | 'acciones' | 'biblioteca' | 'opciones' | 'ia' | 'luces' | null
 
 interface Settings {
   brush: string
@@ -77,8 +78,11 @@ interface Settings {
   /** Asistencia de dibujo: el trazo sigue la guía (cuadrícula o perspectiva). */
   assist: boolean
   gridKind: 'cuadrada' | 'isometrica'
+  /** Luces y sombras automáticas: estilo y de dónde viene la luz. */
+  shadeStyle: ShadeStyle
+  lightFrom: LightFrom
 }
-const DEFAULTS: Settings = { brush: 'tecnica', eraser: 'aeroduro', color: '#1d1c1a', recent: [], sizes: {}, opacities: {}, streamline: {}, symmetry: 'none', grid: false, gridSize: 50, inside: false, fillMode: 'pieza', fillPattern: { kind: 'liso', color2: '#ffffff', size: 3, angle: 0 }, perspective: 0, vps: [[0.5, 0.42], [0.08, 0.42], [0.92, 0.42]], symmetryCount: 6, axis: [0.5, 0.5], assist: false, gridKind: 'cuadrada' }
+const DEFAULTS: Settings = { brush: 'tecnica', eraser: 'aeroduro', color: '#1d1c1a', recent: [], sizes: {}, opacities: {}, streamline: {}, symmetry: 'none', grid: false, gridSize: 50, inside: false, fillMode: 'pieza', fillPattern: { kind: 'liso', color2: '#ffffff', size: 3, angle: 0 }, perspective: 0, vps: [[0.5, 0.42], [0.08, 0.42], [0.92, 0.42]], symmetryCount: 6, axis: [0.5, 0.5], assist: false, gridKind: 'cuadrada', shadeStyle: 'suave', lightFrom: 'izquierda' }
 const KEY = 'fd:lienzo'
 function loadSettings(): Settings {
   try {
@@ -433,14 +437,33 @@ export function Lienzo(props: Props) {
   }
 
   const startStroke = (e: ReactPointerEvent, erase: boolean) => {
-    if (!paintLayer) return flash('Elige una capa de pintura para dibujar (en «Capas»)')
-    if (paintLayer.locked) return flash('La capa está bloqueada')
-    if (!paintLayer.visible) return flash('La capa está oculta')
+    // Pincel de sombra o de luz: pinta en su propia capa, con el color de la pieza y sin salirse de la prenda
+    let pl = paintLayer
+    let strokeColor = settings.color
+    const shading = !!brush.shade && !erase
+    if (brush.shade && !erase) {
+      const name = brush.shade === 'sombra' ? 'Sombras a mano' : 'Luces a mano'
+      let l = doc.layers.find((x): x is PaintLayer => x.kind === 'paint' && x.name === name) ?? null
+      if (!l) {
+        l = { id: uid(), kind: 'paint', name, file: null, visible: true, locked: false, opacity: 1, blend: brush.shade === 'sombra' ? 'multiply' : 'screen', role: brush.shade }
+        change({ ...doc, layers: [...doc.layers, l] })
+        setActive(l.id)
+      }
+      pl = l
+      const p = toDoc(e.clientX, e.clientY)
+      const base = compose(r, { ...doc, layers: doc.layers.filter((x) => !x.role) })
+      const d = base.getContext('2d', { willReadFrequently: true })!.getImageData(Math.floor(p.x), Math.floor(p.y), 1, 1).data
+      const c = brush.shade === 'sombra' ? shadeOf([d[0], d[1], d[2]]) : lightOf([d[0], d[1], d[2]])
+      strokeColor = `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`
+    }
+    if (!pl) return flash('Elige una capa de pintura para dibujar (en «Capas»)')
+    if (pl.locked) return flash('La capa está bloqueada')
+    if (!pl.visible) return flash('La capa está oculta')
     const target = ensure(raw)
     target.getContext('2d')!.clearRect(0, 0, doc.w, doc.h)
     preview.current.width = doc.w
     preview.current.height = doc.h
-    const lc = r.layer(paintLayer.id)
+    const lc = r.layer(pl.id)
     const bk = ensure(backup)
     const bg = bk.getContext('2d')!
     bg.clearRect(0, 0, doc.w, doc.h)
@@ -448,17 +471,17 @@ export function Lienzo(props: Props) {
     // Difuminar: el trazo arrastra lo que hay en la capa (parte de una copia de ella)
     if (brush.smudge && !erase) target.getContext('2d')!.drawImage(lc, 0, 0)
     const masks: HTMLCanvasElement[] = []
-    if (paintLayer.alphaLock && !erase) masks.push(bk)
-    if (settings.inside && !erase) {
+    if (pl.alphaLock && !erase) masks.push(bk)
+    if ((settings.inside || shading) && !erase) {
       if (!maskCache.current) maskCache.current = garmentMask(r, doc)
       masks.push(maskCache.current)
     }
     // Capa con máscara de recorte: lo pintado se queda dentro de su base
-    const base = clipBaseOf(doc, paintLayer)
-    if (base && !erase) masks.push(clippedLayer(r, doc, paintLayer, base).base)
+    const base = clipBaseOf(doc, pl)
+    if (base && !erase) masks.push(clippedLayer(r, doc, pl, base).base)
     const opts = {
       brush,
-      color: settings.color,
+      color: strokeColor,
       size,
       opacity,
       streamline,
@@ -471,7 +494,7 @@ export function Lienzo(props: Props) {
     stroke.current = {
       s,
       opts,
-      layer: paintLayer,
+      layer: pl,
       erase,
       smudge: !!brush.smudge && !erase,
       masks,
@@ -1589,6 +1612,40 @@ export function Lienzo(props: Props) {
     }
   }
 
+  /**
+   * Luces y sombras automáticas: cada pieza de las prendas del lienzo con su sombra en los bordes, brillo en el centro,
+   * pliegues y sombra bajo las costuras, en dos capas (se rehacen si se vuelve a generar).
+   */
+  const AUTO = ['Sombras automáticas', 'Luces automáticas']
+  const autoLayers = doc.layers.filter((l) => l.kind === 'paint' && AUTO.includes(l.name))
+  const generateShading = () => {
+    flash('Calculando luces y sombras…')
+    setTimeout(() => {
+      const keep = doc.layers.filter((l) => !(l.kind === 'paint' && AUTO.includes(l.name)))
+      const base = { ...doc, layers: keep }
+      // Las prendas (con sus líneas) y el color de cada pieza (sin las capas de luz y sombra)
+      const res = autoShade(garmentMask(r, base), compose(r, { ...base, layers: keep.filter((l) => !l.role) }, { paper: false }), { style: settings.shadeStyle, light: settings.lightFrom })
+      if (!res.pieces) return flash('No hay prendas en el lienzo: pon una desde «Diseños» o Biblioteca → Mockups')
+      const amount = autoLayers[0]?.opacity ?? 0.7
+      const sid = uid()
+      const lid = uid()
+      r.layer(sid).getContext('2d')!.drawImage(res.shadow, 0, 0)
+      r.layer(lid).getContext('2d')!.drawImage(res.light, 0, 0)
+      r.dirty.add(sid)
+      r.dirty.add(lid)
+      change({
+        ...base,
+        layers: [
+          ...keep,
+          { id: sid, kind: 'paint', name: AUTO[0], file: null, visible: true, locked: false, opacity: amount, blend: 'multiply', role: 'sombra' },
+          { id: lid, kind: 'paint', name: AUTO[1], file: null, visible: true, locked: false, opacity: amount, blend: 'screen', role: 'luz' },
+        ],
+      })
+      setActive(sid)
+      flash(`Luces y sombras en ${res.pieces} piezas, en dos capas: retócalas con el borrador o los pinceles de luz y sombra`)
+    }, 40)
+  }
+
   /** Cambia los píxeles de una capa de pintura entera (con su paso de deshacer). */
   const pixelOp = (l: PaintLayer, fn: (g: CanvasRenderingContext2D, src: HTMLCanvasElement) => void) => {
     if (l.locked) return flash('La capa está bloqueada')
@@ -1718,6 +1775,9 @@ export function Lienzo(props: Props) {
           </button>
           <button className={panel === 'biblioteca' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'biblioteca' ? null : 'biblioteca')} title="Biblioteca: prendas y fornituras para arrastrar al lienzo">
             <Icon d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM13.5 11v5M11 13.5h5" />
+          </button>
+          <button className={panel === 'luces' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'luces' ? null : 'luces')} title="Luces y sombras: automáticas o a mano">
+            <Icon d="M10 3.5a6.5 6.5 0 100 13zM10 3.5a6.5 6.5 0 010 13" />
           </button>
           <button className={panel === 'ia' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'ia' ? null : 'ia')} title="Imagen con IA: texto preparado para Gemini o ChatGPT">
             <Icon d="M10 2.5l1.4 3.6 3.6 1.4-3.6 1.4L10 12.5 8.6 8.9 5 7.5l3.6-1.4zM15 12l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8zM5 13l.6 1.4 1.4.6-1.4.6L5 17l-.6-1.4L3 15l1.4-.6z" />
@@ -2123,6 +2183,84 @@ export function Lienzo(props: Props) {
             materials={materials}
             onChange={(patchOpts) => (layer.template ? patch(layer.id, { options: { ...layer.options, ...patchOpts } }) : props.onOptions(patchOpts))}
           />
+        </Pop>
+      )}
+      {panel === 'luces' && (
+        <Pop className="lz-pop left wide" title="Luces y sombras">
+          <p className="lz-muted">
+            Dan volumen a la prenda: la app busca cada pieza (cuerpo, mangas, capucha, bolsillo…) y le pone sombra en los bordes, brillo en el centro, pliegues en las
+            mangas y sombra bajo las costuras, con el color de cada pieza. Van en dos capas aparte: en 3D no se usan (allí la luz la pone la escena).
+          </p>
+          <p className="lz-label">Estilo</p>
+          <div className="lz-chips">
+            {(
+              [
+                ['suave', 'Suave'],
+                ['marcado', 'Marcado'],
+                ['comic', 'Cómic (sombras planas)'],
+              ] as [ShadeStyle, string][]
+            ).map(([id, label]) => (
+              <button key={id} className={settings.shadeStyle === id ? 'lz-chip on' : 'lz-chip'} onClick={() => setSettings({ shadeStyle: id })}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="lz-label">La luz viene de</p>
+          <div className="lz-chips">
+            {(
+              [
+                ['izquierda', 'Arriba a la izquierda'],
+                ['arriba', 'Arriba'],
+                ['derecha', 'Arriba a la derecha'],
+              ] as [LightFrom, string][]
+            ).map(([id, label]) => (
+              <button key={id} className={settings.lightFrom === id ? 'lz-chip on' : 'lz-chip'} onClick={() => setSettings({ lightFrom: id })}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <button className="lz-btn primary lz-wide" onClick={generateShading}>
+            {autoLayers.length ? 'Volver a generar' : 'Generar luces y sombras'}
+          </button>
+          {autoLayers.length > 0 && (
+            <>
+              <div className="lz-field">
+                <span>
+                  Intensidad <strong>{Math.round(autoLayers[0].opacity * 100)} %</strong>
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={autoLayers[0].opacity}
+                  onChange={(ev) => {
+                    const v = Number(ev.target.value)
+                    change({ ...doc, layers: doc.layers.map((l) => (autoLayers.some((x) => x.id === l.id) ? { ...l, opacity: v } : l)) }, false)
+                  }}
+                />
+              </div>
+              <button className="lz-chip danger" onClick={() => change({ ...doc, layers: doc.layers.filter((l) => !autoLayers.some((x) => x.id === l.id)) })}>
+                Quitar las automáticas
+              </button>
+            </>
+          )}
+          <p className="lz-label">A mano</p>
+          <p className="lz-muted">Pinta encima con estos pinceles: cogen solos el color de la pieza (más oscuro o más claro), van a su capa y no se salen de la prenda.</p>
+          <div className="lz-chips">
+            {BRUSHES.filter((b) => b.group === 'Luces y sombras').map((b) => (
+              <button
+                key={b.id}
+                className={settings.brush === b.id && tool === 'brush' ? 'lz-chip on' : 'lz-chip'}
+                onClick={() => {
+                  setSettings({ brush: b.id })
+                  setTool('brush')
+                }}
+              >
+                {b.name}
+              </button>
+            ))}
+          </div>
         </Pop>
       )}
       {panel === 'ia' && (

@@ -6,7 +6,7 @@
 
 import { textureGrain } from './textures'
 
-export type BrushGroup = 'Bocetar' | 'Entintar' | 'Pintar' | 'Aerógrafo' | 'Texturas' | 'Costuras' | 'Fornituras' | 'Tejidos' | 'Desgaste' | 'Mis pinceles'
+export type BrushGroup = 'Bocetar' | 'Entintar' | 'Pintar' | 'Aerógrafo' | 'Luces y sombras' | 'Texturas' | 'Costuras' | 'Fornituras' | 'Tejidos' | 'Desgaste' | 'Mis pinceles'
 
 /** Formas que se dibujan en cada estampado en vez de la punta (costuras, cremallera, fornituras, desgaste). */
 export type StampShape =
@@ -64,6 +64,11 @@ export interface BrushPreset {
   smudge?: boolean
   /** Pincel con punta de imagen: la punta gira con el trazo. */
   orient?: boolean
+  /**
+   * Pincel de sombra o de luz: pinta en su capa (Sombras a mano o Luces a mano, que se crea sola), con el color de la
+   * pieza que se toca oscurecido o aclarado, y sin salirse de la prenda.
+   */
+  shade?: 'sombra' | 'luz'
   /** Pinceles propios: imágenes de la punta y del grano (subidas a la cuenta). */
   tipFile?: string
   grainFile?: string
@@ -90,6 +95,11 @@ export const BRUSHES: BrushPreset[] = [
   { id: 'salpicado', name: 'Salpicado', group: 'Texturas', size: 40, opacity: 1, flow: 0.9, spacing: 0.6, hardness: 0.9, grain: 0, pressureSize: 0.3, pressureOpacity: 0, taper: 0, streamline: 0, tip: 'round', scatter: 1.2 },
   { id: 'difuminar', name: 'Difuminar', group: 'Pintar', size: 40, opacity: 1, flow: 0.7, spacing: 0.08, hardness: 0.2, grain: 0, pressureSize: 0.3, pressureOpacity: 0.6, taper: 0, streamline: 0.2, tip: 'round', scatter: 0, smudge: true },
   { id: 'acuarela', name: 'Acuarela', group: 'Pintar', size: 50, opacity: 0.8, flow: 0.14, spacing: 0.08, hardness: 0.25, grain: 0.6, pressureSize: 0.5, pressureOpacity: 0.6, taper: 0, streamline: 0.2, tip: 'round', scatter: 0.04, grainTexture: 'papel' },
+  // Luces y sombras: el color sale solo de la pieza
+  { id: 'sombrasuave', name: 'Sombra suave', group: 'Luces y sombras', size: 90, opacity: 0.85, flow: 0.07, spacing: 0.08, hardness: 0, grain: 0, pressureSize: 0.2, pressureOpacity: 1, taper: 0, streamline: 0.3, tip: 'round', scatter: 0, shade: 'sombra' },
+  { id: 'sombramarcada', name: 'Sombra marcada', group: 'Luces y sombras', size: 30, opacity: 0.75, flow: 0.6, spacing: 0.05, hardness: 0.6, grain: 0, pressureSize: 0.6, pressureOpacity: 0.4, taper: 25, streamline: 0.4, tip: 'round', scatter: 0, shade: 'sombra' },
+  { id: 'luzsuave', name: 'Luz suave', group: 'Luces y sombras', size: 90, opacity: 0.8, flow: 0.07, spacing: 0.08, hardness: 0, grain: 0, pressureSize: 0.2, pressureOpacity: 1, taper: 0, streamline: 0.3, tip: 'round', scatter: 0, shade: 'luz' },
+  { id: 'brillo', name: 'Brillo', group: 'Luces y sombras', size: 12, opacity: 0.9, flow: 0.9, spacing: 0.05, hardness: 0.8, grain: 0, pressureSize: 0.8, pressureOpacity: 0.3, taper: 30, streamline: 0.5, tip: 'round', scatter: 0, shade: 'luz' },
   // Costuras (el color es el del hilo)
   { ...STITCH, id: 'pespunte', name: 'Pespunte', group: 'Costuras', size: 5, spacing: 2.2, shape: 'dash' },
   { ...STITCH, id: 'pespunte2', name: 'Pespunte doble', group: 'Costuras', size: 5, spacing: 2.2, shape: 'dash', rows: [-1.5, 1.5] },

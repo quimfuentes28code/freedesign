@@ -1194,3 +1194,9 @@
   user-select: text;
   -webkit-user-select: text;
 }
+
+.lz-btn.lz-wide {
+  width: 100%;
+  margin: 14px 0 4px;
+  justify-content: center;
+}

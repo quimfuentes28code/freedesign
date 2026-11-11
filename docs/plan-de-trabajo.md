@@ -138,7 +138,13 @@ Queda: en producción hay que crear la tabla nueva (`npm run db:migrate:remote`)
    - **Difuminar** (smudge), acuarela y aerógrafo suave para sombras.
 5. **Importar `.brushset`** de Procreate (punta y grano; los ajustes que se puedan). También crear y editar tus pinceles: punta, grano, separación, presión y dispersión.
 
-## Fase 4 — Sombras y luces
+## Fase 4 — Sombras y luces ✅ hecha (11-11-2026)
+Hecho:
+- **Panel «Luces y sombras»** (botón del círculo a medias). Genera sombras y luces automáticas por pieza: borde oscuro hacia el centro claro, brillo, pliegues en mangas y perneras, y sombra bajo costuras, capucha y bolsillo. Estilo suave, marcado o cómic; luz desde la izquierda, arriba o la derecha; intensidad.
+- **Pinceles a mano:** sombra suave, sombra marcada, luz suave y brillo. Cogen solos el color de la pieza y van a sus capas.
+
+Queda: ajustar el estilo con más ejemplos tuyos si lo quieres más parecido a la chaqueta verde.
+
 1. **A mano:**
    - pinceles de sombra y de luz que crean o usan las capas «Sombra» (Multiplicar) y «Luz» (Superposición o Trama), ya recortadas a la prenda;
    - el color de la sombra sale solo del color de la pieza (más oscuro y algo más saturado).
