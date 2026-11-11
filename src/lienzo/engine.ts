@@ -19,6 +19,8 @@ export class Runtime {
   readonly details = new Map<string, { key: string; canvas: HTMLCanvasElement }>()
   /** Textos ya pintados. */
   readonly texts = new Map<string, { key: string; canvas: HTMLCanvasElement }>()
+  /** Capas con máscara de recorte ya recortadas (y su base pintada). */
+  readonly clips = new Map<string, { key: string; canvas: HTMLCanvasElement; base: HTMLCanvasElement }>()
   /** De cada mockup: su encuadre en unidades del dibujo y sus piezas (para pintar una pieza con un toque). */
   readonly mockupInfo = new Map<string, { box: { x: number; y: number; w: number; h: number }; shapes: Shape[] }>()
   /** Capas de pintura con cambios sin subir. */
@@ -163,7 +165,101 @@ export function loadImage(src: string) {
   })
 }
 
-/** Pinta el lienzo entero (papel y capas visibles, con su opacidad y fusión) en un canvas. */
+/** Pinta una capa en `g` (sin su opacidad ni su fusión), en su sitio del lienzo. */
+export function drawLayer(g: CanvasRenderingContext2D, r: Runtime, l: CanvasLayer) {
+  g.save()
+  if (l.kind === 'paint') g.drawImage(r.layer(l.id), 0, 0)
+  else if (l.kind === 'mockup') {
+    const m = r.mockups.get(l.id)
+    if (m) g.drawImage(m, l.x, l.y, l.w, (l.w * m.height) / m.width)
+  } else if (l.kind === 'text') {
+    const c = textCanvas(r, l)
+    g.translate(l.x, l.y)
+    g.rotate((l.rotation * Math.PI) / 180)
+    g.drawImage(c, -c.width / 4, -c.height / 4, c.width / 2, c.height / 2)
+  } else if (l.kind === 'detail') {
+    const c = detailCanvas(r, l)
+    const h = (l.w * c.height) / c.width
+    g.translate(l.x, l.y)
+    g.rotate((l.rotation * Math.PI) / 180)
+    g.drawImage(c, -l.w / 2, -h / 2, l.w, h)
+  } else {
+    const img = r.images.get(imageKey(l))
+    if (img) {
+      const h = l.w * l.aspect
+      g.translate(l.x + l.w / 2, l.y + h / 2)
+      g.rotate((l.rotation * Math.PI) / 180)
+      g.scale(l.flipX ? -1 : 1, l.flipY ? -1 : 1)
+      g.drawImage(img, -l.w / 2, -h / 2, l.w, h)
+    }
+  }
+  g.restore()
+}
+
+/** Una capa sola en un canvas del tamaño del lienzo. */
+export function renderLayer(r: Runtime, doc: CanvasDoc, l: CanvasLayer) {
+  if (l.kind === 'paint') return r.layer(l.id)
+  const c = document.createElement('canvas')
+  c.width = doc.w
+  c.height = doc.h
+  drawLayer(c.getContext('2d')!, r, l)
+  return c
+}
+
+/**
+ * Base de una capa con máscara de recorte: la primera capa de debajo que no recorta. Sin base (la de abajo del todo),
+ * la capa se ve entera.
+ */
+export function clipBaseOf(doc: CanvasDoc, l: CanvasLayer): CanvasLayer | null {
+  if (!l.clip) return null
+  let i = doc.layers.findIndex((x) => x.id === l.id) - 1
+  while (i >= 0 && doc.layers[i].clip) i--
+  return i >= 0 ? doc.layers[i] : null
+}
+
+/**
+ * Capa con máscara de recorte tal como se ve: solo donde su base tiene algo. No toca lo pintado (si la base crece, se
+ * ve más). Se guarda mientras ni la capa ni su base cambien (`doc.rev` sube con cada trazo).
+ */
+export function clippedLayer(r: Runtime, doc: CanvasDoc, l: CanvasLayer, base: CanvasLayer) {
+  const ready = (x: CanvasLayer) => (x.kind === 'mockup' ? r.mockups.has(x.id) : x.kind === 'image' ? r.images.has(imageKey(x)) : true)
+  const key = `${doc.rev ?? 0}|${JSON.stringify(l)}|${JSON.stringify(base)}|${ready(l)}${ready(base)}`
+  const cached = r.clips.get(l.id)
+  if (cached && cached.key === key) return cached
+  const canvas = cached?.canvas ?? document.createElement('canvas')
+  canvas.width = doc.w
+  canvas.height = doc.h
+  const g = canvas.getContext('2d')!
+  g.clearRect(0, 0, doc.w, doc.h)
+  drawLayer(g, r, l)
+  // (copia: la de una capa de pintura cambia al pintar en ella)
+  const baseCanvas = document.createElement('canvas')
+  baseCanvas.width = doc.w
+  baseCanvas.height = doc.h
+  drawLayer(baseCanvas.getContext('2d')!, r, base)
+  g.globalCompositeOperation = 'destination-in'
+  g.drawImage(baseCanvas, 0, 0)
+  g.globalCompositeOperation = 'source-over'
+  const out = { key, canvas, base: baseCanvas }
+  r.clips.set(l.id, out)
+  return out
+}
+/** Rehace solo una zona de una capa de pintura recortada (al borrar en directo sobre ella). */
+export function refreshClip(r: Runtime, l: CanvasLayer, rect: Rect) {
+  const c = r.clips.get(l.id)
+  if (!c || l.kind !== 'paint') return
+  const w = rect.x1 - rect.x0
+  const h = rect.y1 - rect.y0
+  if (w <= 0 || h <= 0) return
+  const g = c.canvas.getContext('2d')!
+  g.clearRect(rect.x0, rect.y0, w, h)
+  g.drawImage(r.layer(l.id), rect.x0, rect.y0, w, h, rect.x0, rect.y0, w, h)
+  g.globalCompositeOperation = 'destination-in'
+  g.drawImage(c.base, rect.x0, rect.y0, w, h, rect.x0, rect.y0, w, h)
+  g.globalCompositeOperation = 'source-over'
+}
+
+/** Pinta el lienzo entero (papel y capas visibles, con su opacidad, fusión y máscaras de recorte) en un canvas. */
 export function compose(r: Runtime, doc: CanvasDoc, opts: { paper?: boolean; skip?: string } = {}) {
   const out = document.createElement('canvas')
   out.width = doc.w
@@ -175,33 +271,14 @@ export function compose(r: Runtime, doc: CanvasDoc, opts: { paper?: boolean; ski
   }
   for (const l of doc.layers) {
     if (!l.visible || l.id === opts.skip) continue
+    const base = clipBaseOf(doc, l)
+    // Si su base está oculta, la capa recortada tampoco se ve
+    if (base && !base.visible) continue
     g.save()
     g.globalAlpha = l.opacity
     g.globalCompositeOperation = (l.blend === 'normal' ? 'source-over' : l.blend) as GlobalCompositeOperation
-    if (l.kind === 'paint') g.drawImage(r.layer(l.id), 0, 0)
-    else if (l.kind === 'mockup') {
-      const m = r.mockups.get(l.id)
-      if (m) g.drawImage(m, l.x, l.y, l.w, (l.w * m.height) / m.width)
-    } else if (l.kind === 'text') {
-      const c = textCanvas(r, l)
-      g.translate(l.x, l.y)
-      g.rotate((l.rotation * Math.PI) / 180)
-      g.drawImage(c, -c.width / 4, -c.height / 4, c.width / 2, c.height / 2)
-    } else if (l.kind === 'detail') {
-      const c = detailCanvas(r, l)
-      const h = (l.w * c.height) / c.width
-      g.translate(l.x, l.y)
-      g.rotate((l.rotation * Math.PI) / 180)
-      g.drawImage(c, -l.w / 2, -h / 2, l.w, h)
-    } else {
-      const img = r.images.get(imageKey(l))
-      if (img) {
-        const h = l.w * l.aspect
-        g.translate(l.x + l.w / 2, l.y + h / 2)
-        g.rotate((l.rotation * Math.PI) / 180)
-        g.drawImage(img, -l.w / 2, -h / 2, l.w, h)
-      }
-    }
+    if (base) g.drawImage(clippedLayer(r, doc, l, base).canvas, 0, 0)
+    else drawLayer(g, r, l)
     g.restore()
   }
   return out
@@ -229,6 +306,7 @@ export function garmentMask(r: Runtime, doc: CanvasDoc) {
       g.save()
       g.translate(l.x + l.w / 2, l.y + h / 2)
       g.rotate((l.rotation * Math.PI) / 180)
+      g.scale(l.flipX ? -1 : 1, l.flipY ? -1 : 1)
       g.drawImage(img, -l.w / 2, -h / 2, l.w, h)
       g.restore()
     }
@@ -453,6 +531,10 @@ export class History {
   }
   canUndo() {
     return this.undoStack.length > 0
+  }
+  /** Pasos que se pueden deshacer y rehacer. */
+  counts() {
+    return { undo: this.undoStack.length, redo: this.redoStack.length }
   }
   canRedo() {
     return this.redoStack.length > 0

@@ -142,7 +142,33 @@ export function paperGrain() {
   return c
 }
 
-export type Symmetry = 'none' | 'vertical' | 'horizontal' | 'cuadrante'
+/**
+ * Simetría del trazo: reflejo vertical u horizontal, cuatro lados, radial (como un caleidoscopio: giros y reflejos) o
+ * giratoria (solo giros, como una flor).
+ */
+export type Symmetry = 'none' | 'vertical' | 'horizontal' | 'cuadrante' | 'radial' | 'giratoria'
+
+/** Las copias de cada punto: matrices 2×2 [a, b, c, d] alrededor del eje (x' = a·x + b·y, y' = c·x + d·y). */
+export function symmetryMatrices(symmetry: Symmetry, count = 6): [number, number, number, number][] {
+  const I: [number, number, number, number] = [1, 0, 0, 1]
+  if (symmetry === 'vertical') return [I, [-1, 0, 0, 1]]
+  if (symmetry === 'horizontal') return [I, [1, 0, 0, -1]]
+  if (symmetry === 'cuadrante') return [I, [-1, 0, 0, 1], [1, 0, 0, -1], [-1, 0, 0, -1]]
+  if (symmetry === 'radial' || symmetry === 'giratoria') {
+    const n = Math.max(2, Math.min(16, Math.round(count)))
+    const out: [number, number, number, number][] = []
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2
+      const c = Math.cos(a)
+      const s = Math.sin(a)
+      out.push([c, -s, s, c])
+      // Radial: además, cada giro reflejado (como un caleidoscopio)
+      if (symmetry === 'radial') out.push([-c, -s, -s, c])
+    }
+    return out
+  }
+  return [I]
+}
 
 export interface StrokeOptions {
   brush: BrushPreset
@@ -152,7 +178,9 @@ export interface StrokeOptions {
   opacity: number
   streamline: number
   symmetry: Symmetry
-  /** Eje de simetría (centro del lienzo). */
+  /** Copias en la simetría radial y giratoria. */
+  symmetryCount?: number
+  /** Centro de la simetría (se puede mover). */
   axis: { x: number; y: number }
 }
 
@@ -176,11 +204,13 @@ export class Stroke {
   /** Zona pintada desde la última vez que se miró (para repintar solo eso en cada fotograma). */
   frame: Rect | null = null
   private readonly ctx: CanvasRenderingContext2D
+  private readonly mats: [number, number, number, number][]
   constructor(
     private readonly target: HTMLCanvasElement,
     private readonly o: StrokeOptions,
   ) {
     this.ctx = target.getContext('2d')!
+    this.mats = symmetryMatrices(o.symmetry, o.symmetryCount)
   }
 
   /** Añade un punto del puntero (x, y en px del lienzo; presión 0–1). */
@@ -232,25 +262,24 @@ export class Stroke {
     const size = Math.max(0.6, this.o.size * (1 - b.pressureSize + b.pressureSize * pr) * taper)
     const alpha = b.flow * (1 - b.pressureOpacity + b.pressureOpacity * pr)
     const tip = tintedTip(b, this.o.color)
-    const points: [number, number][] = [[x, y]]
-    const { axis, symmetry } = this.o
-    if (symmetry === 'vertical' || symmetry === 'cuadrante') points.push([2 * axis.x - x, y])
-    if (symmetry === 'horizontal' || symmetry === 'cuadrante') points.push([x, 2 * axis.y - y])
-    if (symmetry === 'cuadrante') points.push([2 * axis.x - x, 2 * axis.y - y])
+    const { axis } = this.o
+    const dx0 = x - axis.x
+    const dy0 = y - axis.y
+    const ca = Math.cos(angle)
+    const sa = Math.sin(angle)
     const g = this.ctx
     g.globalAlpha = Math.min(1, alpha)
-    for (let i = 0; i < points.length; i++) {
-      let [px, py] = points[i]
+    for (const [a, b2, c, d] of this.mats) {
+      let px = axis.x + a * dx0 + b2 * dy0
+      let py = axis.y + c * dx0 + d * dy0
       if (b.scatter) {
         px += (Math.random() - 0.5) * size * b.scatter * 2
         py += (Math.random() - 0.5) * size * b.scatter * 2
       }
-      // Los reflejos giran al revés (la punta plana sigue al trazo reflejado)
-      const mirrorX = i === 1 && symmetry !== 'horizontal' ? -1 : i === 3 ? -1 : 1
-      const mirrorY = (i === 1 && symmetry === 'horizontal') || i === 2 || i === 3 ? -1 : 1
       g.save()
       g.translate(px, py)
-      if (b.tip === 'flat') g.rotate(Math.atan2(Math.sin(angle) * mirrorY, Math.cos(angle) * mirrorX) + Math.PI / 2 - 0.35)
+      // La punta plana sigue al trazo copiado (girado o reflejado)
+      if (b.tip === 'flat') g.rotate(Math.atan2(c * ca + d * sa, a * ca + b2 * sa) + Math.PI / 2 - 0.35)
       else if (b.id === 'salpicado') g.rotate(Math.random() * Math.PI * 2)
       g.drawImage(tip, -size / 2, -size / 2, size, size)
       g.restore()

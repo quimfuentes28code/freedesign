@@ -31,11 +31,12 @@ import {
   type Surface,
   type SurfaceKind,
   type TextLayer,
+  type LayerRole,
 } from '../shared/designs'
 import type { Material } from '../shared/library'
 import { BRUSHES, paperGrain, Stroke, union, type BrushPreset, type Rect, type Symmetry } from './brushes'
 import { ColorPicker } from './ColorPicker'
-import { afterSave, compose, detailCanvas, floodMask, garmentMask, grab, imageKey, loadImage, onArtLoaded, pieceAt, registerFlush, runtimeFor, textCanvas, uploadDirty, type Runtime } from './engine'
+import { afterSave, clipBaseOf, clippedLayer, compose, detailCanvas, floodMask, garmentMask, grab, imageKey, loadImage, onArtLoaded, pieceAt, refreshClip, registerFlush, runtimeFor, textCanvas, uploadDirty, type Runtime } from './engine'
 import { FontPicker } from '../components/FontPicker'
 import { MOCKUPS, type MockupAsset } from './mockups'
 import type { Artwork } from '../shared/artworks'
@@ -66,8 +67,15 @@ interface Settings {
   /** Guía de perspectiva: sin, de 1 o de 2 puntos de fuga (en fracción del lienzo). */
   perspective: 0 | 1 | 2
   vps: [number, number][]
+  /** Copias de la simetría radial y giratoria. */
+  symmetryCount: number
+  /** Centro de la simetría (en fracción del lienzo). */
+  axis: [number, number]
+  /** Asistencia de dibujo: el trazo sigue la guía (cuadrícula o perspectiva). */
+  assist: boolean
+  gridKind: 'cuadrada' | 'isometrica'
 }
-const DEFAULTS: Settings = { brush: 'tecnica', eraser: 'aeroduro', color: '#1d1c1a', recent: [], sizes: {}, opacities: {}, streamline: {}, symmetry: 'none', grid: false, gridSize: 50, inside: false, fillMode: 'pieza', fillPattern: { kind: 'liso', color2: '#ffffff', size: 3, angle: 0 }, perspective: 0, vps: [[0.5, 0.42], [0.08, 0.42], [0.92, 0.42]] }
+const DEFAULTS: Settings = { brush: 'tecnica', eraser: 'aeroduro', color: '#1d1c1a', recent: [], sizes: {}, opacities: {}, streamline: {}, symmetry: 'none', grid: false, gridSize: 50, inside: false, fillMode: 'pieza', fillPattern: { kind: 'liso', color2: '#ffffff', size: 3, angle: 0 }, perspective: 0, vps: [[0.5, 0.42], [0.08, 0.42], [0.92, 0.42]], symmetryCount: 6, axis: [0.5, 0.5], assist: false, gridKind: 'cuadrada' }
 const KEY = 'fd:lienzo'
 function loadSettings(): Settings {
   try {
@@ -298,7 +306,25 @@ export function Lienzo(props: Props) {
   const preview = useRef<HTMLCanvasElement>(document.createElement('canvas'))
   const backup = useRef<HTMLCanvasElement | null>(null)
   const maskCache = useRef<HTMLCanvasElement | null>(null)
-  const stroke = useRef<{ s: Stroke; layer: PaintLayer; erase: boolean; masks: HTMLCanvasElement[]; pointer: number; touchStart: number } | null>(null)
+  const stroke = useRef<{
+    s: Stroke
+    opts: ConstructorParameters<typeof Stroke>[1]
+    layer: PaintLayer
+    erase: boolean
+    masks: HTMLCanvasElement[]
+    pointer: number
+    touchStart: number
+    /** Puntos del trazo (x, y, x, y…), para QuickShape. */
+    pts: number[]
+    /** Lo que se ha movido el puntero en la pantalla (px) y dónde estaba al último movimiento. */
+    travel: number
+    anchor: { x: number; y: number }
+    pressure: number
+    /** Temporizador de «mantener quieto» (cuentagotas o QuickShape). */
+    hold: number
+    shaped: boolean
+    assist: { x: number; y: number; dir: [number, number] | null } | null
+  } | null>(null)
   const frameReq = useRef(0)
   const ensure = (ref: { current: HTMLCanvasElement | null }) => {
     if (!ref.current || ref.current.width !== doc.w || ref.current.height !== doc.h) {
@@ -346,6 +372,8 @@ export function Lienzo(props: Props) {
       lg.globalAlpha = opacityRef.current
       lg.drawImage(tmp, f.x0, f.y0, w, h, f.x0, f.y0, w, h)
       lg.restore()
+      // En una capa con máscara de recorte se ve su versión recortada: se rehace esa zona
+      if (st.layer.clip) refreshClip(r, st.layer, f)
       return
     }
     const pg = preview.current.getContext('2d')!
@@ -388,28 +416,188 @@ export function Lienzo(props: Props) {
       if (!maskCache.current) maskCache.current = garmentMask(r, doc)
       masks.push(maskCache.current)
     }
-    const s = new Stroke(target, {
+    // Capa con máscara de recorte: lo pintado se queda dentro de su base
+    const base = clipBaseOf(doc, paintLayer)
+    if (base && !erase) masks.push(clippedLayer(r, doc, paintLayer, base).base)
+    const opts = {
       brush,
       color: settings.color,
       size,
       opacity,
       streamline,
       symmetry: settings.symmetry,
-      axis: { x: doc.w / 2, y: doc.h / 2 },
-    })
-    stroke.current = { s, layer: paintLayer, erase, masks, pointer: e.pointerId, touchStart: e.pointerType === 'touch' ? performance.now() : 0 }
+      symmetryCount: settings.symmetryCount,
+      axis: { x: settings.axis[0] * doc.w, y: settings.axis[1] * doc.h },
+    }
+    const s = new Stroke(target, opts)
     const p = toDoc(e.clientX, e.clientY)
+    stroke.current = {
+      s,
+      opts,
+      layer: paintLayer,
+      erase,
+      masks,
+      pointer: e.pointerId,
+      touchStart: e.pointerType === 'touch' ? performance.now() : 0,
+      pts: [p.x, p.y],
+      travel: 0,
+      anchor: { x: e.clientX, y: e.clientY },
+      pressure: pressureOf(e),
+      hold: 0,
+      shaped: false,
+      assist: settings.assist ? { x: p.x, y: p.y, dir: null } : null,
+    }
     s.add(p.x, p.y, pressureOf(e))
+    armHold()
     scheduleFrame()
+    redraw()
+  }
+  /** Mantener el puntero quieto: al empezar coge el color (cuentagotas); al acabar un trazo lo vuelve una forma perfecta. */
+  const armHold = () => {
+    const st = stroke.current
+    if (!st) return
+    clearTimeout(st.hold)
+    st.hold = window.setTimeout(onHold, 550)
+  }
+  const onHold = () => {
+    const st = stroke.current
+    if (!st || st.shaped) return
+    if (st.travel < 6) {
+      const [x, y] = st.pts
+      endStroke(null, true)
+      pick(x, y)
+      flash('Color cogido (cuentagotas)')
+      return
+    }
+    quickShape(st)
+  }
+  /** Direcciones de la guía en (x, y): hacia los puntos de fuga, o las de la cuadrícula. */
+  const guideDirs = (x: number, y: number): [number, number][] => {
+    const unit = (dx: number, dy: number): [number, number] => {
+      const l = Math.hypot(dx, dy) || 1
+      return [dx / l, dy / l]
+    }
+    if (settings.perspective > 0) {
+      const vps = settings.perspective === 1 ? [settings.vps[0]] : [settings.vps[1], settings.vps[2]]
+      return [...vps.map(([fx, fy]) => unit(fx * doc.w - x, fy * doc.h - y)), [1, 0], [0, 1]]
+    }
+    if (settings.grid) return settings.gridKind === 'isometrica' ? [unit(Math.cos(Math.PI / 6), -Math.sin(Math.PI / 6)), unit(Math.cos(Math.PI / 6), Math.sin(Math.PI / 6)), [0, 1]] : [[1, 0], [0, 1]]
+    return []
+  }
+  /** Con la asistencia, el punto se lleva a la recta de la guía que sigue el trazo (se elige al empezar a moverse). */
+  const assisted = (st: NonNullable<typeof stroke.current>, p: { x: number; y: number }) => {
+    const a = st.assist
+    if (!a) return p
+    if (!a.dir) {
+      const dx = p.x - a.x
+      const dy = p.y - a.y
+      if (Math.hypot(dx, dy) < 10 / view.s) return null
+      const dirs = guideDirs(a.x, a.y)
+      if (!dirs.length) {
+        st.assist = null
+        return p
+      }
+      const l = Math.hypot(dx, dy)
+      let best = dirs[0]
+      let score = -1
+      for (const d of dirs) {
+        const c = Math.abs((d[0] * dx + d[1] * dy) / l)
+        if (c > score) {
+          score = c
+          best = d
+        }
+      }
+      a.dir = best
+    }
+    const t = (p.x - a.x) * a.dir[0] + (p.y - a.y) * a.dir[1]
+    return { x: a.x + a.dir[0] * t, y: a.y + a.dir[1] * t }
+  }
+  /** QuickShape: el trazo se rehace como una línea recta, una elipse (o círculo) o un rectángulo perfectos. */
+  const quickShape = (st: NonNullable<typeof stroke.current>) => {
+    const pts = st.pts
+    if (pts.length < 8) return
+    let x0 = Infinity
+    let y0 = Infinity
+    let x1 = -Infinity
+    let y1 = -Infinity
+    for (let i = 0; i < pts.length; i += 2) {
+      x0 = Math.min(x0, pts[i])
+      x1 = Math.max(x1, pts[i])
+      y0 = Math.min(y0, pts[i + 1])
+      y1 = Math.max(y1, pts[i + 1])
+    }
+    const diag = Math.hypot(x1 - x0, y1 - y0)
+    if (diag < 12) return
+    const [fx, fy] = pts
+    const lx = pts[pts.length - 2]
+    const ly = pts[pts.length - 1]
+    const closed = Math.hypot(lx - fx, ly - fy) < Math.max(20, diag * 0.25)
+    const shape: number[] = []
+    let label = 'Línea recta'
+    const line = (ax: number, ay: number, bx: number, by: number) => {
+      const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 3))
+      for (let i = 0; i <= n; i++) shape.push(ax + ((bx - ax) * i) / n, ay + ((by - ay) * i) / n)
+    }
+    if (!closed) line(fx, fy, lx, ly)
+    else {
+      const cx = (x0 + x1) / 2
+      const cy = (y0 + y1) / 2
+      let rx = Math.max(1, (x1 - x0) / 2)
+      let ry = Math.max(1, (y1 - y0) / 2)
+      let eErr = 0
+      let rErr = 0
+      for (let i = 0; i < pts.length; i += 2) {
+        const nx = (pts[i] - cx) / rx
+        const ny = (pts[i + 1] - cy) / ry
+        eErr += Math.abs(Math.hypot(nx, ny) - 1)
+        rErr += Math.min(Math.abs(Math.abs(nx) - 1), Math.abs(Math.abs(ny) - 1))
+      }
+      if (rErr < eErr * 0.8) {
+        label = 'Rectángulo'
+        line(x0, y0, x1, y0)
+        line(x1, y0, x1, y1)
+        line(x1, y1, x0, y1)
+        line(x0, y1, x0, y0)
+      } else {
+        // Casi redondo: círculo
+        if (Math.abs(rx - ry) / Math.max(rx, ry) < 0.15) rx = ry = (rx + ry) / 2
+        label = rx === ry ? 'Círculo' : 'Elipse'
+        const n = Math.max(48, Math.ceil((Math.PI * (rx + ry)) / 3))
+        for (let i = 0; i <= n; i++) {
+          const a = -Math.PI / 2 + (i / n) * Math.PI * 2
+          shape.push(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry)
+        }
+      }
+    }
+    // Se rehace el trazo con la forma perfecta (sin estabilizador, con la presión del final)
+    const target = raw.current!
+    target.getContext('2d')!.clearRect(0, 0, doc.w, doc.h)
+    const s = new Stroke(target, { ...st.opts, streamline: 0 })
+    for (let i = 0; i < shape.length; i += 2) s.add(shape[i], shape[i + 1], st.pressure || 0.6)
+    st.s = s
+    st.shaped = true
+    s.takeFrame()
+    renderFrame({ x0: 0, y0: 0, x1: doc.w, y1: doc.h })
+    flash(`${label} (suelta para dejarla)`)
     redraw()
   }
   const moveStroke = (e: ReactPointerEvent) => {
     const st = stroke.current
-    if (!st || e.pointerId !== st.pointer) return
+    if (!st || e.pointerId !== st.pointer || st.shaped) return
     const events = (e.nativeEvent as PointerEvent).getCoalescedEvents?.() ?? [e.nativeEvent]
     for (const ev of events.length ? events : [e.nativeEvent]) {
-      const p = toDoc(ev.clientX, ev.clientY)
+      const p = assisted(st, toDoc(ev.clientX, ev.clientY))
+      if (!p) continue
       st.s.add(p.x, p.y, pressureOf(ev))
+      st.pts.push(p.x, p.y)
+      st.pressure = pressureOf(ev)
+    }
+    // Mientras se mueve, el temporizador de «mantener quieto» vuelve a empezar
+    const d = Math.hypot(e.clientX - st.anchor.x, e.clientY - st.anchor.y)
+    if (d > 3) {
+      st.travel += d
+      st.anchor = { x: e.clientX, y: e.clientY }
+      armHold()
     }
     scheduleFrame()
   }
@@ -417,7 +605,8 @@ export function Lienzo(props: Props) {
     const st = stroke.current
     if (!st) return
     if (e && e.pointerId !== st.pointer) return
-    if (e && !cancel) {
+    clearTimeout(st.hold)
+    if (e && !cancel && !st.shaped && !st.assist) {
       const p = toDoc(e.clientX, e.clientY)
       st.s.finish(p.x, p.y, pressureOf(e))
     }
@@ -457,7 +646,23 @@ export function Lienzo(props: Props) {
   const [selection, setSelection] = useState<Path2D | null>(null)
   const [selectionPts, setSelectionPts] = useState<number[] | null>(null)
   /** Trozo levantado para transformar: su imagen, dónde estaba y cómo se ha movido, escalado y girado. */
-  const [floating, setFloating] = useState<{ layer: string; canvas: HTMLCanvasElement; x: number; y: number; w: number; h: number; dx: number; dy: number; scale: number; rot: number; before: ImageData } | null>(null)
+  const [floating, setFloating] = useState<{
+    layer: string
+    canvas: HTMLCanvasElement
+    x: number
+    y: number
+    w: number
+    h: number
+    dx: number
+    dy: number
+    /** Escala a lo ancho y a lo alto (iguales al escalar desde la esquina). */
+    sx: number
+    sy: number
+    rot: number
+    /** Distorsionar: las cuatro esquinas (arriba izq., arriba der., abajo der., abajo izq.) en el lienzo. */
+    corners: [number, number][] | null
+    before: ImageData
+  } | null>(null)
   const clearSelection = () => {
     setSelection(null)
     setSelectionPts(null)
@@ -555,7 +760,7 @@ export function Lienzo(props: Props) {
     if (selection) g.clip(selection)
     g.clearRect(0, 0, doc.w, doc.h)
     g.restore()
-    setFloating({ layer: l.id, canvas: piece, x: x0, y: y0, w, h, dx: 0, dy: 0, scale: 1, rot: 0, before })
+    setFloating({ layer: l.id, canvas: piece, x: x0, y: y0, w, h, dx: 0, dy: 0, sx: 1, sy: 1, rot: 0, corners: null, before })
     clearSelection()
     redraw()
   }
@@ -567,10 +772,13 @@ export function Lienzo(props: Props) {
     const g = lc.getContext('2d')!
     if (apply) {
       g.save()
-      g.translate(f.x + f.w / 2 + f.dx, f.y + f.h / 2 + f.dy)
-      g.rotate((f.rot * Math.PI) / 180)
-      g.scale(f.scale, f.scale)
-      g.drawImage(f.canvas, -f.w / 2, -f.h / 2)
+      if (f.corners) warpDraw(g, f.canvas, f.corners, 28)
+      else {
+        g.translate(f.x + f.w / 2 + f.dx, f.y + f.h / 2 + f.dy)
+        g.rotate((f.rot * Math.PI) / 180)
+        g.scale(f.sx, f.sy)
+        g.drawImage(f.canvas, -f.w / 2, -f.h / 2)
+      }
       g.restore()
       r.history.push({ kind: 'pixels', layer: f.layer, rect: all(), before: f.before, after: grab(lc, all()) })
       r.dirty.add(f.layer)
@@ -580,7 +788,62 @@ export function Lienzo(props: Props) {
     redraw()
   }
   /** Arrastre de un tirador del trozo levantado: mover, escalar (esquina) o girar. */
-  const dragFloating = (e: React.PointerEvent, mode: 'move' | 'scale' | 'rotate') => {
+  /** Las cuatro esquinas del trozo tal como está ahora (para pasar a distorsionar). */
+  const cornersOf = (f: NonNullable<typeof floating>): [number, number][] => {
+    const cx = f.x + f.w / 2 + f.dx
+    const cy = f.y + f.h / 2 + f.dy
+    const a = (f.rot * Math.PI) / 180
+    const c = Math.cos(a)
+    const s = Math.sin(a)
+    return (
+      [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ] as const
+    ).map(([u, v]) => {
+      const lx = (u * f.w * f.sx) / 2
+      const ly = (v * f.h * f.sy) / 2
+      return [cx + lx * c - ly * s, cy + lx * s + ly * c] as [number, number]
+    })
+  }
+  /** Arrastre de una esquina al distorsionar (o de todas, para moverlo). */
+  const dragCorner = (e: React.PointerEvent, i: number | 'all') => {
+    e.stopPropagation()
+    e.preventDefault()
+    const f0 = floating
+    if (!f0?.corners) return
+    const el = e.currentTarget as Element
+    try {
+      el.setPointerCapture(e.pointerId)
+    } catch {
+      // Puntero ya suelto
+    }
+    const start = toDoc(e.clientX, e.clientY)
+    const c0 = f0.corners
+    const move = (ev: PointerEvent) => {
+      const p = toDoc(ev.clientX, ev.clientY)
+      const dx = p.x - start.x
+      const dy = p.y - start.y
+      setFloating((f) => f && { ...f, corners: c0.map(([x, y], k) => (i === 'all' || k === i ? [x + dx, y + dy] : [x, y]) as [number, number]) })
+    }
+    const up = () => {
+      el.removeEventListener('pointermove', move as EventListener)
+      el.removeEventListener('pointerup', up)
+    }
+    el.addEventListener('pointermove', move as EventListener)
+    el.addEventListener('pointerup', up)
+  }
+  const warpRef = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const c = warpRef.current
+    if (!c || !floating?.corners) return
+    const g = c.getContext('2d')!
+    g.clearRect(0, 0, c.width, c.height)
+    warpDraw(g, floating.canvas, floating.corners, 14)
+  }, [floating])
+  const dragFloating = (e: React.PointerEvent, mode: 'move' | 'scale' | 'rotate' | 'sx' | 'sy') => {
     e.stopPropagation()
     e.preventDefault()
     const f0 = floating
@@ -599,8 +862,18 @@ export function Lienzo(props: Props) {
     const move = (ev: PointerEvent) => {
       const p = toDoc(ev.clientX, ev.clientY)
       if (mode === 'move') setFloating((f) => f && { ...f, dx: f0.dx + p.x - start.x, dy: f0.dy + p.y - start.y })
-      else if (mode === 'scale') setFloating((f) => f && { ...f, scale: Math.max(0.05, f0.scale * (Math.hypot(p.x - cx, p.y - cy) / d0)) })
-      else {
+      else if (mode === 'scale') {
+        const k = Math.hypot(p.x - cx, p.y - cy) / d0
+        setFloating((f) => f && { ...f, sx: Math.max(0.05, f0.sx * k), sy: Math.max(0.05, f0.sy * k) })
+      } else if (mode === 'sx' || mode === 'sy') {
+        // Estirar a lo ancho o a lo alto (sobre los ejes del trozo, aunque esté girado)
+        const a = (f0.rot * Math.PI) / 180
+        const ux = mode === 'sx' ? Math.cos(a) : -Math.sin(a)
+        const uy = mode === 'sx' ? Math.sin(a) : Math.cos(a)
+        const d = Math.abs((p.x - cx) * ux + (p.y - cy) * uy)
+        const half = (mode === 'sx' ? f0.w : f0.h) / 2
+        setFloating((f) => f && (mode === 'sx' ? { ...f, sx: Math.max(0.05, d / half) } : { ...f, sy: Math.max(0.05, d / half) }))
+      } else {
         let rot = f0.rot + ((Math.atan2(p.y - cy, p.x - cx) - a0) * 180) / Math.PI
         // Se ajusta a 0, 45, 90… si está muy cerca
         const snap = Math.round(rot / 45) * 45
@@ -662,7 +935,9 @@ export function Lienzo(props: Props) {
   const fillZone = (layer: PaintLayer, x: number, y: number) => {
     const paintLayer = layer
     if (paintLayer.locked) return flash('La capa de pintura está bloqueada')
-    const mask = floodMask(compose(r, doc), x, y)
+    // Con capas de referencia, la zona sale solo de ellas (las líneas del dibujo), aunque se pinte en otra capa
+    const refs = doc.layers.filter((l) => l.reference && l.visible)
+    const mask = floodMask(refs.length ? compose(r, { ...doc, layers: refs }, { paper: false }) : compose(r, doc), x, y)
     if (!mask) return
     const lc = r.layer(paintLayer.id)
     const all = { x0: 0, y0: 0, x1: doc.w, y1: doc.h }
@@ -750,6 +1025,7 @@ export function Lienzo(props: Props) {
   const onPointerDown = (e: ReactPointerEvent) => {
     if (loading) return
     setPanel(null)
+    setQuick(null)
     const el = viewport.current!
     try {
       el.setPointerCapture(e.pointerId)
@@ -940,6 +1216,7 @@ export function Lienzo(props: Props) {
         else if (k === ']') setSize(Math.min(500, Math.round(size * 1.2 + 1)))
         else if (k === 'escape') {
           setPanel(null)
+          setQuick(null)
           if (floating) endTransform(false)
           else clearSelection()
         }
@@ -1174,6 +1451,63 @@ export function Lienzo(props: Props) {
     remove(l.id)
     setActive(below.id)
   }
+  /** Cambia los píxeles de una capa de pintura entera (con su paso de deshacer). */
+  const pixelOp = (l: PaintLayer, fn: (g: CanvasRenderingContext2D, src: HTMLCanvasElement) => void) => {
+    if (l.locked) return flash('La capa está bloqueada')
+    const lc = r.layer(l.id)
+    const before = grab(lc, all())
+    const copy = document.createElement('canvas')
+    copy.width = doc.w
+    copy.height = doc.h
+    copy.getContext('2d')!.drawImage(lc, 0, 0)
+    const g = lc.getContext('2d')!
+    g.save()
+    g.clearRect(0, 0, doc.w, doc.h)
+    fn(g, copy)
+    g.restore()
+    r.history.push({ kind: 'pixels', layer: l.id, rect: all(), before, after: grab(lc, all()) })
+    r.dirty.add(l.id)
+    touch()
+    redraw()
+  }
+  /** Voltear una capa: la de pintura (sus píxeles) o una imagen. */
+  const flipLayer = (l: CanvasLayer, axis: 'x' | 'y') => {
+    if (l.kind === 'image') return patch(l.id, axis === 'x' ? { flipX: !l.flipX || undefined } : { flipY: !l.flipY || undefined })
+    if (l.kind !== 'paint') return
+    pixelOp(l, (g, src) => {
+      g.translate(axis === 'x' ? doc.w : 0, axis === 'y' ? doc.h : 0)
+      g.scale(axis === 'x' ? -1 : 1, axis === 'y' ? -1 : 1)
+      g.drawImage(src, 0, 0)
+    })
+  }
+  /** Invertir los colores de lo pintado (la transparencia se queda igual). */
+  const invertLayer = (l: PaintLayer) =>
+    pixelOp(l, (g, src) => {
+      g.drawImage(src, 0, 0)
+      g.globalCompositeOperation = 'difference'
+      g.fillStyle = '#ffffff'
+      g.fillRect(0, 0, doc.w, doc.h)
+      g.globalCompositeOperation = 'destination-in'
+      g.drawImage(src, 0, 0)
+    })
+  /** Capa de sombra o de luz encima de la elegida, ya recortada a ella. */
+  const addShade = (role: LayerRole) => {
+    const n = doc.layers.filter((l) => l.role === role).length + 1
+    insertAbove({
+      id: uid(),
+      kind: 'paint',
+      name: `${role === 'luz' ? 'Luz' : 'Sombra'} ${n}`,
+      file: null,
+      visible: true,
+      locked: false,
+      opacity: role === 'luz' ? 0.8 : 0.6,
+      blend: role === 'luz' ? 'screen' : 'multiply',
+      clip: layer ? true : undefined,
+      role,
+    })
+    setTool('brush')
+    flash(role === 'luz' ? 'Capa de luz: pinta con blanco o un color claro; no se sale de la capa de debajo' : 'Capa de sombra: pinta con gris o un tono oscuro; no se sale de la capa de debajo')
+  }
   const clearLayer = (l: PaintLayer) => {
     const lc = r.layer(l.id)
     const all = { x0: 0, y0: 0, x1: doc.w, y1: doc.h }
@@ -1215,6 +1549,17 @@ export function Lienzo(props: Props) {
   const transform = `translate(${view.x}px, ${view.y}px) rotate(${view.r}rad) scale(${view.s})`
   const cursor = tool === 'move' ? 'move' : tool === 'text' ? 'text' : tool === 'select' ? 'crosshair' : tool === 'picker' || tool === 'fill' ? 'crosshair' : 'none'
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
+  const [quick, setQuick] = useState<{ x: number; y: number } | null>(null)
+  const QUICK: { label: string; run: () => void }[] = [
+    { label: 'Capa nueva', run: addPaint },
+    { label: 'Deshacer', run: undo },
+    { label: 'Rehacer', run: redo },
+    { label: 'Cuentagotas', run: () => setTool('picker') },
+    { label: settings.symmetry === 'none' ? 'Simetría' : 'Sin simetría', run: () => setSettings({ symmetry: settings.symmetry === 'none' ? 'vertical' : 'none' }) },
+    { label: 'Duplicar capa', run: () => layer && duplicate(layer) },
+    { label: 'Sombra', run: () => addShade('sombra') },
+    { label: 'Encajar', run: fit },
+  ]
 
   // A pantalla completa, fuera del editor (sus paneles tienen transformaciones que encerrarían el lienzo)
   return createPortal(
@@ -1293,6 +1638,16 @@ export function Lienzo(props: Props) {
         <button className="lz-icon" onClick={redo} disabled={!r.history.canRedo()} title="Rehacer (Ctrl+Mayús+Z o toque con tres dedos)">
           <Icon d="M13 6.5l3.5 3.5-3.5 3.5M16.5 10H8a4.5 4.5 0 000 9h2" />
         </button>
+        <button
+          className="lz-icon"
+          onClick={(e) => {
+            const b = (e.currentTarget as HTMLElement).getBoundingClientRect()
+            setQuick(quick ? null : { x: b.right + 110, y: b.top + b.height / 2 })
+          }}
+          title="Menú rápido (también con clic derecho en el lienzo)"
+        >
+          <Icon d="M10 3a7 7 0 100 14 7 7 0 000-14zM10 7.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5z" />
+        </button>
       </aside>
 
       <div
@@ -1313,13 +1668,29 @@ export function Lienzo(props: Props) {
         }}
         onPointerLeave={() => setHover(null)}
         onWheel={onWheel}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={(e) => {
+          // Clic derecho: menú rápido
+          e.preventDefault()
+          setQuick({ x: e.clientX, y: e.clientY })
+        }}
       >
         <div className="lz-paper" style={{ width: doc.w, height: doc.h, background: doc.paper, transform }}>
           {doc.layers.map((l) => {
             if (!l.visible) return null
             const off = moveOffset?.id === l.id ? moveOffset : null
             const style = { opacity: l.opacity, mixBlendMode: l.blend as React.CSSProperties['mixBlendMode'] }
+            // Con máscara de recorte: solo donde su base tiene algo
+            const base = clipBaseOf(doc, l)
+            if (base && !base.visible) return null
+            if (base) {
+              const c = clippedLayer(r, doc, l, base).canvas
+              return (
+                <div key={l.id} className="lz-layer" style={{ ...style, transform: off ? `translate(${off.dx}px, ${off.dy}px)` : undefined }}>
+                  <div className="lz-fill" ref={(el) => mount(el, c)} />
+                  {stroke.current?.layer.id === l.id && !stroke.current.erase && <div className="lz-fill" style={{ opacity }} ref={mountPreview} />}
+                </div>
+              )
+            }
             if (l.kind === 'paint')
               return (
                 <div key={l.id} className="lz-layer" style={{ ...style, transform: off ? `translate(${off.dx}px, ${off.dy}px)` : undefined }}>
@@ -1369,7 +1740,7 @@ export function Lienzo(props: Props) {
               <div
                 key={l.id}
                 className={l.id === active && tool === 'move' ? 'lz-item selected' : 'lz-item'}
-                style={{ ...style, left: l.x + (off?.dx ?? 0), top: l.y + (off?.dy ?? 0), width: l.w, height: h, transform: `rotate(${l.rotation}deg)` }}
+                style={{ ...style, left: l.x + (off?.dx ?? 0), top: l.y + (off?.dy ?? 0), width: l.w, height: h, transform: `rotate(${l.rotation}deg) scale(${l.flipX ? -1 : 1}, ${l.flipY ? -1 : 1})` }}
               >
                 {img && <img src={img.src} alt="" draggable={false} />}
               </div>
@@ -1380,7 +1751,26 @@ export function Lienzo(props: Props) {
               <polygon points={(lasso ?? selectionPts)!.join(' ')} className="lz-ants" style={{ strokeWidth: 2 / view.s }} />
             </svg>
           )}
-          {floating && (
+          {floating?.corners && (
+            <>
+              <canvas ref={warpRef} className="lz-layer-canvas lz-warp" width={doc.w} height={doc.h} />
+              <svg className="lz-overlay persp" viewBox={`0 0 ${doc.w} ${doc.h}`} width={doc.w} height={doc.h}>
+                <polygon
+                  points={floating.corners.map((c) => c.join(',')).join(' ')}
+                  fill="rgba(61,139,253,0.06)"
+                  stroke="#3d8bfd"
+                  strokeWidth={2 / view.s}
+                  strokeDasharray={`${8 / view.s} ${6 / view.s}`}
+                  style={{ pointerEvents: 'auto', cursor: 'move' }}
+                  onPointerDown={(e) => dragCorner(e, 'all')}
+                />
+                {floating.corners.map(([x, y], i) => (
+                  <circle key={i} cx={x} cy={y} r={13 / view.s} fill="#fff" stroke="#3d8bfd" strokeWidth={3 / view.s} style={{ pointerEvents: 'auto', cursor: 'grab' }} onPointerDown={(e) => dragCorner(e, i)} />
+                ))}
+              </svg>
+            </>
+          )}
+          {floating && !floating.corners && (
             <div
               className="lz-floating"
               style={{
@@ -1388,18 +1778,24 @@ export function Lienzo(props: Props) {
                 top: floating.y + floating.dy,
                 width: floating.w,
                 height: floating.h,
-                transform: `rotate(${floating.rot}deg) scale(${floating.scale})`,
-              }}
-              ref={(el) => {
-                if (el && el.firstChild !== floating.canvas) {
-                  el.replaceChildren(floating.canvas)
-                  floating.canvas.className = 'lz-layer-canvas'
-                }
+                transform: `rotate(${floating.rot}deg) scale(${floating.sx}, ${floating.sy})`,
               }}
               onPointerDown={(e) => dragFloating(e, 'move')}
             >
-              <span className="lz-handle corner" style={{ transform: `scale(${1 / (view.s * floating.scale)})` }} onPointerDown={(e) => dragFloating(e, 'scale')} />
-              <span className="lz-handle rotate" style={{ transform: `translateX(-50%) scale(${1 / (view.s * floating.scale)})` }} onPointerDown={(e) => dragFloating(e, 'rotate')} />
+              {/* La imagen va en su propio contenedor (si no, al ponerla se borraban los tiradores) */}
+              <div
+                className="lz-fill"
+                ref={(el) => {
+                  if (el && el.firstChild !== floating.canvas) {
+                    el.replaceChildren(floating.canvas)
+                    floating.canvas.className = 'lz-layer-canvas'
+                  }
+                }}
+              />
+              <span className="lz-handle corner" style={{ transform: `scale(${1 / (view.s * floating.sx)}, ${1 / (view.s * floating.sy)})` }} onPointerDown={(e) => dragFloating(e, 'scale')} title="Escalar" />
+              <span className="lz-handle side-x" style={{ transform: `translateY(-50%) scale(${1 / (view.s * floating.sx)}, ${1 / (view.s * floating.sy)})` }} onPointerDown={(e) => dragFloating(e, 'sx')} title="Estirar a lo ancho" />
+              <span className="lz-handle side-y" style={{ transform: `translateX(-50%) scale(${1 / (view.s * floating.sx)}, ${1 / (view.s * floating.sy)})` }} onPointerDown={(e) => dragFloating(e, 'sy')} title="Estirar a lo alto" />
+              <span className="lz-handle rotate" style={{ transform: `translateX(-50%) scale(${1 / (view.s * floating.sx)}, ${1 / (view.s * floating.sy)})` }} onPointerDown={(e) => dragFloating(e, 'rotate')} title="Girar" />
             </div>
           )}
           {settings.perspective > 0 && (
@@ -1419,12 +1815,23 @@ export function Lienzo(props: Props) {
               toDoc={toDoc}
             />
           )}
-          {settings.grid && <div className="lz-grid" style={{ backgroundSize: `${settings.gridSize}px ${settings.gridSize}px` }} />}
+          {settings.grid &&
+            (settings.gridKind === 'isometrica' ? (
+              <div className="lz-grid iso" style={isoGrid(settings.gridSize)} />
+            ) : (
+              <div className="lz-grid" style={{ backgroundSize: `${settings.gridSize}px ${settings.gridSize}px` }} />
+            ))}
           {settings.symmetry !== 'none' && (
-            <>
-              {(settings.symmetry === 'vertical' || settings.symmetry === 'cuadrante') && <div className="lz-axis v" style={{ left: doc.w / 2 }} />}
-              {(settings.symmetry === 'horizontal' || settings.symmetry === 'cuadrante') && <div className="lz-axis h" style={{ top: doc.h / 2 }} />}
-            </>
+            <SymmetryGuide
+              w={doc.w}
+              h={doc.h}
+              kind={settings.symmetry}
+              count={settings.symmetryCount}
+              center={[settings.axis[0] * doc.w, settings.axis[1] * doc.h]}
+              scale={view.s}
+              toDoc={toDoc}
+              onMove={(x, y) => setSettings({ axis: [Math.min(1, Math.max(0, x / doc.w)), Math.min(1, Math.max(0, y / doc.h))] })}
+            />
           )}
         </div>
         {/* Contorno del pincel bajo el puntero (con ratón o lápiz) */}
@@ -1443,11 +1850,42 @@ export function Lienzo(props: Props) {
         {notice && <div className="lz-notice">{notice}</div>}
       </div>
 
+      {quick && (
+        <div className="lz-quick" style={{ left: quick.x, top: quick.y }} onPointerDown={(e) => e.stopPropagation()}>
+          {QUICK.map((q, i) => {
+            const a = -Math.PI / 2 + (i / QUICK.length) * Math.PI * 2
+            return (
+              <button
+                key={q.label}
+                style={{ transform: `translate(-50%, -50%) translate(${Math.cos(a) * 108}px, ${Math.sin(a) * 92}px)` }}
+                onClick={() => {
+                  q.run()
+                  setQuick(null)
+                }}
+              >
+                {q.label}
+              </button>
+            )
+          })}
+          <button className="lz-quick-x" onClick={() => setQuick(null)} aria-label="Cerrar">
+            ×
+          </button>
+        </div>
+      )}
       {tool === 'select' && (
         <div className="lz-toolbar" onPointerDown={(e) => e.stopPropagation()}>
           {floating ? (
             <>
-              <span>Arrastra para mover; la esquina escala y el punto de arriba gira.</span>
+              <span>
+                {floating.corners
+                  ? 'Arrastra cada esquina para distorsionar (perspectiva); por dentro, para mover.'
+                  : 'Arrastra para mover; la esquina escala, los lados estiran y el punto de arriba gira.'}
+              </span>
+              {!floating.corners && (
+                <button className="lz-chip" onClick={() => setFloating((f) => f && { ...f, corners: cornersOf(f) })} title="Mover cada esquina por separado (perspectiva, deformar)">
+                  Distorsionar
+                </button>
+              )}
               <button className="lz-chip on" onClick={() => endTransform(true)}>
                 Aplicar (Intro)
               </button>
@@ -1495,6 +1933,10 @@ export function Lienzo(props: Props) {
           <button className={settings.fillMode === 'zona' ? 'lz-chip on' : 'lz-chip'} onClick={() => setSettings({ fillMode: 'zona' })} title="Rellena la zona cerrada por líneas en la capa de pintura">
             Zona pintada
           </button>
+          <label className="lz-toggle inline" title="El relleno no se sale de las prendas">
+            <input type="checkbox" checked={settings.inside} onChange={(e) => setSettings({ inside: e.target.checked })} /> Solo la ropa
+          </label>
+          {doc.layers.some((l) => l.reference) && <span className="lz-muted">Usa la capa de referencia</span>}
           <span className="lz-sep" />
           <PatternPicker value={settings.fillPattern} color={settings.color} onChange={(fillPattern) => setSettings({ fillPattern })} onUpload={async (file) => {
             try {
@@ -1567,7 +2009,23 @@ export function Lienzo(props: Props) {
         </Pop>
       )}
       {panel === 'layers' && (
-        <Pop className="lz-pop right wide" title="Capas" action={<button className="lz-btn" onClick={addPaint} title="Capa de pintura nueva">+ Capa</button>}>
+        <Pop
+          className="lz-pop right wide"
+          title="Capas"
+          action={
+            <span className="lz-chips">
+              <button className="lz-btn" onClick={addPaint} title="Capa de pintura nueva">
+                + Capa
+              </button>
+              <button className="lz-btn" onClick={() => addShade('sombra')} title="Capa de sombra recortada a la capa elegida (Multiplicar)">
+                + Sombra
+              </button>
+              <button className="lz-btn" onClick={() => addShade('luz')} title="Capa de luz recortada a la capa elegida (Trama)">
+                + Luz
+              </button>
+            </span>
+          }
+        >
           <div className="lz-layers">
             {[...doc.layers].reverse().map((l) => (
               <LayerRow
@@ -1598,13 +2056,16 @@ export function Lienzo(props: Props) {
                 onDown={() => reorder(l.id, -1)}
                 onMerge={() => mergeDown(l)}
                 onClear={l.kind === 'paint' ? () => clearLayer(l) : undefined}
+                onFlip={l.kind === 'paint' || l.kind === 'image' ? (axis) => flipLayer(l, axis) : undefined}
+                onInvert={l.kind === 'paint' ? () => invertLayer(l) : undefined}
+                clipped={!!clipBaseOf(doc, l)}
               />
             ))}
           </div>
         </Pop>
       )}
       {panel === 'ajustes' && (
-        <Pop className="lz-pop left" title="Guías de dibujo">
+        <Pop className="lz-pop left" title="Guía de dibujo">
           <p className="lz-label">Simetría</p>
           <div className="lz-chips">
             {(
@@ -1613,6 +2074,8 @@ export function Lienzo(props: Props) {
                 ['vertical', 'Vertical'],
                 ['horizontal', 'Horizontal'],
                 ['cuadrante', 'Cuatro lados'],
+                ['radial', 'Radial'],
+                ['giratoria', 'Giratoria'],
               ] as [Symmetry, string][]
             ).map(([id, label]) => (
               <button key={id} className={settings.symmetry === id ? 'lz-chip on' : 'lz-chip'} onClick={() => setSettings({ symmetry: id })}>
@@ -1620,6 +2083,23 @@ export function Lienzo(props: Props) {
               </button>
             ))}
           </div>
+          {(settings.symmetry === 'radial' || settings.symmetry === 'giratoria') && (
+            <div className="lz-field">
+              <span>
+                Copias <strong>{settings.symmetryCount}</strong>
+              </span>
+              <input type="range" min={2} max={16} step={1} value={settings.symmetryCount} onChange={(e) => setSettings({ symmetryCount: Number(e.target.value) })} />
+            </div>
+          )}
+          {settings.symmetry !== 'none' && (
+            <p className="lz-muted">
+              {settings.symmetry === 'radial' ? 'Radial: como un caleidoscopio (giros y reflejos). ' : settings.symmetry === 'giratoria' ? 'Giratoria: el trazo se repite girando alrededor del centro. ' : ''}
+              Arrastra el punto azul para mover el centro.{' '}
+              <button className="lz-link" onClick={() => setSettings({ axis: [0.5, 0.5] })}>
+                Volver al centro
+              </button>
+            </p>
+          )}
           <p className="lz-label">Perspectiva</p>
           <div className="lz-chips">
             {(
@@ -1638,6 +2118,20 @@ export function Lienzo(props: Props) {
           <label className="lz-toggle">
             <input type="checkbox" checked={settings.grid} onChange={(e) => setSettings({ grid: e.target.checked })} /> Cuadrícula
           </label>
+          {settings.grid && (
+            <div className="lz-chips">
+              <button className={settings.gridKind === 'cuadrada' ? 'lz-chip on' : 'lz-chip'} onClick={() => setSettings({ gridKind: 'cuadrada' })}>
+                Cuadrada
+              </button>
+              <button className={settings.gridKind === 'isometrica' ? 'lz-chip on' : 'lz-chip'} onClick={() => setSettings({ gridKind: 'isometrica' })}>
+                Isométrica
+              </button>
+            </div>
+          )}
+          <label className="lz-toggle" title="Las líneas siguen la cuadrícula o los puntos de fuga (la dirección se elige al empezar el trazo)">
+            <input type="checkbox" checked={settings.assist} onChange={(e) => setSettings({ assist: e.target.checked })} /> Asistencia de dibujo
+          </label>
+          {settings.assist && !settings.grid && settings.perspective === 0 && <p className="lz-muted">Activa la cuadrícula o la perspectiva para que la asistencia tenga una guía que seguir.</p>}
           {settings.grid && (
             <div className="lz-field">
               <span>
@@ -1691,9 +2185,41 @@ export function Lienzo(props: Props) {
               Exportar PNG
             </button>
           </div>
+          <p className="lz-label">Historial</p>
+          {(() => {
+            const c = r.history.counts()
+            const total = c.undo + c.redo
+            if (!total) return <p className="lz-muted">Aún no hay pasos que deshacer.</p>
+            return (
+              <div className="lz-field">
+                <span>
+                  Paso <strong>{c.undo}</strong> de {total}
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={total}
+                  step={1}
+                  value={c.undo}
+                  onChange={(e) => {
+                    // Desliza para ir hacia atrás o hacia delante en lo que has hecho
+                    let k = Number(e.target.value) - r.history.counts().undo
+                    while (k < 0) {
+                      undo()
+                      k++
+                    }
+                    while (k > 0) {
+                      redo()
+                      k--
+                    }
+                  }}
+                />
+              </div>
+            )
+          })()}
           <p className="lz-label">Gestos</p>
           <p className="lz-muted">
-            Dos dedos: mover, acercar y girar. Toque con dos dedos: deshacer; con tres: rehacer. Con ratón: rueda para acercar, espacio + arrastrar para
+            Dos dedos: mover, acercar y girar. Toque con dos dedos: deshacer; con tres: rehacer. Mantén el lápiz quieto al empezar: cuentagotas; al acabar un trazo: línea, círculo o rectángulo perfectos (QuickShape). Clic derecho: menú rápido. Con ratón: rueda para acercar, espacio + arrastrar para
             mover. Atajos: B pincel, E borrador, I cuentagotas, G bote, V mover, [ ] tamaño, 0 encajar.
           </p>
         </Pop>
@@ -1851,6 +2377,10 @@ function LayerRow(props: {
   onOptions: () => void
   artworks: Artwork[]
   onSavePreset: (name: string, detail: Detail) => void
+  onFlip?: (axis: 'x' | 'y') => void
+  onInvert?: () => void
+  /** Recortada a la capa de debajo (se ve sangrada en la lista). */
+  clipped: boolean
 }) {
   const { layer: l, active } = props
   const thumbRef = useRef<HTMLCanvasElement>(null)
@@ -1865,7 +2395,7 @@ function LayerRow(props: {
   const [editing, setEditing] = useState(false)
   const kind = l.kind === 'paint' ? 'Pintura' : l.kind === 'mockup' ? 'Prenda' : l.kind === 'detail' ? 'Fornitura' : l.kind === 'text' ? 'Texto' : 'Imagen'
   return (
-    <div className={active ? 'lz-layer-row on' : 'lz-layer-row'}>
+    <div className={`lz-layer-row${active ? ' on' : ''}${props.clipped ? ' clipped' : ''}`}>
       <div className="lz-layer-main" onClick={props.onSelect}>
         <div className="lz-thumb">{props.image ? <img src={props.image} alt="" /> : <canvas ref={thumbRef} width={60} height={44} />}</div>
         <div className="lz-layer-name">
@@ -1881,6 +2411,8 @@ function LayerRow(props: {
             {l.blend !== 'normal' ? ` · ${BLEND_MODES.find((b) => b.id === l.blend)?.label}` : ''}
             {l.opacity < 1 ? ` · ${Math.round(l.opacity * 100)} %` : ''}
             {l.locked ? ' · bloqueada' : ''}
+            {l.reference ? ' · referencia' : ''}
+            {l.role ? ` · ${l.role}` : ''}
           </small>
         </div>
         <button className="lz-mini" onClick={(e) => (e.stopPropagation(), props.onPatch({ visible: !l.visible }))} title={l.visible ? 'Ocultar' : 'Mostrar'}>
@@ -1945,6 +2477,43 @@ function LayerRow(props: {
                 Giro <strong>{Math.round(l.rotation)}°</strong>
               </span>
               <input type="range" min={-180} max={180} step={1} value={l.rotation} onChange={(e) => props.onPatch({ rotation: Number(e.target.value) })} />
+            </div>
+          )}
+          <div className="lz-chips">
+            <button className={l.clip ? 'lz-chip on' : 'lz-chip'} onClick={() => props.onPatch({ clip: !l.clip || undefined })} title="Solo se ve donde hay algo en la capa de debajo (texturas, sombras, estampados sin salirse)">
+              Máscara de recorte
+            </button>
+            <button className={l.reference ? 'lz-chip on' : 'lz-chip'} onClick={() => props.onPatch({ reference: !l.reference || undefined })} title="El bote rellena en otra capa parándose en lo que hay en esta (las líneas)">
+              Referencia
+            </button>
+          </div>
+          <div className="lz-chips">
+            <span className="lz-muted">Es de</span>
+            {(
+              [
+                [undefined, 'Dibujo'],
+                ['sombra', 'Sombra'],
+                ['luz', 'Luz'],
+              ] as [LayerRole | undefined, string][]
+            ).map(([role, label]) => (
+              <button key={label} className={l.role === role ? 'lz-chip on' : 'lz-chip'} onClick={() => props.onPatch({ role })} title={role ? 'Se ve en el dibujo; en 3D la luz y las sombras las pone la escena' : 'Parte del diseño (también en 3D)'}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {props.onFlip && (
+            <div className="lz-chips">
+              <button className="lz-chip" onClick={() => props.onFlip!('x')}>
+                ↔ Voltear
+              </button>
+              <button className="lz-chip" onClick={() => props.onFlip!('y')}>
+                ↕ Voltear
+              </button>
+              {props.onInvert && (
+                <button className="lz-chip" onClick={props.onInvert}>
+                  Invertir colores
+                </button>
+              )}
             </div>
           )}
           <div className="lz-chips">
@@ -2685,4 +3254,153 @@ function PerspectiveGuide({
       ))}
     </svg>
   )
+}
+
+/** Cuadrícula isométrica: líneas a 30° hacia los dos lados y verticales. */
+function isoGrid(size: number): React.CSSProperties {
+  const c = 'rgba(61, 139, 253, 0.25)'
+  const lines = (deg: number) => `repeating-linear-gradient(${deg}deg, ${c} 0 1px, transparent 1px ${size}px)`
+  return { backgroundImage: [lines(150), lines(210), lines(90)].join(', ') }
+}
+
+/** Guía de la simetría: sus ejes (o los radios) y el centro, que se arrastra. */
+function SymmetryGuide({
+  w,
+  h,
+  kind,
+  count,
+  center,
+  scale,
+  toDoc,
+  onMove,
+}: {
+  w: number
+  h: number
+  kind: Symmetry
+  count: number
+  center: [number, number]
+  scale: number
+  toDoc: (x: number, y: number) => { x: number; y: number }
+  onMove: (x: number, y: number) => void
+}) {
+  const L = Math.hypot(w, h) * 2
+  const [cx, cy] = center
+  const sw = 2 / scale
+  const full: number[] = []
+  if (kind === 'vertical' || kind === 'cuadrante') full.push(Math.PI / 2)
+  if (kind === 'horizontal' || kind === 'cuadrante') full.push(0)
+  const n = kind === 'radial' || kind === 'giratoria' ? Math.max(2, Math.min(16, count)) : 0
+  return (
+    <svg className="lz-overlay persp" viewBox={`0 0 ${w} ${h}`} width={w} height={h}>
+      {full.map((a) => (
+        <line key={a} x1={cx - Math.cos(a) * L} y1={cy - Math.sin(a) * L} x2={cx + Math.cos(a) * L} y2={cy + Math.sin(a) * L} stroke="#3d8bfd" strokeWidth={sw} opacity={0.8} />
+      ))}
+      {Array.from({ length: n }, (_, k) => {
+        const a = -Math.PI / 2 + (k / n) * Math.PI * 2
+        return <line key={k} x1={cx} y1={cy} x2={cx + Math.cos(a) * L} y2={cy + Math.sin(a) * L} stroke="#3d8bfd" strokeWidth={sw} opacity={0.7} />
+      })}
+      <circle
+        cx={cx}
+        cy={cy}
+        r={11 / scale}
+        fill="#fff"
+        stroke="#3d8bfd"
+        strokeWidth={3 / scale}
+        style={{ pointerEvents: 'auto', cursor: 'grab' }}
+        onPointerDown={(e) => {
+          e.stopPropagation()
+          const el = e.currentTarget
+          try {
+            el.setPointerCapture(e.pointerId)
+          } catch {
+            // Puntero ya suelto
+          }
+          const move = (ev: PointerEvent) => {
+            const p = toDoc(ev.clientX, ev.clientY)
+            onMove(p.x, p.y)
+          }
+          const up = () => {
+            el.removeEventListener('pointermove', move)
+            el.removeEventListener('pointerup', up)
+          }
+          el.addEventListener('pointermove', move)
+          el.addEventListener('pointerup', up)
+        }}
+      />
+    </svg>
+  )
+}
+
+/**
+ * Pinta `img` deformado a las cuatro esquinas `c` (arriba izq., arriba der., abajo der., abajo izq.): se parte en una
+ * rejilla de n × n trozos y cada uno se pinta como dos triángulos (cada triángulo con su transformación).
+ */
+function warpDraw(g: CanvasRenderingContext2D, img: HTMLCanvasElement, c: [number, number][], n: number) {
+  const W = img.width
+  const H = img.height
+  const at = (u: number, v: number): [number, number] => {
+    const tx = c[0][0] + (c[1][0] - c[0][0]) * u
+    const ty = c[0][1] + (c[1][1] - c[0][1]) * u
+    const bx = c[3][0] + (c[2][0] - c[3][0]) * u
+    const by = c[3][1] + (c[2][1] - c[3][1]) * u
+    return [tx + (bx - tx) * v, ty + (by - ty) * v]
+  }
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < n; j++) {
+      const u0 = i / n
+      const u1 = (i + 1) / n
+      const v0 = j / n
+      const v1 = (j + 1) / n
+      const s = [
+        [u0 * W, v0 * H],
+        [u1 * W, v0 * H],
+        [u1 * W, v1 * H],
+        [u0 * W, v1 * H],
+      ] as [number, number][]
+      const d = [at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1)]
+      triangle(g, img, s[0], s[1], s[2], d[0], d[1], d[2])
+      triangle(g, img, s[0], s[2], s[3], d[0], d[2], d[3])
+    }
+}
+/** Un triángulo de la imagen (s0, s1, s2) pintado en (d0, d1, d2), un poco agrandado para que no se vean las juntas. */
+function triangle(g: CanvasRenderingContext2D, img: HTMLCanvasElement, s0: [number, number], s1: [number, number], s2: [number, number], d0: [number, number], d1: [number, number], d2: [number, number]) {
+  const [x0, y0] = s0
+  const [x1, y1] = s1
+  const [x2, y2] = s2
+  const [u0, v0] = d0
+  const [u1, v1] = d1
+  const [u2, v2] = d2
+  const dx1 = x1 - x0
+  const dy1 = y1 - y0
+  const dx2 = x2 - x0
+  const dy2 = y2 - y0
+  const det = dx1 * dy2 - dx2 * dy1
+  if (!det) return
+  const du1 = u1 - u0
+  const du2 = u2 - u0
+  const dv1 = v1 - v0
+  const dv2 = v2 - v0
+  const a = (du1 * dy2 - du2 * dy1) / det
+  const cc = (du2 * dx1 - du1 * dx2) / det
+  const b = (dv1 * dy2 - dv2 * dy1) / det
+  const d = (dv2 * dx1 - dv1 * dx2) / det
+  const e = u0 - a * x0 - cc * y0
+  const f = v0 - b * x0 - d * y0
+  // Recorte del triángulo de destino, agrandado medio píxel desde su centro
+  const mx = (u0 + u1 + u2) / 3
+  const my = (v0 + v1 + v2) / 3
+  const grow = (x: number, y: number): [number, number] => {
+    const l = Math.hypot(x - mx, y - my) || 1
+    return [x + ((x - mx) / l) * 0.6, y + ((y - my) / l) * 0.6]
+  }
+  g.save()
+  g.beginPath()
+  g.moveTo(...grow(u0, v0))
+  g.lineTo(...grow(u1, v1))
+  g.lineTo(...grow(u2, v2))
+  g.closePath()
+  g.clip()
+  g.transform(a, b, cc, d, e, f)
+  g.drawImage(img, 0, 0)
+  g.restore()
 }

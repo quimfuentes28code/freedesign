@@ -1074,3 +1074,76 @@
 .lz-sheet .lz-seg {
   margin-bottom: 4px;
 }
+
+/* Fase 2: estirar, distorsionar, capas recortadas, menú rápido */
+.lz-handle.side-x {
+  right: 0;
+  top: 50%;
+  margin: 0 -13px 0 0;
+  cursor: ew-resize;
+  transform-origin: 100% 50%;
+  border-radius: 8px;
+}
+.lz-handle.side-y {
+  left: 50%;
+  bottom: 0;
+  margin: 0 0 -13px 0;
+  cursor: ns-resize;
+  transform-origin: 50% 100%;
+  border-radius: 8px;
+}
+.lz-warp {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.lz-layer-row.clipped {
+  margin-left: 18px;
+  border-left: 2px solid var(--lz-accent);
+}
+.lz-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--lz-accent) !important;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+}
+.lz-toggle.inline {
+  margin: 0 4px;
+}
+.lz-quick {
+  position: absolute;
+  z-index: 8;
+  width: 0;
+  height: 0;
+}
+.lz-quick button {
+  position: absolute;
+  left: 0;
+  top: 0;
+  min-width: 86px;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 19px;
+  border: 1px solid var(--lz-line);
+  background: var(--lz-pop);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(14px);
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.lz-quick button:hover {
+  background: var(--lz-accent);
+}
+.lz-quick .lz-quick-x {
+  min-width: 38px;
+  width: 38px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  font-size: 18px;
+}

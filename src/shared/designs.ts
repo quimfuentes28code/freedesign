@@ -422,7 +422,14 @@ interface CanvasLayerBase {
   /** 0 a 1. */
   opacity: number
   blend: BlendMode
+  /** Máscara de recorte: solo se ve donde hay algo en la capa de debajo (la primera que no recorta). */
+  clip?: boolean
+  /** Capa de referencia: el bote rellena en otra capa parándose en lo que hay en esta (las líneas del dibujo). */
+  reference?: boolean
+  /** Capa de luz o de sombra: se ve en el dibujo, pero el 3D pone sus propias luces y sombras (no se lleva a la prenda). */
+  role?: LayerRole
 }
+export type LayerRole = 'luz' | 'sombra'
 /** Capa de pintura (píxeles, guardados como PNG en Workers KV). */
 export interface PaintLayer extends CanvasLayerBase {
   kind: 'paint'
@@ -467,6 +474,9 @@ export interface ImageLayer extends CanvasLayerBase {
   asset?: string
   /** Alto / ancho. */
   aspect: number
+  /** Volteada en horizontal o en vertical. */
+  flipX?: boolean
+  flipY?: boolean
   x: number
   y: number
   w: number

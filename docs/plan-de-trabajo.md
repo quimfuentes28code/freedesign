@@ -68,7 +68,16 @@ Hecho: `/disenador` abre un lienzo en blanco (se crea al guardar), el panel «Di
    - ponerlas en cualquier capa, por debajo para calcar;
    - **recortar** un trozo con el lazo (✅ ya hay selección) y pasarlo a capa nueva.
 
-## Fase 2 — Capas y herramientas como Procreate
+## Fase 2 — Capas y herramientas como Procreate ✅ hecha (11-11-2026)
+Hecho:
+- **Capas:** máscara de recorte, capa de referencia, capas de Luz y Sombra, voltear e invertir colores.
+- **Bote:** con capa de referencia y «Solo la ropa».
+- **Guía de dibujo:** simetría radial y giratoria con centro movible, cuadrícula isométrica y asistencia de dibujo.
+- **Herramientas:** QuickShape, cuentagotas al mantener, menú rápido e historial deslizable.
+- **Transformar:** estirar y distorsionar por las esquinas. Además se ha arreglado un fallo: los tiradores de transformar no salían.
+
+Queda para más adelante: agrupar capas, deformar con malla (warp), el time-lapse y probarlo en el iPad con el lápiz.
+
 1. **Capas:**
    - duplicar (✅ ya existe);
    - **invertir**: voltear horizontal o vertical, e invertir colores;

@@ -174,6 +174,9 @@ function readCanvas(raw: unknown): CanvasDoc | null {
       locked: l.locked === true,
       opacity: Math.min(1, Math.max(0, finite(l.opacity, 1))),
       blend: oneOf(l.blend, BLEND_MODES, 'normal'),
+      ...(l.clip === true ? { clip: true } : {}),
+      ...(l.reference === true ? { reference: true } : {}),
+      ...(l.role === 'luz' || l.role === 'sombra' ? { role: l.role as 'luz' | 'sombra' } : {}),
     }
     const file = text(l.file)
     if (l.kind === 'paint') layers.push({ ...base, kind: 'paint', file: isFileKey(file) ? file : null, ...(l.alphaLock === true ? { alphaLock: true } : {}) })
@@ -219,7 +222,7 @@ function readCanvas(raw: unknown): CanvasDoc | null {
       if (detail) layers.push({ ...base, kind: 'detail', detail, x: finite(l.x, 0), y: finite(l.y, 0), w: Math.max(4, finite(l.w, 80)), rotation: finite(l.rotation, 0) })
     }
     else if (l.kind === 'image' && (isFileKey(file) || /^\/mockups\/[a-z0-9-]+\.png$/.test(text(l.asset))))
-      layers.push({ ...base, kind: 'image', file: isFileKey(file) ? file : '', ...(isFileKey(file) ? {} : { asset: text(l.asset) }), aspect: Math.max(0.05, finite(l.aspect, 1)), x: finite(l.x, 0), y: finite(l.y, 0), w: Math.max(4, finite(l.w, 400)), rotation: finite(l.rotation, 0) })
+      layers.push({ ...base, kind: 'image', file: isFileKey(file) ? file : '', ...(isFileKey(file) ? {} : { asset: text(l.asset) }), aspect: Math.max(0.05, finite(l.aspect, 1)), x: finite(l.x, 0), y: finite(l.y, 0), w: Math.max(4, finite(l.w, 400)), rotation: finite(l.rotation, 0), ...(l.flipX === true ? { flipX: true } : {}), ...(l.flipY === true ? { flipY: true } : {}) })
   }
   return { w, h, paper: hex(c.paper, '#ffffff'), layers }
 }
