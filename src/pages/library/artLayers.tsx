@@ -115,7 +115,7 @@ export function layerSize(l: ArtLayer) {
   if (l.type === 'shape') return { w: l.w, h: l.h }
   if (l.type === 'path') {
     // El trazo está centrado en (x, y): la caja es simétrica alrededor del centro
-    const b = nodesBox(l.nodes)
+    const b = [l.nodes, ...(l.subpaths ?? [])].map(nodesBox).reduce((a, c) => ({ x0: Math.min(a.x0, c.x0), y0: Math.min(a.y0, c.y0), x1: Math.max(a.x1, c.x1), y1: Math.max(a.y1, c.y1) }))
     const pad = l.stroke ? l.strokeWidth / 2 : 0
     return { w: Math.max(4, 2 * Math.max(Math.abs(b.x0), Math.abs(b.x1)) + pad * 2), h: Math.max(4, 2 * Math.max(Math.abs(b.y0), Math.abs(b.y1)) + pad * 2) }
   }
@@ -198,7 +198,7 @@ export function ArtLayerView({ layer: l }: { layer: ArtLayer }) {
   if (l.type === 'shape' || l.type === 'path') {
     const { w, h } = layerSize(l)
     const fid = `fill-${l.id}`
-    const d = l.type === 'shape' ? shapePath(l.shape, l.w, l.h, l) : nodesPath(l.nodes, l.closed)
+    const d = l.type === 'shape' ? shapePath(l.shape, l.w, l.h, l) : [l.nodes, ...(l.subpaths ?? [])].map((nodes) => nodesPath(nodes, l.closed)).join('')
     return (
       <g transform={t}>
         <defs>
@@ -207,6 +207,7 @@ export function ArtLayerView({ layer: l }: { layer: ArtLayer }) {
         <path
           d={d}
           fill={l.type === 'path' && !l.closed ? 'none' : fillValue(fid, l.fill, l)}
+          fillRule={l.type === 'path' && l.subpaths?.length ? 'evenodd' : undefined}
           stroke={l.stroke || 'none'}
           strokeWidth={l.stroke ? l.strokeWidth : 0}
           strokeLinecap="round"

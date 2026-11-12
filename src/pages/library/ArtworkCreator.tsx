@@ -16,6 +16,7 @@ import type { BrandColor } from '../../shared/users'
 import { COLOR_CHART } from '../../designer/colors'
 import { ProductionPanel } from './ProductionPanel'
 import { removeBackground } from './artProduction'
+import { vectorize, type Detail as VectorDetail } from './vectorize'
 import { buildTemplate, LOGO_TEMPLATES, templatePalette, type LogoTemplate } from './artTemplates'
 import { GraffitiPanel } from './GraffitiPanel'
 import './creator.css'
@@ -473,8 +474,24 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
             <Link to="/biblioteca/graficos" className="button">
               Volver
             </Link>
-            <button className="button primary" onClick={() => addImage(undefined, uploaded)}>
+            <button className="button" onClick={() => addImage(undefined, uploaded)}>
               Editar en el creador
+            </button>
+            <button
+              className="button primary"
+              title="Convierte la imagen en formas editables (luego se ajusta en el panel de cada capa)"
+              onClick={async () => {
+                try {
+                  const paths = await vectorize(fileUrl(uploaded.file), { colors: 3, detail: 'medio', removeBackground: true })
+                  setLayers(paths)
+                  setSelection(paths.map((p) => p.id))
+                  setUploaded(null)
+                } catch (err) {
+                  setError((err as Error).message)
+                }
+              }}
+            >
+              Vectorizar
             </button>
           </div>
         </header>
@@ -680,7 +697,10 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
                     const patch: Partial<ArtLayer> = { x: t.x, y: t.y, rotation: t.rotation }
                     if (l.type === 'text') Object.assign(patch, { size: l.size * k })
                     else if (l.type === 'image') Object.assign(patch, { w: t.w })
-                    else if (l.type === 'path') Object.assign(patch, { nodes: l.nodes.map((p) => ({ x: p.x * k, y: p.y * k, hx: (p.hx ?? 0) * k, hy: (p.hy ?? 0) * k })) })
+                    else if (l.type === 'path') {
+                      const sc = (nodes: PathNode[]) => nodes.map((p) => ({ x: p.x * k, y: p.y * k, hx: (p.hx ?? 0) * k, hy: (p.hy ?? 0) * k }))
+                      Object.assign(patch, { nodes: sc(l.nodes), ...(l.subpaths ? { subpaths: l.subpaths.map(sc) } : {}) })
+                    }
                     else Object.assign(patch, { w: l.w * k, h: l.h * k })
                     setLayers((all) => all.map((x) => (x.id === l.id ? ({ ...x, ...patch } as ArtLayer) : x)))
                   }}
@@ -932,7 +952,34 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
                 <Range label="Proporción (alto)" value={Math.round((current.h / current.w) * 100)} min={2} max={300} onChange={(v) => update({ h: (current.w * v) / 100 })} />
               </>
             )}
-            {current.type === 'image' && <BackgroundRemover layer={current} onChange={update} onError={setError} />}
+            {current.type === 'image' && (
+              <>
+                <Vectorizer
+                  layer={current}
+                  onDone={(paths) => {
+                    // Las formas van donde estaba la imagen, a su tamaño; la imagen se quita (Ctrl+Z la devuelve)
+                    const s = current.w / 420
+                    const placed = paths.map((p) =>
+                      p.type === 'path'
+                        ? ({
+                            ...p,
+                            x: current.x,
+                            y: current.y,
+                            rotation: current.rotation,
+                            nodes: p.nodes.map((n) => ({ x: n.x * s, y: n.y * s, hx: (n.hx ?? 0) * s, hy: (n.hy ?? 0) * s })),
+                            subpaths: p.subpaths?.map((sp) => sp.map((n) => ({ x: n.x * s, y: n.y * s, hx: (n.hx ?? 0) * s, hy: (n.hy ?? 0) * s }))),
+                          } as ArtLayer)
+                        : p,
+                    )
+                    const at = layers.findIndex((x) => x.id === current.id)
+                    setLayers([...layers.slice(0, at), ...placed, ...layers.slice(at + 1)])
+                    setSelection(placed.map((p) => p.id))
+                  }}
+                  onError={setError}
+                />
+                <BackgroundRemover layer={current} onChange={update} onError={setError} />
+              </>
+            )}
             {current.type === 'path' && (
               <>
                 <label className="toggle-row">
@@ -1062,6 +1109,57 @@ function Range({ label, value, min, max, onChange }: { label: string; value: num
 }
 
 /** Quitar el fondo liso de una foto o un logo (se sube como una imagen nueva; Ctrl+Z vuelve a la anterior). */
+/**
+ * Vectorizar la imagen: la convierte en formas editables (una capa por color, agrupadas), con los colores, el detalle
+ * y el fondo que se elijan. Ver vectorize.ts.
+ */
+function Vectorizer({ layer, onDone, onError }: { layer: Extract<ArtLayer, { type: 'image' }>; onDone: (layers: ArtLayer[]) => void; onError: (e: string) => void }) {
+  const [colors, setColors] = useState(3)
+  const [detail, setDetail] = useState<VectorDetail>('medio')
+  const [removeBg, setRemoveBg] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const run = async () => {
+    setBusy(true)
+    try {
+      // Deja pintar el «Vectorizando…» antes de ponerse a calcular
+      await new Promise((r) => setTimeout(r, 30))
+      onDone(await vectorize(fileUrl(layer.file), { colors, detail, removeBackground: removeBg }))
+    } catch (e) {
+      onError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <>
+      <h3 className="form-sub">Vectorizar</h3>
+      <p className="muted small">Convierte la imagen en formas que se pueden editar, recolorear y ampliar sin que se pixelen: ideal para un logo en foto o en PNG.</p>
+      <Range label="Colores" value={colors} min={2} max={8} onChange={setColors} />
+      <div className="chips">
+        {(
+          [
+            ['suave', 'Suave'],
+            ['medio', 'Normal'],
+            ['fino', 'Con detalle'],
+          ] as const
+        ).map(([id, label]) => (
+          <button key={id} className={detail === id ? 'chip active' : 'chip'} onClick={() => setDetail(id)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <label className="toggle-row">
+        <span>Quitar el fondo (el color del borde)</span>
+        <input type="checkbox" checked={removeBg} onChange={(e) => setRemoveBg(e.target.checked)} />
+      </label>
+      <button className="button primary" onClick={run} disabled={busy}>
+        {busy ? 'Vectorizando…' : 'Vectorizar'}
+      </button>
+      <p className="muted small">Sale una capa por color, agrupadas. Si no queda bien, Ctrl+Z y prueba con otros ajustes.</p>
+    </>
+  )
+}
+
 function BackgroundRemover({ layer, onChange, onError }: { layer: Extract<ArtLayer, { type: 'image' }>; onChange: (p: Partial<ArtLayer>) => void; onError: (e: string) => void }) {
   const [tolerance, setTolerance] = useState(30)
   const [everywhere, setEverywhere] = useState(false)

@@ -101,6 +101,8 @@ export type ArtLayer = ArtLayerMeta & (
       /** Trazo hecho con la pluma o el lápiz: puntos (relativos al centro) con sus asas de curva. */
       type: 'path'
       nodes: PathNode[]
+      /** Otros contornos del mismo trazo (huecos e islas, p. ej. al vectorizar una imagen); se rellena par-impar. */
+      subpaths?: PathNode[][]
       closed: boolean
       /** Relleno (vacío = sin relleno) y trazo. */
       fill: string
