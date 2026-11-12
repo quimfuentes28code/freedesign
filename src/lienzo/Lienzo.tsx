@@ -309,7 +309,10 @@ export function Lienzo(props: Props) {
     () =>
       registerFlush(designId, async () => {
         if (!r.dirty.size && data.canvas) return null
-        const next = await uploadDirty(r, docRef.current)
+        const uploaded = await uploadDirty(r, docRef.current)
+        const files = new Map(uploaded.layers.flatMap((l) => (l.kind === 'paint' ? [[l.id, l.file] as const] : [])))
+        const cur = docRef.current
+        const next = { ...cur, layers: cur.layers.map((l) => (l.kind === 'paint' && files.has(l.id) ? { ...l, file: files.get(l.id)! } : l)) }
         docRef.current = next
         return next
       }),

@@ -45,6 +45,11 @@ export function useHistory<T>(initial: T) {
     apply(next)
   }, [])
 
+  /** Cambia el estado de ahora sin añadir un paso de deshacer (p. ej. al guardar, las claves de las capas subidas). */
+  const replace = useCallback((v: T) => apply(v), [])
+  /** El estado de este momento (también dentro de una llamada que empezó antes de un cambio). */
+  const get = useCallback(() => current.current, [])
+
   /** Empieza de cero (al cargar), sin historial. */
   const reset = useCallback((v: T) => {
     past.current = []
@@ -53,5 +58,5 @@ export function useHistory<T>(initial: T) {
     apply(v)
   }, [])
 
-  return { state, set, undo, redo, reset, canUndo: past.current.length > 0, canRedo: future.current.length > 0 }
+  return { state, set, undo, redo, reset, replace, get, canUndo: past.current.length > 0, canRedo: future.current.length > 0 }
 }

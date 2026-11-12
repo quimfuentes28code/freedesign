@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type DependencyList } from 'react'
 import type { Client, ClientInput } from '../shared/clients'
 import type { Artwork, ArtworkInput } from '../shared/artworks'
-import type { Design, DesignInput, Detail, HardwarePreset, LienzoAsset } from '../shared/designs'
+import type { Design, DesignInput, DesignVersion, Detail, HardwarePreset, LienzoAsset } from '../shared/designs'
 import type { Material, MaterialInput, Supplier, SupplierInput } from '../shared/library'
 import type { Collection, CollectionInput, FileCategory, Project, ProjectInput, ProjectStatus, ProjectSummary } from '../shared/projects'
 import type { EconomySummary, Expense, ExpenseInput } from '../shared/economy'
@@ -115,6 +115,11 @@ export const api = {
   createDesign: (d: DesignInput) => request<Design>('/designs', send('POST', d)),
   updateDesign: (id: string, d: DesignInput) => request<Design>(`/designs/${id}`, send('PUT', d)),
   deleteDesign: (id: string) => request<void>(`/designs/${id}`, send('DELETE')),
+  /** Historial de versiones de un diseño. */
+  listVersions: (id: string) => request<DesignVersion[]>(`/designs/${id}/versions`),
+  saveVersion: (id: string, label: string) => request<DesignVersion>(`/designs/${id}/versions`, send('POST', { label })),
+  restoreVersion: (id: string, vid: string) => request<{ ok: true }>(`/designs/${id}/versions/${vid}/restore`, send('POST')),
+  deleteVersion: (id: string, vid: string) => request<void>(`/designs/${id}/versions/${vid}`, send('DELETE')),
 
   listArtworks: () => request<Artwork[]>('/artworks'),
   listHardware: () => request<HardwarePreset[]>('/hardware'),

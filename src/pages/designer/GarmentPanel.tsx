@@ -13,6 +13,7 @@ import type { Material } from '../../shared/library'
 import { ExportMenu } from './ExportMenu'
 import { MeasuresPanel } from './MeasuresPanel'
 import { PieceInspector } from './PieceInspector'
+import { VersionsPanel } from './VersionsPanel'
 
 interface Props {
   id: string | null
@@ -26,6 +27,10 @@ interface Props {
   onChange: (d: DesignInput) => void
   onClose: () => void
   onDeleted: () => void
+  /** Guarda ya lo pendiente (antes de una versión) */
+  onSaveNow: () => Promise<void>
+  /** Tras volver a una versión */
+  onRestored: () => void
 }
 
 /**
@@ -37,7 +42,7 @@ export function GarmentPanel(props: Props) {
   const { design, template, materials, onChange } = props
   const projects = useApi(() => api.listProjects(), [])
   const artworks = useApi(() => api.listArtworks(), [])
-  const [section, setSection] = useState<'piezas' | 'modelo' | 'medidas' | 'datos'>('piezas')
+  const [section, setSection] = useState<'piezas' | 'modelo' | 'medidas' | 'datos' | 'versiones'>('piezas')
   const [piece, setPiece] = useState<string | null>(null)
 
   const setData = (patch: Partial<DesignData>) => onChange({ ...design, data: { ...design.data, ...patch } })
@@ -104,6 +109,7 @@ export function GarmentPanel(props: Props) {
                 ['modelo', 'Modelo'],
                 ['medidas', 'Medidas'],
                 ['datos', 'Datos'],
+                ...(props.id ? ([['versiones', 'Versiones']] as const) : []),
               ] as const
             ).map(([k, label]) => (
               <button key={k} className={section === k ? 'on' : ''} onClick={() => setSection(k)}>
@@ -234,6 +240,8 @@ export function GarmentPanel(props: Props) {
               )}
             </div>
           )}
+
+          {section === 'versiones' && props.id && <VersionsPanel id={props.id} onSaveNow={props.onSaveNow} onRestored={props.onRestored} />}
         </>
       )}
     </div>

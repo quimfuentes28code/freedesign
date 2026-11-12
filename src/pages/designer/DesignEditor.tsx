@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, useApi } from '../../api/client'
 import { defaultDesign, getTemplate, NEW_DESIGN_CATALOG } from '../../designer/templates'
@@ -15,6 +15,19 @@ import './studio-editor.css'
 
 /** Id del lienzo en memoria mientras el diseño aún no existe (borrador). */
 const DRAFT = 'borrador'
+
+/** Espera desde el último cambio hasta el autoguardado (y tras un fallo, antes de volver a intentarlo). */
+const AUTOSAVE_MS = 2500
+const RETRY_MS = 15000
+
+/** Pone en `d` las claves de las capas recién subidas (sin tocar lo que haya cambiado mientras subían). */
+function withFiles(d: DesignInput, uploaded: CanvasDoc): DesignInput {
+  const cur = d.data.canvas
+  if (!cur) return { ...d, data: { ...d.data, canvas: uploaded } }
+  const files = new Map(uploaded.layers.flatMap((l) => (l.kind === 'paint' ? [[l.id, l.file] as const] : [])))
+  const layers = cur.layers.map((l) => (l.kind === 'paint' && files.has(l.id) ? { ...l, file: files.get(l.id)! } : l))
+  return { ...d, data: { ...d.data, canvas: { ...cur, layers } } }
+}
 
 /** Lienzo en blanco: solo el papel y una capa de pintura. */
 function blankDoc(): CanvasDoc {
@@ -75,6 +88,15 @@ export function DesignEditor() {
   const [sheet, setSheet] = useState<'start' | 'garment' | null>(id ? null : 'start')
   const [pendingImage, setPendingImage] = useState<File | null>(null)
   const runtimeId = id ?? DRAFT
+  // Guardado en marcha (también para el autoguardado, que no espera a que React repinte)
+  const savingRef = useRef(false)
+  const savedRef = useRef('')
+  // Diseño que se acaba de crear al guardar el borrador: al cambiar la dirección no se vuelve a cargar (se seguiría
+  // pintando sobre él mientras llega)
+  const justCreated = useRef<string | null>(null)
+  const failedAt = useRef(0)
+  // Sube al volver a una versión: el lienzo se monta de nuevo con las capas de esa versión
+  const [loadCount, setLoadCount] = useState(0)
   const setMode3d = (m: Mode3D) => {
     setMode3dState(m)
     try {
@@ -84,56 +106,93 @@ export function DesignEditor() {
     }
   }
 
+  const markSaved = (s: string) => {
+    savedRef.current = s
+    setSaved(s)
+  }
+
+  const load = (designId: string) =>
+    api
+      .getDesign(designId)
+      .then((d) => {
+        const input: DesignInput = { name: d.name, template: d.template, clientId: d.clientId, projectId: d.projectId, data: d.data }
+        history.reset(input)
+        markSaved(JSON.stringify(input))
+      })
+      .catch((e: Error) => setError(e.message))
+
   useEffect(() => {
     setError(null)
+    if (id && id === justCreated.current) return
     if (!id) {
       // Borrador nuevo: lienzo en blanco
       dropRuntime(DRAFT)
       const d = newDraft(params)
       history.reset(d)
-      setSaved(JSON.stringify(d))
+      markSaved(JSON.stringify(d))
       setSheet('start')
       return
     }
-    api
-      .getDesign(id)
-      .then((d) => {
-        const input: DesignInput = { name: d.name, template: d.template, clientId: d.clientId, projectId: d.projectId, data: d.data }
-        history.reset(input)
-        setSaved(JSON.stringify(input))
-      })
-      .catch((e: Error) => setError(e.message))
+    load(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   const dirty = design !== null && JSON.stringify(design) !== saved
+  const isDirty = () => history.get() !== null && JSON.stringify(history.get()) !== savedRef.current
+
+  /**
+   * Guarda el diseño (a mano o solo, a los segundos de cada cambio). Se puede seguir pintando mientras: se guarda lo
+   * que hay al terminar de subir las capas, y lo que cambie después queda para el siguiente guardado.
+   */
   const save = async () => {
-    if (!design || saving) return
+    if (!history.get() || savingRef.current) return
+    savingRef.current = true
     setSaving(true)
     setError(null)
     try {
       // Antes, las capas pintadas del lienzo se suben como imágenes
       const canvas = await flushCanvas(runtimeId)
-      const next = canvas ? { ...design, data: { ...design.data, canvas } } : design
+      const latest = history.get()!
+      const next = canvas ? withFiles(latest, canvas) : latest
+      if (canvas) history.replace(next)
       if (id) {
-        if (canvas) history.set(next)
         await api.updateDesign(id, next)
-        setSaved(JSON.stringify(next))
+        markSaved(JSON.stringify(next))
         afterSave(id)
       } else {
         // Primer guardado: se crea el diseño y el lienzo en memoria pasa a ser el suyo
         const created = await api.createDesign(next)
+        justCreated.current = created.id
         moveRuntime(DRAFT, created.id)
         afterSave(created.id)
-        history.reset(next)
-        setSaved(JSON.stringify(next))
+        markSaved(JSON.stringify(next))
         navigate(`/disenador/${created.id}`, { replace: true })
       }
+      failedAt.current = 0
     } catch (e) {
-      setError((e as Error).message)
+      failedAt.current = Date.now()
+      setError(`No se ha podido guardar: ${(e as Error).message}. Se volverá a intentar solo.`)
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
+  }
+
+  // Autoguardado: unos segundos después del último cambio (si falla, se espera un poco más)
+  useEffect(() => {
+    if (!dirty || saving) return
+    const t = window.setTimeout(save, failedAt.current ? RETRY_MS : AUTOSAVE_MS)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [design, dirty, saving])
+
+  /** Tras volver a una versión: se olvida el lienzo en memoria y se carga de nuevo. */
+  const reloadDesign = async () => {
+    if (!id) return
+    dropRuntime(id)
+    await load(id)
+    setLoadCount((n) => n + 1)
+    setSheet(null)
   }
 
   // Ctrl+S guarda también con un panel abierto (el lienzo lo atiende si tiene el foco)
@@ -156,9 +215,10 @@ export function DesignEditor() {
     return () => window.removeEventListener('beforeunload', onLeave)
   }, [dirty])
 
-  /** Ir a otra página del Diseñador o de la app, avisando si hay cambios sin guardar. */
-  const go = (to: string) => {
-    if (dirty && !confirm('Hay cambios sin guardar. ¿Salir sin guardarlos?')) return
+  /** Ir a otra página del Diseñador o de la app: antes se guarda lo pendiente (y si no se puede, se avisa). */
+  const go = async (to: string) => {
+    if (isDirty()) await save()
+    if (isDirty() && !confirm('No se han podido guardar los últimos cambios. ¿Salir sin ellos?')) return
     navigate(to)
   }
 
@@ -182,6 +242,7 @@ export function DesignEditor() {
   return (
     <div className="editor studio-editor">
       <Lienzo
+        key={loadCount}
         designId={runtimeId}
         name={design.name}
         template={template}
@@ -261,6 +322,8 @@ export function DesignEditor() {
             onChange={history.set}
             onClose={() => setSheet(null)}
             onDeleted={() => navigate('/disenador')}
+            onSaveNow={save}
+            onRestored={reloadDesign}
           />
         )}
       </Lienzo>

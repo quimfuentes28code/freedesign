@@ -1,3 +1,4 @@
+import { usedByVersion } from './versions'
 import { HttpError, json, noContent, type Env } from './http'
 
 /** Tipos de imagen admitidos y su extensión. */
@@ -51,7 +52,8 @@ export async function filesRoute(request: Request, env: Env, uid: string, key: s
     })
   }
   if (key && request.method === 'DELETE') {
-    await deleteFile(env, uid, key)
+    // Las capas viejas del lienzo que guarda una versión del diseño no se borran (si no, no se podría volver a ella)
+    if (!(await usedByVersion(env, uid, key))) await deleteFile(env, uid, key)
     return noContent()
   }
   throw new HttpError(405, 'Método no permitido')

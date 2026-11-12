@@ -1235,3 +1235,51 @@
   width: 100%;
   aspect-ratio: 1;
 }
+
+/* --- Versiones del diseño (pestaña de «Prenda») --- */
+.lz-versions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.lz-version-new {
+  display: flex;
+  gap: 6px;
+}
+.lz-version-new input {
+  flex: 1;
+  min-width: 0;
+}
+.lz-version {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.04);
+}
+.lz-version > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.lz-version strong {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lz-version-date {
+  font-family: var(--font-tech, monospace);
+  font-size: 11px;
+  opacity: 0.6;
+}
+.lz-version-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}

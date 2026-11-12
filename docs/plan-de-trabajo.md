@@ -290,7 +290,12 @@ Fase 10 hecha. (Los iconos de la columna del lienzo siguen siendo los de antes.)
    - ¿qué sobra del menú?
    - Te propondré un mapa nuevo antes de tocar nada.
 
-## Fase 11 — Mejoras generales (acordadas antes)
+## Fase 11 — Mejoras generales (acordadas antes) 🔄 en marcha
+Hecho (12-11-2026):
+- **Autoguardado:** el diseño se guarda solo a los pocos segundos de cada cambio (también el borrador, en cuanto lo tocas) y al salir del lienzo.
+- **Versiones:** una automática cada 10 minutos de trabajo y las que guardes con nombre (pestaña «Versiones» de «Prenda»). Puedes volver a cualquiera; antes se guarda cómo estaba.
+- **Pendiente en producción:** crear la tabla con `npm run db:migrate:remote` (migraciones 0011, 0012 y 0013). Mientras no esté, se guarda igual pero sin versiones.
+
 - **Autoguardado** del lienzo e **historial de versiones** de cada diseño.
 - **App instalable (PWA)** para iPad y móvil, que se actualiza sola.
 - Que la app cargue más rápido: dividir el código, porque hoy el paquete pasa de 2 MB.

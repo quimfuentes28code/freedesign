@@ -134,23 +134,31 @@ export function afterSave(designId: string) {
 /** Sube las capas cambiadas de `doc`. */
 export async function uploadDirty(r: Runtime, doc: CanvasDoc): Promise<CanvasDoc> {
   if (!r.dirty.size) return doc
+  // Con el autoguardado se puede seguir pintando mientras sube: lo que se pinte ahora vuelve a marcar su capa
+  const todo = new Set(r.dirty)
+  r.dirty.clear()
   const layers: CanvasLayer[] = []
   for (const l of doc.layers) {
-    if (l.kind !== 'paint' || !r.dirty.has(l.id)) {
+    if (l.kind !== 'paint' || !todo.has(l.id)) {
       layers.push(l)
       continue
     }
     const c = r.layer(l.id)
     let file: string | null = null
-    if (!isEmpty(c)) {
-      const blob = await new Promise<Blob | null>((res) => c.toBlob(res, 'image/png'))
-      if (blob) file = (await api.uploadBlob(blob)).key
+    try {
+      if (!isEmpty(c)) {
+        const blob = await new Promise<Blob | null>((res) => c.toBlob(res, 'image/png'))
+        if (blob) file = (await api.uploadBlob(blob)).key
+      }
+    } catch (err) {
+      // Si falla la subida, esas capas siguen pendientes para el próximo guardado
+      todo.forEach((id) => r.dirty.add(id))
+      throw err
     }
     if (l.file) r.stale.add(l.file)
     if (file) r.markLoaded(l.id, file)
     layers.push({ ...l, file } satisfies PaintLayer)
   }
-  r.dirty.clear()
   return { ...doc, layers }
 }
 

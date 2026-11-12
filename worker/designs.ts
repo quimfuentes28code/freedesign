@@ -21,6 +21,7 @@ import {
   type Print,
   type Tracing, BLEND_MODES, type CanvasDoc, type CanvasLayer } from '../src/shared/designs'
 import { isFileKey } from './files'
+import { autoVersion, dropVersions } from './versions'
 import { HttpError, json, noContent, now, ownedRef, readBody, required, text, type Env } from './http'
 
 /** /api/designs — prendas diseñadas en el Diseñador. */
@@ -31,6 +32,7 @@ export async function designsRoute(request: Request, env: Env, uid: string, id: 
   if (id && request.method === 'PUT') return json(await updateDesign(env, uid, id, await readDesign(request, env, uid)))
   if (id && request.method === 'DELETE') {
     await env.DB.prepare('DELETE FROM designs WHERE id = ? AND user_id = ?').bind(id, uid).run()
+    await dropVersions(env, uid, id)
     return noContent()
   }
   throw new HttpError(405, 'Método no permitido')
@@ -90,6 +92,7 @@ async function createDesign(env: Env, uid: string, d: DesignInput) {
   )
     .bind(id, uid, d.name, d.template, d.clientId, d.projectId, JSON.stringify(d.data), t, t)
     .run()
+  await autoVersion(env, uid, id, { name: d.name, template: d.template, data: JSON.stringify(d.data) })
   return getDesign(env, uid, id)
 }
 
@@ -100,6 +103,7 @@ async function updateDesign(env: Env, uid: string, id: string, d: DesignInput) {
     .bind(d.name, d.template, d.clientId, d.projectId, JSON.stringify(d.data), now(), id, uid)
     .run()
   if (meta.changes === 0) throw new HttpError(404, 'Diseño no encontrado')
+  await autoVersion(env, uid, id, { name: d.name, template: d.template, data: JSON.stringify(d.data) })
   return getDesign(env, uid, id)
 }
 

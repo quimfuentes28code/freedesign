@@ -615,3 +615,13 @@ export interface Design {
 }
 
 export type DesignInput = Pick<Design, 'name' | 'template' | 'clientId' | 'projectId' | 'data'>
+
+/** Versión guardada de un diseño (historial): automática cada 10 minutos de trabajo o con nombre. */
+export interface DesignVersion {
+  id: string
+  /** Nombre que le ha puesto la persona; vacío en las automáticas */
+  label: string
+  /** Nombre del diseño en ese momento */
+  name: string
+  createdAt: string
+}

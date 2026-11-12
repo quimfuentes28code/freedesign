@@ -7,6 +7,7 @@ import { artworksRoute } from './artworks'
 import { authRoute, currentUser } from './auth'
 import { clientsRoute } from './clients'
 import { designsRoute } from './designs'
+import { versionsRoute } from './versions'
 import { hardwareRoute } from './hardware'
 import { lienzoAssetsRoute } from './lienzo'
 import { filesRoute } from './files'
@@ -61,6 +62,7 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
     case 'artworks':
       return artworksRoute(request, env, uid, id)
     case 'designs':
+      if (id && rest[0] === 'versions') return versionsRoute(request, env, uid, id, rest[1], rest[2])
       return designsRoute(request, env, uid, id, url)
     case 'projects':
       return projectsRoute(request, env, uid, id ? [id, ...rest] : [], url)
