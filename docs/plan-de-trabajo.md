@@ -260,7 +260,19 @@ Queda: lo pintado en mangas y capucha (igual que en la fase 8).
 2. Ver cómo quedan los diseños nuevos y corregir.
 3. **Elegir las medidas de cada prenda** aquí (largo, pecho, manga, ancho…), que pasan a la ficha técnica y al patrón.
 
-## Fase 10 — Interfaz y procesos (darle una vuelta)
+## Fase 10 — Interfaz y procesos (darle una vuelta) 🔄 en marcha
+Hecho (12-11-2026):
+- **Estilo elegido:** «Estudio + Taller técnico».
+- **Letras:** Space Grotesk e IBM Plex Mono.
+- **Color:** azul para las acciones y naranja en los detalles.
+- **Fondo y paneles:** fondo grafito con cuadrícula de patronaje y paneles lisos. El plató 3D queda solo en la portada.
+- **Densidad:** normal.
+
+Queda:
+- iconos propios;
+- simplificar procesos (borrar con deshacer, de proyecto a diseño en un toque);
+- revisar la organización de los apartados.
+
 1. **Estilo visual**, para que no parezca «hecho con Claude». Te enseñaré 3 o 4 propuestas para elegir (tipografías, menús, botones, iconos propios, colores, densidad), en preguntas cortas y con recomendación. Después lo aplico en toda la app.
 2. **Procesos más sencillos** (te iré preguntando):
    - borrar sin ventanas de confirmación, con «Deshacer» durante unos segundos;

@@ -5,8 +5,8 @@ import type { Design, Measurements, ShoeStyle } from '../types'
 import { mannequinMeasurements } from '../designer/to3d'
 
 /**
- * El plató de fotos es el fondo de toda la app. En la portada sale con el maniquí vestido y se puede girar; en el
- * resto de apartados queda detrás, quieto y sin maniquí (se pinta una vez y no gasta), con los paneles claros flotando encima.
+ * El plató de fotos es el fondo de la portada: sale con el maniquí vestido y se puede girar. En el resto de apartados
+ * no se pinta (el fondo es el grafito con cuadrícula de theme.css).
  */
 
 export interface StageLook {
@@ -34,7 +34,8 @@ export function StudioBackdrop({ home, children }: { home: boolean; children: Re
   }, [])
   return (
     <StageContext.Provider value={value}>
-      <div className={home ? 'studio-backdrop live' : 'studio-backdrop'} aria-hidden={!home}>
+      {home && (
+      <div className="studio-backdrop live">
         <Scene
           stage="studio"
           measurements={shown?.measurements ?? DEFAULT_MEASUREMENTS}
@@ -47,6 +48,7 @@ export function StudioBackdrop({ home, children }: { home: boolean; children: Re
           interactive={home}
         />
       </div>
+      )}
       {children}
     </StageContext.Provider>
   )
