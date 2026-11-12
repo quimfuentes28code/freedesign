@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { chartColor, COLOR_CHART, colorLabel } from '../../designer/colors'
 import type { PieceDef } from '../../designer/types'
 import type { Artwork } from '../../shared/artworks'
@@ -10,7 +10,7 @@ import { MaterialPicker } from './MaterialPicker'
 import { Fold } from './Fold'
 import { POCKET_SHAPE_PARAMS } from '../../designer/details'
 import { useAuth } from '../../auth/AuthContext'
-import { api } from '../../api/client'
+import { api, useApi } from '../../api/client'
 import { fileUrl } from '../../shared/library'
 
 interface Props {
@@ -131,23 +131,7 @@ export function PieceInspector(props: Props) {
       </Fold>
 
       <Fold title="Carta de colores">
-        {COLOR_CHART.map((g) => (
-          <div key={g.name} className="chart-group">
-            <span className="muted small">{g.name}</span>
-            <div className="palette">
-              {g.colors.map((c) => (
-                <button
-                  key={c.code}
-                  className={c.hex === style.color ? 'swatch-button active' : 'swatch-button'}
-                  style={{ background: c.hex }}
-                  onClick={() => onChange({ color: c.hex, colorName: c.name, colorCode: c.code })}
-                  title={`${c.name} · ${c.code}`}
-                  aria-label={c.name}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
+        <ColorChart current={style.color} brand={brand} onPick={(c) => onChange({ color: c.hex, colorName: c.name, colorCode: c.code })} />
       </Fold>
 
       {onHardware && piece.id === 'botones' && (
@@ -371,5 +355,89 @@ function SurfaceControls({ style, artworks, onChange }: { style: PieceStyle; art
         )}
       </div>
     </>
+  )
+}
+
+interface NamedColor {
+  hex: string
+  name: string
+  code: string
+}
+
+/**
+ * Carta de colores con buscador (por nombre o código) y «Tus códigos»: los colores con código propio (Pantone, de
+ * proveedor…) que ya se han usado en la marca o en cualquier diseño de la cuenta, para repetirlos sin escribirlos.
+ */
+function ColorChart({ current, brand, onPick }: { current: string; brand: { hex: string; name?: string; code?: string }[]; onPick: (c: NamedColor) => void }) {
+  const designs = useApi(() => api.listDesigns(), [])
+  const [q, setQ] = useState('')
+
+  const mine = useMemo(() => {
+    const seen = new Map<string, NamedColor>()
+    const add = (hex: string, name = '', code = '') => {
+      code = code.trim()
+      // Solo los que tienen un código propio (los FD- ya están en la carta)
+      if (!code || code.startsWith('FD-') || !/^#[0-9a-f]{6}$/i.test(hex)) return
+      const key = code.toLowerCase()
+      if (!seen.has(key)) seen.set(key, { hex: hex.toLowerCase(), name: name.trim(), code })
+    }
+    for (const b of brand) add(b.hex, b.name, b.code)
+    for (const d of designs.data ?? []) {
+      for (const s of Object.values(d.data.pieces ?? {})) add(s.color, s.colorName, s.colorCode)
+      for (const c of d.data.colorways ?? []) for (const s of Object.values(c.pieces)) add(s.color, s.colorName, s.colorCode)
+    }
+    return [...seen.values()].sort((a, b) => a.code.localeCompare(b.code, 'es', { numeric: true }))
+  }, [brand, designs.data])
+
+  const text = q.trim().toLowerCase()
+  const match = (c: NamedColor) => !text || c.name.toLowerCase().includes(text) || c.code.toLowerCase().includes(text) || c.hex.includes(text)
+  const swatch = (c: NamedColor) => (
+    <button
+      key={`${c.code}${c.hex}`}
+      className={c.hex === current ? 'swatch-button active' : 'swatch-button'}
+      style={{ background: c.hex }}
+      onClick={() => onPick(c)}
+      title={[c.name, c.code].filter(Boolean).join(' · ')}
+      aria-label={c.name || c.code}
+    />
+  )
+  const ownFound = mine.filter(match)
+  const groups = COLOR_CHART.map((g) => ({ name: g.name, colors: g.colors.filter(match) })).filter((g) => g.colors.length)
+
+  return (
+    <div className="color-chart">
+      <input type="search" className="color-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre o código (p. ej. 19-4007)" />
+      {ownFound.length > 0 && (
+        <div className="chart-group">
+          <span className="muted small">Tus códigos</span>
+          <div className="palette">{ownFound.map(swatch)}</div>
+          {text && (
+            <ul className="color-found">
+              {ownFound.slice(0, 8).map((c) => (
+                <li key={c.code}>
+                  <button type="button" onClick={() => onPick(c)}>
+                    <span style={{ background: c.hex }} />
+                    {c.code}
+                    {c.name && <em> · {c.name}</em>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {groups.map((g) => (
+        <div key={g.name} className="chart-group">
+          <span className="muted small">{g.name}</span>
+          <div className="palette">{g.colors.map(swatch)}</div>
+        </div>
+      ))}
+      {text && !ownFound.length && !groups.length && (
+        <p className="muted small">
+          Ningún color con «{q}». Si es un código nuevo (Pantone, de proveedor…), elige el color y escríbelo arriba en «Código»: la
+          próxima vez saldrá en «Tus códigos».
+        </p>
+      )}
+    </div>
   )
 }

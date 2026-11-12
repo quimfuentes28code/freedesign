@@ -14,6 +14,7 @@ import { ExportMenu } from './ExportMenu'
 import { MeasuresPanel } from './MeasuresPanel'
 import { PieceInspector } from './PieceInspector'
 import { VersionsPanel } from './VersionsPanel'
+import { ColorwaysPanel } from './ColorwaysPanel'
 
 interface Props {
   id: string | null
@@ -42,7 +43,7 @@ export function GarmentPanel(props: Props) {
   const { design, template, materials, onChange } = props
   const projects = useApi(() => api.listProjects(), [])
   const artworks = useApi(() => api.listArtworks(), [])
-  const [section, setSection] = useState<'piezas' | 'modelo' | 'medidas' | 'datos' | 'versiones'>('piezas')
+  const [section, setSection] = useState<'piezas' | 'variantes' | 'modelo' | 'medidas' | 'datos' | 'versiones'>('piezas')
   const [piece, setPiece] = useState<string | null>(null)
 
   const setData = (patch: Partial<DesignData>) => onChange({ ...design, data: { ...design.data, ...patch } })
@@ -106,6 +107,7 @@ export function GarmentPanel(props: Props) {
             {(
               [
                 ['piezas', 'Piezas'],
+                ['variantes', 'Variantes'],
                 ['modelo', 'Modelo'],
                 ['medidas', 'Medidas'],
                 ['datos', 'Datos'],
@@ -239,6 +241,10 @@ export function GarmentPanel(props: Props) {
                 </button>
               )}
             </div>
+          )}
+
+          {section === 'variantes' && (
+            <ColorwaysPanel name={design.name} template={template} data={design.data} materials={materials} body={props.body} onChange={(data) => onChange({ ...design, data })} />
           )}
 
           {section === 'versiones' && props.id && <VersionsPanel id={props.id} onSaveNow={props.onSaveNow} onRestored={props.onRestored} />}
