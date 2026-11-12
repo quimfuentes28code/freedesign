@@ -469,6 +469,21 @@ export function Lienzo(props: Props) {
       const c = brush.shade === 'sombra' ? shadeOf([d[0], d[1], d[2]]) : lightOf([d[0], d[1], d[2]])
       strokeColor = `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`
     }
+    // Con una imagen, un texto o una fornitura elegidos, la capa de pintura más alta puede quedar debajo y lo pintado no
+    // se veía (tapado por la imagen): se pinta en una capa nueva justo encima de lo elegido
+    if (!shading && !erase && layer && layer.kind !== 'paint') {
+      const at = doc.layers.findIndex((x) => x.id === layer.id)
+      const below = !pl || doc.layers.findIndex((x) => x.id === pl!.id) < at
+      if (below) {
+        const n = doc.layers.filter((x) => x.kind === 'paint').length + 1
+        const fresh: PaintLayer = { id: uid(), kind: 'paint', name: `Capa ${n}`, file: null, visible: true, locked: false, opacity: 1, blend: 'normal' }
+        const layers = [...doc.layers]
+        layers.splice(at + 1, 0, fresh)
+        change({ ...doc, layers })
+        setActive(fresh.id)
+        pl = fresh
+      }
+    }
     if (!pl) return flash('Elige una capa de pintura para dibujar (en «Capas»)')
     if (pl.locked) return flash('La capa está bloqueada')
     if (!pl.visible) return flash('La capa está oculta')
@@ -1398,7 +1413,8 @@ export function Lienzo(props: Props) {
     const aspect = a.height / Math.max(1, a.width)
     const w = aspect > 1 ? 300 / aspect : 360
     insertAbove({ id: uid(), kind: 'image', name: a.name, file: a.file, aspect, x: x - w / 2, y: y - (w * aspect) / 2, w, rotation: 0, visible: true, locked: false, opacity: 1, blend: 'normal' })
-    setTool('move')
+    // No se cambia de herramienta: si se estaba dibujando, se sigue dibujando (encima, en una capa nueva)
+    flash('Gráfico añadido. Para moverlo, usa Mover (V)')
   }
   /** Mockup de la biblioteca (imagen), centrado en (x, y). */
   const addMockupAsset = async (m: MockupAsset, x: number, y: number) => {
@@ -1473,8 +1489,8 @@ export function Lienzo(props: Props) {
       const loaded = await loadImage(fileUrl(key))
       if (loaded) r.images.set(key, loaded)
       insertAbove({ id: uid(), kind: 'image', name: file.name.replace(/\.[^.]+$/, '').slice(0, 40) || 'Imagen', file: key, aspect, x: (doc.w - w) / 2, y: (doc.h - w * aspect) / 2, w, rotation: 0, visible: true, locked: false, opacity: 1, blend: 'normal' })
-      setTool('move')
-      flash('Imagen añadida: muévela con la herramienta Mover')
+      // No se cambia de herramienta: antes pasaba a Mover y, al seguir dibujando, se arrastraba la imagen
+      flash('Imagen añadida. Para moverla, usa Mover (V); para dibujar encima, sigue con el pincel')
     } catch (e) {
       flash(e instanceof Error ? e.message : 'No se ha podido subir la imagen')
     }
