@@ -1758,3 +1758,27 @@
 .lz-pattern-brush .lz-chips {
   margin: 4px 0;
 }
+/* Lápiz vectorial: opciones del suavizado y fila de abajo con el botón SVG */
+.lz-vbar-label {
+  font: 11px var(--font-tech, monospace);
+  color: var(--lz-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.lz-vbar .lz-chip:disabled {
+  opacity: 0.45;
+}
+.lz-vbar-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lz-vbar-hint > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lz-vbar-hint .lz-chip {
+  flex: none;
+  padding: 3px 9px;
+  font-size: 11.5px;
+}

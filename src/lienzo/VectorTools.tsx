@@ -13,10 +13,11 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import type { CanvasDoc, VectorLayer, VNode, VPath } from '../shared/designs'
-import { clean, dashOf, hitPath, mapPath, pathD, SHAPE_KINDS, shapeNodes, toggleSmooth, translatePath, type Pt, type ShapeKind } from './vectorPaths'
+import { clean, curveBounds, dashOf, hitPath, mapPath, pathD, SHAPE_KINDS, shapeNodes, toggleSmooth, translatePath, vectorSvg, type Pt, type ShapeKind } from './vectorPaths'
+import { DEFAULT_PENCIL, fitPencil, liveFilter, type OneEuro2D, type PencilSettings } from './vectorPencil'
 
-export type VectorToolId = 'pen' | 'direct' | 'vshape'
-export const isVectorTool = (t: string): t is VectorToolId => t === 'pen' || t === 'direct' || t === 'vshape'
+export type VectorToolId = 'pen' | 'vpencil' | 'direct' | 'vshape'
+export const isVectorTool = (t: string): t is VectorToolId => t === 'pen' || t === 'vpencil' || t === 'direct' || t === 'vshape'
 
 interface Style {
   width: number
@@ -33,6 +34,41 @@ function loadStyle(): Style {
     // Sin almacenamiento
   }
   return { width: 4, dash: false, round: true, fill: null }
+}
+const PENCIL_KEY = 'freedesign.vector.pencil'
+function loadPencil(): PencilSettings {
+  try {
+    const s = JSON.parse(localStorage.getItem(PENCIL_KEY) ?? 'null')
+    if (s && typeof s.level === 'number')
+      return { auto: s.auto !== false, level: Math.min(1, Math.max(0, s.level)), precision: ['baja', 'media', 'alta'].includes(s.precision) ? s.precision : 'media', finish: s.finish !== false }
+  } catch {
+    // Sin almacenamiento
+  }
+  return DEFAULT_PENCIL
+}
+type Box = { x0: number; y0: number; x1: number; y1: number }
+const cornersOf = (b: Box): Pt[] => [
+  [b.x0, b.y0],
+  [b.x1, b.y0],
+  [b.x1, b.y1],
+  [b.x0, b.y1],
+]
+/** Distancia del asa de girar sobre el recuadro, en px de pantalla. */
+const ROTATE_GAP = 28
+
+/** Trazo provisional del lápiz: curvas cuadráticas por los puntos medios (fluido y barato de calcular). */
+function liveD(pts: Pt[]): string {
+  if (!pts.length) return ''
+  const f = (v: number) => Math.round(v * 10) / 10
+  let d = `M${f(pts[0][0])} ${f(pts[0][1])}`
+  if (pts.length === 1) return d + ` L${f(pts[0][0] + 0.01)} ${f(pts[0][1])}`
+  for (let i = 1; i < pts.length - 1; i++) {
+    const mx = (pts[i][0] + pts[i + 1][0]) / 2
+    const my = (pts[i][1] + pts[i + 1][1]) / 2
+    d += ` Q${f(pts[i][0])} ${f(pts[i][1])} ${f(mx)} ${f(my)}`
+  }
+  const last = pts[pts.length - 1]
+  return d + ` L${f(last[0])} ${f(last[1])}`
 }
 
 interface Options {
@@ -54,6 +90,9 @@ type Drag =
   | { kind: 'handle'; layer: VectorLayer; path: string; idx: number; which: 'hi' | 'ho'; start: Pt; moved: boolean }
   | { kind: 'path'; layer: VectorLayer; path: string; start: Pt; moved: boolean }
   | { kind: 'shape'; layer: VectorLayer; isNew: boolean; path: string; start: Pt; moved: boolean }
+  | { kind: 'pencil'; layer: VectorLayer; isNew: boolean; path: string; start: Pt; moved: boolean }
+  | { kind: 'scale'; layer: VectorLayer; path: string; start: Pt; moved: boolean; corner: number; box: Box }
+  | { kind: 'rotate'; layer: VectorLayer; path: string; start: Pt; moved: boolean; center: Pt }
 
 export interface Selection {
   layer: string
@@ -75,6 +114,35 @@ export function useVector(o: Options) {
   const [shape, setShape] = useState<ShapeKind>('rect')
   const [style, setStyleState] = useState<Style>(loadStyle)
   const drag = useRef<Drag | null>(null)
+  const [pencil, setPencilState] = useState<PencilSettings>(loadPencil)
+  const setPencil = (p: Partial<PencilSettings>) =>
+    setPencilState((prev) => {
+      const next = { ...prev, ...p }
+      try {
+        localStorage.setItem(PENCIL_KEY, JSON.stringify(next))
+      } catch {
+        // Sin almacenamiento
+      }
+      return next
+    })
+  // Lápiz: los puntos (ya filtrados) se guardan fuera del estado de React y el trazo provisional se pinta en un
+  // fotograma (requestAnimationFrame) directamente en su <path>, sin volver a pintar el lienzo en cada movimiento
+  const liveRef = useRef<SVGPathElement | null>(null)
+  // `pts`: filtrados (lo que se ve mientras se dibuja); `raw`: los reales, para el ajuste final (el filtro va un poco
+  // por detrás del puntero y redondearía las esquinas)
+  const live = useRef<{ pts: Pt[]; raw: Pt[]; filter: OneEuro2D | null; frame: number } | null>(null)
+  const paintLive = () => {
+    const l = live.current
+    if (!l) return
+    l.frame = 0
+    liveRef.current?.setAttribute('d', liveD(l.pts))
+  }
+  useEffect(
+    () => () => {
+      if (live.current?.frame) cancelAnimationFrame(live.current.frame)
+    },
+    [],
+  )
   const lastTap = useRef<{ key: string; t: number } | null>(null)
   const setStyle = (s: Partial<Style>) =>
     setStyleState((prev) => {
@@ -147,8 +215,23 @@ export function useVector(o: Options) {
   }, [o.doc])
 
   // --- Puntero ---
-  const down = (p: Pt, _e?: { altKey?: boolean }) => {
+  const down = (p: Pt, _e?: { altKey?: boolean }, tMs?: number) => {
     const [x, y] = p
+    if (o.tool === 'vpencil') {
+      const t = target()
+      const filter = liveFilter(pencil, o.scale)
+      const q = filter ? filter.filter(x, y, tMs ?? performance.now()) : p
+      live.current = { pts: [q], raw: [p], filter, frame: 0 }
+      const el = liveRef.current
+      if (el) {
+        el.style.transition = ''
+        el.style.opacity = ''
+      }
+      paintLive()
+      drag.current = { kind: 'pencil', layer: t.layer, isNew: t.isNew, path: uid(), start: p, moved: false }
+      setSel(null)
+      return
+    }
     if (o.tool === 'pen') {
       const l = pen ? layerById(pen.layer) : null
       const cur = pen ? pathIn(l, pen.path) : null
@@ -183,6 +266,23 @@ export function useVector(o: Options) {
     }
 
     if (o.tool !== 'direct') return
+    // 0. Trazado entero elegido: esquinas del recuadro (escalar) y asa de arriba (girar)
+    if (sel && sel.node === null) {
+      const l = layerById(sel.layer)
+      const sp = pathIn(l, sel.path)
+      if (l && sp) {
+        const b = curveBounds(sp)
+        const ci = cornersOf(b).findIndex((c) => near(c, x, y, tol))
+        if (ci >= 0) {
+          drag.current = { kind: 'scale', layer: l, path: sp.id, start: p, moved: false, corner: ci, box: b }
+          return
+        }
+        if (near([(b.x0 + b.x1) / 2, b.y0 - ROTATE_GAP / o.scale], x, y, tol * 1.3)) {
+          drag.current = { kind: 'rotate', layer: l, path: sp.id, start: p, moved: false, center: [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2] }
+          return
+        }
+      }
+    }
     // 1. Manejadores del punto elegido y de sus vecinos
     if (sel && sel.node !== null) {
       const l = layerById(sel.layer)
@@ -236,10 +336,19 @@ export function useVector(o: Options) {
     setSel(null)
   }
 
-  const move = (p: Pt, e: { altKey?: boolean; shiftKey?: boolean }) => {
+  const move = (p: Pt, e: { altKey?: boolean; shiftKey?: boolean }, tMs?: number) => {
     const d = drag.current
     if (!d) return
     const [x, y] = p
+    if (d.kind === 'pencil') {
+      const l = live.current
+      if (!l) return
+      l.pts.push(l.filter ? l.filter.filter(x, y, tMs ?? performance.now()) : p)
+      l.raw.push(p)
+      d.moved = true
+      if (!l.frame) l.frame = requestAnimationFrame(paintLive)
+      return
+    }
     if (!d.moved && Math.hypot(x - d.start[0], y - d.start[1]) < 3 / o.scale) return
     d.moved = true
     const base = pathIn(d.layer, d.path)
@@ -276,6 +385,27 @@ export function useVector(o: Options) {
       setDraft(withPath(d.layer, { ...base, nodes }))
     } else if (d.kind === 'path') {
       setDraft(withPath(d.layer, translatePath(base, x - d.start[0], y - d.start[1])))
+    } else if (d.kind === 'scale') {
+      // Escalar desde la esquina contraria (Mayús: proporcionado)
+      const cs = cornersOf(d.box)
+      const anchor = cs[(d.corner + 2) % 4]
+      const from = cs[d.corner]
+      let sx = (x - anchor[0]) / (from[0] - anchor[0] || 1)
+      let sy = (y - anchor[1]) / (from[1] - anchor[1] || 1)
+      if (e.shiftKey) {
+        const k = Math.max(Math.abs(sx), Math.abs(sy))
+        sx = Math.sign(sx || 1) * k
+        sy = Math.sign(sy || 1) * k
+      }
+      setDraft(withPath(d.layer, mapPath(base, (px, py) => [anchor[0] + (px - anchor[0]) * sx, anchor[1] + (py - anchor[1]) * sy])))
+    } else if (d.kind === 'rotate') {
+      // Girar alrededor del centro (Mayús: de 15 en 15°)
+      const [cx, cy] = d.center
+      let a = Math.atan2(y - cy, x - cx) - Math.atan2(d.start[1] - cy, d.start[0] - cx)
+      if (e.shiftKey) a = Math.round(a / (Math.PI / 12)) * (Math.PI / 12)
+      const c = Math.cos(a)
+      const sn = Math.sin(a)
+      setDraft(withPath(d.layer, mapPath(base, (px, py) => [cx + (px - cx) * c - (py - cy) * sn, cy + (px - cx) * sn + (py - cy) * c])))
     }
   }
 
@@ -283,6 +413,28 @@ export function useVector(o: Options) {
     const d = drag.current
     drag.current = null
     if (!d) return
+    if (d.kind === 'pencil') {
+      const l = live.current
+      live.current = null
+      if (l?.frame) cancelAnimationFrame(l.frame)
+      // El ajuste final parte de los puntos reales (esquinas exactas y el trazo acaba donde se soltó); el suavizado lo
+      // hace fitPencil por tramos, sin cruzar nunca una esquina
+      const fit = fitPencil(l ? l.raw : [d.start], pencil, o.scale)
+      save(withPath(d.layer, { ...newPath(fit.nodes, fit.closed), id: d.path }), d.isNew)
+      // El provisional se desvanece mientras aparece el definitivo (transición natural)
+      const el = liveRef.current
+      if (el) {
+        el.style.transition = 'opacity 160ms ease-out'
+        el.style.opacity = '0'
+        window.setTimeout(() => {
+          if (live.current) return
+          el.setAttribute('d', '')
+          el.style.transition = ''
+          el.style.opacity = ''
+        }, 180)
+      }
+      return
+    }
     if (d.kind === 'shape') {
       if (d.moved && draft) {
         save(draft, d.isNew)
@@ -400,6 +552,19 @@ export function useVector(o: Options) {
     up,
     key,
     dragging: () => !!drag.current,
+    pencil,
+    setPencil,
+    liveRef,
+    color: o.color,
+    /** Descarga las capas vectoriales visibles en SVG (curvas exactas). */
+    exportSvg: () => {
+      const blob = new Blob([vectorSvg(o.doc)], { type: 'image/svg+xml' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = 'trazados.svg'
+      a.click()
+      window.setTimeout(() => URL.revokeObjectURL(a.href), 2000)
+    },
     /** Anula lo que se estaba arrastrando (p. ej. al apoyar un segundo dedo para mover el lienzo). */
     cancel: () => {
       drag.current = null
@@ -470,6 +635,15 @@ export function VectorOverlay({ vec, w, h, scale }: { vec: VectorApi; w: number;
         <rect key={`a${id}${i}`} x={nd.x - box / 2} y={nd.y - box / 2} width={box} height={box} fill={on ? '#3d8bfd' : '#fff'} stroke="#3d8bfd" strokeWidth={1.5 * s} />,
       )
     })
+    // Trazado entero elegido: recuadro con esquinas para escalar y asa para girar
+    if (!editing && node === null) {
+      const b = curveBounds(p)
+      const top = b.y0 - ROTATE_GAP * s
+      parts.push(<rect key="bbox" x={b.x0} y={b.y0} width={b.x1 - b.x0} height={b.y1 - b.y0} fill="none" stroke="#3d8bfd" strokeWidth={s} strokeDasharray={`${4 * s} ${3 * s}`} />)
+      parts.push(<line key="rotl" x1={(b.x0 + b.x1) / 2} y1={b.y0} x2={(b.x0 + b.x1) / 2} y2={top} stroke="#3d8bfd" strokeWidth={s} />)
+      parts.push(<circle key="rot" cx={(b.x0 + b.x1) / 2} cy={top} r={5 * s} fill="#fff" stroke="#3d8bfd" strokeWidth={1.5 * s} />)
+      cornersOf(b).forEach(([cx, cy], i) => parts.push(<rect key={`bc${i}`} x={cx - box / 2} y={cy - box / 2} width={box} height={box} fill="#fff" stroke="#3d8bfd" strokeWidth={1.5 * s} />))
+    }
     // Pluma: goma elástica hasta el puntero y aviso de cerrar sobre el primer punto
     if (editing && vec.hover && n) {
       const last = p.nodes[n - 1]
@@ -490,6 +664,8 @@ export function VectorOverlay({ vec, w, h, scale }: { vec: VectorApi; w: number;
       )}
       <svg className="lz-overlay lz-vector-edit" viewBox={`0 0 ${w} ${h}`} width={w} height={h}>
         {parts}
+        {/* Trazo provisional del lápiz (su «d» lo pone useVector en cada fotograma) */}
+        <path ref={vec.liveRef} fill="none" stroke={vec.color} strokeWidth={vec.style.width} strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </>
   )
@@ -497,8 +673,9 @@ export function VectorOverlay({ vec, w, h, scale }: { vec: VectorApi; w: number;
 
 const HINTS: Record<VectorToolId, string> = {
   pen: 'Clic: punto · Arrastra: curva · Clic en el primero: cerrar · Intro: terminar · Retroceso: quitar punto',
-  direct: 'Arrastra puntos, manejadores (Alt: por separado) o el trazado · Doble toque: esquina/curva · Supr: borrar',
+  direct: 'Arrastra puntos, manejadores (Alt: por separado) o el trazado; con el trazado elegido, esquinas = escalar y asa = girar (Mayús: proporción, 15°) · Doble toque: esquina/curva · Supr: borrar',
   vshape: 'Arrastra para dibujar la forma · Mayús: proporcionada',
+  vpencil: 'Dibuja a mano alzada: el trazo se convierte en curvas limpias y editables · Si acabas cerca del principio, se cierra',
 }
 
 /** Panel de propiedades del trazado elegido (y el tipo de forma, con la herramienta Formas). */
@@ -507,6 +684,50 @@ export function VectorPanel({ vec, tool, color }: { vec: VectorApi; tool: Vector
   const p = s?.path
   return (
     <div className="lz-vbar" onPointerDown={(e) => e.stopPropagation()}>
+      {tool === 'vpencil' && (
+        <div className="lz-vbar-row">
+          <label className="lz-vbar-field" title="Suavizado automático: convierte el trazo en curvas limpias">
+            <input type="checkbox" checked={vec.pencil.auto} onChange={(e) => vec.setPencil({ auto: e.target.checked })} />
+            Suavizado
+          </label>
+          <label className="lz-vbar-field" title="Nivel de suavizado: 0 % libre · 25 % ligero · 50 % equilibrado · 75 % muy suave · 100 % máximo">
+            <span className="lz-vbar-num">{vec.pencil.auto ? `${Math.round(vec.pencil.level * 100)} %` : 'Libre'}</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              list="lz-pencil-steps"
+              disabled={!vec.pencil.auto}
+              value={Math.round(vec.pencil.level * 100)}
+              onChange={(e) => vec.setPencil({ level: Number(e.target.value) / 100 })}
+            />
+            <datalist id="lz-pencil-steps">
+              <option value={0} />
+              <option value={25} />
+              <option value={50} />
+              <option value={75} />
+              <option value={100} />
+            </datalist>
+          </label>
+          <span className="lz-vbar-label">Precisión</span>
+          {(['baja', 'media', 'alta'] as const).map((pr) => (
+            <button
+              key={pr}
+              className={vec.pencil.precision === pr ? 'lz-chip on' : 'lz-chip'}
+              disabled={!vec.pencil.auto}
+              onClick={() => vec.setPencil({ precision: pr })}
+              title={pr === 'baja' ? 'Prioriza la fluidez' : pr === 'media' ? 'Equilibrio' : 'Conserva los detalles pequeños'}
+            >
+              {pr === 'baja' ? 'Baja' : pr === 'media' ? 'Media' : 'Alta'}
+            </button>
+          ))}
+          <label className="lz-vbar-field" title="Refinamiento adicional al levantar el lápiz">
+            <input type="checkbox" checked={vec.pencil.finish} disabled={!vec.pencil.auto} onChange={(e) => vec.setPencil({ finish: e.target.checked })} />
+            Corrección al terminar
+          </label>
+        </div>
+      )}
       {tool === 'vshape' && (
         <div className="lz-vbar-row">
           {SHAPE_KINDS.map((k) => (
@@ -579,7 +800,12 @@ export function VectorPanel({ vec, tool, color }: { vec: VectorApi; tool: Vector
           </label>
         </div>
       )}
-      <div className="lz-vbar-hint">{HINTS[tool]}</div>
+      <div className="lz-vbar-hint">
+        <button className="lz-chip" onClick={vec.exportSvg} title="Descarga los trazados vectoriales en SVG, sin pérdida de calidad">
+          SVG
+        </button>
+        <span>{HINTS[tool]}</span>
+      </div>
     </div>
   )
 }

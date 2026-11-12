@@ -3,7 +3,7 @@
  * bajo el puntero y formas (rectángulo, elipse, polígono, estrella, línea). Sin React: lo usan el motor (`drawLayer`,
  * para componer y exportar) y las herramientas (`VectorTools.tsx`).
  */
-import type { VectorLayer, VNode, VPath } from '../shared/designs'
+import type { CanvasDoc, VectorLayer, VNode, VPath } from '../shared/designs'
 
 export type Pt = [number, number]
 
@@ -213,4 +213,54 @@ export function shapeNodes(kind: ShapeKind, a: Pt, b: Pt, square: boolean, sides
     nodes.push({ x: cx + (Math.cos(ang) * W * k) / 2, y: cy + (Math.sin(ang) * H * k) / 2 })
   }
   return { nodes, closed: true }
+}
+
+/** Caja de la curva (no de los manejadores): se muestrea cada tramo. Para el recuadro de escalar y girar. */
+export function curveBounds(p: VPath) {
+  let x0 = Infinity
+  let y0 = Infinity
+  let x1 = -Infinity
+  let y1 = -Infinity
+  const see = (x: number, y: number) => {
+    x0 = Math.min(x0, x)
+    y0 = Math.min(y0, y)
+    x1 = Math.max(x1, x)
+    y1 = Math.max(y1, y)
+  }
+  if (p.nodes.length) see(p.nodes[0].x, p.nodes[0].y)
+  eachSegment(p, (a, c1, c2, b) => {
+    for (let k = 1; k <= 16; k++) {
+      const t = k / 16
+      const u = 1 - t
+      see(u * u * u * a.x + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * b.x, u * u * u * a.y + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * b.y)
+    }
+  })
+  return { x0, y0, x1, y1 }
+}
+
+/** Las capas vectoriales visibles en un SVG del tamaño del papel (curvas exactas, sin pasar por píxeles). */
+export function vectorSvg(doc: CanvasDoc): string {
+  const groups = doc.layers
+    .filter((l): l is VectorLayer => l.kind === 'vector' && l.visible)
+    .map((l) => {
+      const paths = l.paths
+        .filter((p) => p.nodes.length >= 2)
+        .map((p) => {
+          const attrs = [
+            `d="${pathD(p)}"`,
+            `fill="${p.closed && p.fill ? p.fill : 'none'}"`,
+            `stroke="${p.stroke ?? 'none'}"`,
+            `stroke-width="${p.width}"`,
+            `stroke-linecap="${p.round ? 'round' : 'butt'}"`,
+            `stroke-linejoin="${p.round ? 'round' : 'miter'}"`,
+            p.dash ? `stroke-dasharray="${dashOf(p).join(' ')}"` : '',
+            (p.opacity ?? 1) < 1 ? `opacity="${p.opacity}"` : '',
+          ]
+          return `<path ${attrs.filter(Boolean).join(' ')}/>`
+        })
+        .join('')
+      const blend = l.blend !== 'normal' ? ` style="mix-blend-mode:${l.blend}"` : ''
+      return `<g opacity="${l.opacity}"${blend}>${paths}</g>`
+    })
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${doc.w}" height="${doc.h}" viewBox="0 0 ${doc.w} ${doc.h}">${groups.join('')}</svg>`
 }

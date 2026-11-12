@@ -58,7 +58,7 @@ import './lienzo.css'
 /** Puntero de los trazos que llegan del móvil que hace de tableta (no choca con los del navegador). */
 const REMOTE_POINTER = 987654
 
-type Tool = 'brush' | 'eraser' | 'picker' | 'fill' | 'move' | 'text' | 'select' | 'shaper' | 'curve' | 'pen' | 'direct' | 'vshape'
+type Tool = 'brush' | 'eraser' | 'picker' | 'fill' | 'move' | 'text' | 'select' | 'shaper' | 'curve' | 'pen' | 'vpencil' | 'direct' | 'vshape'
 type Panel = 'brushes' | 'layers' | 'color' | 'ajustes' | 'acciones' | 'biblioteca' | 'opciones' | 'ia' | 'luces' | null
 
 interface Settings {
@@ -1205,7 +1205,7 @@ export function Lienzo(props: Props) {
     const p = toDoc(e.clientX, e.clientY)
     if (tool === 'brush' || tool === 'eraser' || tool === 'shaper') startStroke(e, tool === 'eraser')
     else if (tool === 'curve') curveClick(p)
-    else if (isVectorTool(tool)) vec.down([p.x, p.y], e)
+    else if (isVectorTool(tool)) vec.down([p.x, p.y], e, e.timeStamp)
     else if (tool === 'picker') pick(p.x, p.y)
     else if (tool === 'fill') fill(p.x, p.y)
     else if (tool === 'select') {
@@ -1254,8 +1254,13 @@ export function Lienzo(props: Props) {
       return
     }
     if (vec.dragging()) {
-      const q = toDoc(e.clientX, e.clientY)
-      return vec.move([q.x, q.y], e)
+      // El lápiz vectorial usa también los puntos intermedios del movimiento (trazos rápidos o con lápiz digital)
+      const evs = tool === 'vpencil' ? ((e.nativeEvent as PointerEvent).getCoalescedEvents?.() ?? []) : []
+      for (const ev of evs.length ? evs : [e.nativeEvent]) {
+        const q = toDoc(ev.clientX, ev.clientY)
+        vec.move([q.x, q.y], e, ev.timeStamp || undefined)
+      }
+      return
     }
     if (stroke.current) return moveStroke(e)
     if (lasso && tool === 'select') {
@@ -1370,6 +1375,7 @@ export function Lienzo(props: Props) {
         } else if (isVectorTool(tool) && vec.key(k)) {
           e.preventDefault()
         } else if (k === 'p') setTool('pen')
+        else if (k === 'l') setTool('vpencil')
         else if (k === 'a') setTool('direct')
         else if (k === 'm') setTool('vshape')
         else if (k === 'n') setTool('shaper')
@@ -1857,7 +1863,7 @@ export function Lienzo(props: Props) {
 
   const brand = (user?.brandColors ?? []).map((c) => c.hex)
   const transform = `translate(${view.x}px, ${view.y}px) rotate(${view.r}rad) scale(${view.s})`
-  const cursor = tool === 'pen' || tool === 'vshape' ? 'crosshair' : tool === 'direct' ? 'default' : tool === 'move' ? 'move' : tool === 'text' ? 'text' : tool === 'select' || tool === 'curve' ? 'crosshair' : tool === 'picker' || tool === 'fill' ? 'crosshair' : 'none'
+  const cursor = tool === 'pen' || tool === 'vpencil' || tool === 'vshape' ? 'crosshair' : tool === 'direct' ? 'default' : tool === 'move' ? 'move' : tool === 'text' ? 'text' : tool === 'select' || tool === 'curve' ? 'crosshair' : tool === 'picker' || tool === 'fill' ? 'crosshair' : 'none'
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
   /** Creador de gráficos abierto encima del lienzo (nuevo, con una plantilla de logo o editando uno). */
   const [creator, setCreator] = useState<{ id?: string; template?: string; graffiti?: boolean } | null>(null)
@@ -1977,6 +1983,9 @@ export function Lienzo(props: Props) {
           </button>
           <button className={tool === 'pen' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('pen')} title="Pluma (P): trazados vectoriales con puntos y curvas, como en Illustrator">
             <Icon d="M10 2.5l4.5 7-4.5 8-4.5-8zM10 9.5v8M10 9.5a1 1 0 100 .01" />
+          </button>
+          <button className={tool === 'vpencil' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('vpencil')} title="Lápiz vectorial (L): dibuja a mano alzada y el trazo se convierte en curvas limpias y editables">
+            <Icon d="M13.5 3.5l3 3-8.5 8.5-3.5.5.5-3.5zM3 17.5c2-1.5 4-1.5 6 0s4 1.5 6 0" />
           </button>
           <button className={tool === 'direct' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('direct')} title="Selección directa (A): mueve puntos, manejadores o trazados vectoriales">
             <Icon d="M5 3l10 6.5-4.5 1.2 2.6 4.8-1.8 1-2.6-4.8L5 15z" />
