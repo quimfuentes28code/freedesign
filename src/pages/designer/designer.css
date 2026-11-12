@@ -748,3 +748,34 @@ button.design-card {
 .gender-pick {
   margin: 4px 0 6px;
 }
+
+/* --- Galería «Diseños» --- */
+.designs-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.designs-toolbar input[type='search'] {
+  flex: 1 1 240px;
+  margin: 0;
+}
+.designs-toolbar select {
+  flex: 0 1 220px;
+  margin: 0;
+}
+.design-thumb-blank {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-family: var(--font-tech, monospace);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #8a8a90;
+}
+.design-date {
+  font-family: var(--font-tech, monospace);
+  font-size: 11px;
+  color: var(--muted);
+}

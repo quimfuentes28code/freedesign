@@ -8,7 +8,7 @@ import { ClientsList } from './pages/clients/ClientsList'
 import { Dashboard } from './pages/Dashboard'
 import { StudioHome } from './pages/StudioHome'
 import { DesignEditor } from './pages/designer/DesignEditor'
-import { Preview3D } from './pages/designer/Preview3D'
+import { DesignsGallery } from './pages/designer/DesignsGallery'
 import { Probador } from './pages/designer/Probador'
 import { Lookbook } from './pages/designer/Lookbook'
 import { ArtworkCreator } from './pages/library/ArtworkCreator'
@@ -46,7 +46,9 @@ export default function App() {
               <Route path="clientes/:id" element={<ClientForm />} />
               <Route path="disenador" element={<DesignEditor />} />
               <Route path="disenador/nuevo" element={<ToDraft />} />
-              <Route path="disenador/3d" element={<Preview3D />} />
+              <Route path="disenos" element={<DesignsGallery />} />
+              {/* La vista 3D suelta de antes es ahora el Probador */}
+              <Route path="disenador/3d" element={<Navigate to="/disenador/probador" replace />} />
               <Route path="disenador/probador" element={<Probador />} />
               <Route path="disenador/lookbook" element={<Lookbook />} />
               <Route path="disenador/:id" element={<DesignEditor />} />

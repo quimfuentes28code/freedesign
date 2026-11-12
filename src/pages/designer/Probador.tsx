@@ -122,7 +122,7 @@ export function Probador() {
       <aside className="panel">
         <div className="panel-header">
           <h1>Probador</h1>
-          <Link to="/disenador" className="link">
+          <Link to="/disenos" className="link">
             Diseños
           </Link>
         </div>

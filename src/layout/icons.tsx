@@ -1,6 +1,9 @@
 /** Iconos de línea sencillos para el menú (24×24, trazo con el color del texto). */
 const PATHS = {
   dashboard: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z',
+  // Percha (Probador) y cámara (Lookbook)
+  probador: 'M10 5.5a2 2 0 1 1 2 2v1.5L3.6 15.2A1.5 1.5 0 0 0 4.5 18h15a1.5 1.5 0 0 0 .9-2.8L12 9',
+  lookbook: 'M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7',
   clients: 'M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 19v-1a4 4 0 0 0-3-3.9M16 3.1a3.5 3.5 0 0 1 0 6.8',
   designer: 'M8 3 4 6v5l3-1v11h10V10l3 1V6l-4-3a4 4 0 0 1-8 0',
   projects: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',

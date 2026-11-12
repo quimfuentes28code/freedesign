@@ -271,9 +271,13 @@ Hecho (12-11-2026):
 - **Borrar con «Deshacer»:** ya no se pregunta antes de borrar. Sale un aviso con «Deshacer» durante 6 s (clientes, diseños, proyectos, colecciones, materiales, proveedores, gráficos, gastos y órdenes).
 - **De un proyecto a diseñar en un toque:** «Diseñar» en la ficha del proyecto y «+ Diseño» en cada tarjeta del tablero.
 
+- **Menú nuevo en tres grupos:** Inicio · Crear (Diseños, Probador, Lookbook, Biblioteca) · Taller (Proyectos, Producción) · Negocio (Clientes, Economía).
+  - «Diseños» es una galería con todos los diseños.
+  - Probador y Lookbook salen en el menú.
+  - La vista 3D suelta se une al Probador.
+
 Queda:
 - iconos propios;
-- revisar la organización de los apartados.
 
 1. **Estilo visual**, para que no parezca «hecho con Claude». Te enseñaré 3 o 4 propuestas para elegir (tipografías, menús, botones, iconos propios, colores, densidad), en preguntas cortas y con recomendación. Después lo aplico en toda la app.
 2. **Procesos más sencillos** (te iré preguntando):

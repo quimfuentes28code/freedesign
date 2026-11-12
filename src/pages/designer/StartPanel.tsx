@@ -151,8 +151,8 @@ export function StartPanel(props: Props) {
         <button className="lz-chip" onClick={() => props.onLeave('/disenador/lookbook')}>
           Lookbook
         </button>
-        <button className="lz-chip" onClick={() => props.onLeave('/dashboard')}>
-          Salir del Diseñador
+        <button className="lz-chip" onClick={() => props.onLeave('/disenos')}>
+          Salir a Diseños
         </button>
       </div>
     </div>

@@ -109,7 +109,7 @@ export function Lookbook() {
         title="Lookbook"
         subtitle="Fotos realistas de tus outfits con una IA de imágenes"
         actions={
-          <Link to="/disenador" className="button">
+          <Link to="/disenos" className="button">
             Diseños
           </Link>
         }

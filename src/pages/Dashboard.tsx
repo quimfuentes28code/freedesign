@@ -29,7 +29,7 @@ export function Dashboard() {
         <Stat label="En fabricación" value={s?.inProduction} to="/proyectos" />
         <Stat label="Tareas pendientes" value={s?.openTasks} />
         <Stat label="Clientes" value={s?.clients} to="/clientes" />
-        <Stat label="Diseños" value={s?.designs} to="/disenador" />
+        <Stat label="Diseños" value={s?.designs} to="/disenos" />
         <Stat label="Materiales" value={s?.materials} to="/biblioteca" />
       </div>
 

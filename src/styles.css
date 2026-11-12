@@ -1449,3 +1449,32 @@ textarea,
 /* Aviso cuando el navegador no puede pintar 3D */
 .no-3d { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; }
 .no-3d p { max-width: 340px; margin: 0; color: #5b5853; font-size: 14px; line-height: 1.5; }
+
+/* --- Grupos del menú (Crear, Taller, Negocio); en el menú de iconos, una raya fina --- */
+.nav-group {
+  padding: 14px 10px 4px;
+  font-family: var(--font-tech, ui-monospace, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  opacity: 0.8;
+}
+.app.compact .nav-group {
+  height: 1px;
+  margin: 8px 6px;
+  padding: 0;
+  font-size: 0;
+  background: var(--border);
+}
+@media (max-width: 760px) {
+  .nav-group {
+    height: 1px;
+    width: 32px;
+    margin: 6px auto;
+    padding: 0;
+    font-size: 0;
+    background: var(--border);
+  }
+}
