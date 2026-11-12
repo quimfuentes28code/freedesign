@@ -562,3 +562,23 @@ html body .presentation-page .pres-sheet.pres-sheet p {
   background: none;
   border: none;
 }
+
+/* Al imprimir solo salen las hojas (el menú y los botones no; no depende de haber abierto otra página antes) */
+@media print {
+  body,
+  :root {
+    background: #fff !important;
+  }
+  .sidebar,
+  .no-print,
+  .undo-toasts {
+    display: none !important;
+  }
+  .app {
+    display: block !important;
+    height: auto !important;
+  }
+  .content {
+    overflow: visible !important;
+  }
+}

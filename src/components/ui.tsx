@@ -52,3 +52,8 @@ export function Status({ loading, error }: { loading?: boolean; error?: string |
   if (loading) return <p className="status">Cargando…</p>
   return null
 }
+
+/** Mientras llega el código de una página (solo la primera vez que se abre). */
+export function PageLoading() {
+  return <p className="page-loading">Cargando…</p>
+}

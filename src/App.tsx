@@ -1,38 +1,65 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router'
 import { AuthProvider, GuestOnly, RequireAuth } from './auth/AuthContext'
 import { AppLayout } from './layout/AppLayout'
-import { ProfilePage } from './pages/account/Profile'
 import { LoginPage, RegisterPage } from './pages/auth/AuthPages'
-import { ClientForm } from './pages/clients/ClientForm'
-import { ClientsList } from './pages/clients/ClientsList'
-import { Dashboard } from './pages/Dashboard'
-import { StudioHome } from './pages/StudioHome'
-import { DesignEditor } from './pages/designer/DesignEditor'
-import { DesignsGallery } from './pages/designer/DesignsGallery'
-import { Probador } from './pages/designer/Probador'
-import { Lookbook } from './pages/designer/Lookbook'
-import { ArtworkCreator } from './pages/library/ArtworkCreator'
-import { ArtworksList } from './pages/library/Artworks'
-import { MaterialForm } from './pages/library/MaterialForm'
-import { MaterialsCatalog } from './pages/library/MaterialsCatalog'
-import { SupplierForm, SuppliersList } from './pages/library/Suppliers'
-import { CollectionsPage } from './pages/projects/Collections'
-import { ProjectDetail } from './pages/projects/ProjectDetail'
-import { ProjectPresentation } from './pages/projects/ProjectPresentation'
-import { ProjectsPage } from './pages/projects/ProjectsPage'
-import { ProductionPage } from './pages/production/ProductionPage'
-import { TechPackPage } from './pages/production/TechPack'
-import { PatternPage } from './pages/production/Pattern'
-import { EconomyPage } from './pages/economy/EconomyPage'
-import { ExpensesPage } from './pages/economy/Expenses'
-import { NotFound } from './pages/Sections'
-import { TabletPad } from './pages/tablet/TabletPad'
+
+/**
+ * Carga el código de un apartado. Si falla porque se ha publicado una versión nueva (los archivos de la anterior ya no
+ * están en el servidor), recarga la página una vez para abrir la nueva; si vuelve a fallar, se ve el error.
+ */
+function fresh<T>(load: () => Promise<T>): Promise<T> {
+  return load().catch((err: unknown) => {
+    const KEY = 'fd:recargada'
+    let last = 0
+    try {
+      last = Number(sessionStorage.getItem(KEY) ?? 0)
+      sessionStorage.setItem(KEY, String(Date.now()))
+    } catch {
+      // Sin almacenamiento: se recarga igual (una sola vez por carga de la página)
+    }
+    if (Date.now() - last > 30_000) {
+      location.reload()
+      return new Promise<T>(() => {})
+    }
+    throw err
+  })
+}
+
+// Cada apartado se descarga solo al abrirlo (así la app arranca sin bajar el 3D, el lienzo o el creador de golpe)
+const ProfilePage = lazy(() => fresh(() => import('./pages/account/Profile').then((m) => ({ default: m.ProfilePage }))))
+const ClientForm = lazy(() => fresh(() => import('./pages/clients/ClientForm').then((m) => ({ default: m.ClientForm }))))
+const ClientsList = lazy(() => fresh(() => import('./pages/clients/ClientsList').then((m) => ({ default: m.ClientsList }))))
+const Dashboard = lazy(() => fresh(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard }))))
+const StudioHome = lazy(() => fresh(() => import('./pages/StudioHome').then((m) => ({ default: m.StudioHome }))))
+const DesignEditor = lazy(() => fresh(() => import('./pages/designer/DesignEditor').then((m) => ({ default: m.DesignEditor }))))
+const DesignsGallery = lazy(() => fresh(() => import('./pages/designer/DesignsGallery').then((m) => ({ default: m.DesignsGallery }))))
+const Probador = lazy(() => fresh(() => import('./pages/designer/Probador').then((m) => ({ default: m.Probador }))))
+const Lookbook = lazy(() => fresh(() => import('./pages/designer/Lookbook').then((m) => ({ default: m.Lookbook }))))
+const ArtworkCreator = lazy(() => fresh(() => import('./pages/library/ArtworkCreator').then((m) => ({ default: m.ArtworkCreator }))))
+const ArtworksList = lazy(() => fresh(() => import('./pages/library/Artworks').then((m) => ({ default: m.ArtworksList }))))
+const MaterialForm = lazy(() => fresh(() => import('./pages/library/MaterialForm').then((m) => ({ default: m.MaterialForm }))))
+const MaterialsCatalog = lazy(() => fresh(() => import('./pages/library/MaterialsCatalog').then((m) => ({ default: m.MaterialsCatalog }))))
+const SupplierForm = lazy(() => fresh(() => import('./pages/library/Suppliers').then((m) => ({ default: m.SupplierForm }))))
+const SuppliersList = lazy(() => fresh(() => import('./pages/library/Suppliers').then((m) => ({ default: m.SuppliersList }))))
+const CollectionsPage = lazy(() => fresh(() => import('./pages/projects/Collections').then((m) => ({ default: m.CollectionsPage }))))
+const ProjectDetail = lazy(() => fresh(() => import('./pages/projects/ProjectDetail').then((m) => ({ default: m.ProjectDetail }))))
+const ProjectPresentation = lazy(() => fresh(() => import('./pages/projects/ProjectPresentation').then((m) => ({ default: m.ProjectPresentation }))))
+const ProjectsPage = lazy(() => fresh(() => import('./pages/projects/ProjectsPage').then((m) => ({ default: m.ProjectsPage }))))
+const ProductionPage = lazy(() => fresh(() => import('./pages/production/ProductionPage').then((m) => ({ default: m.ProductionPage }))))
+const TechPackPage = lazy(() => fresh(() => import('./pages/production/TechPack').then((m) => ({ default: m.TechPackPage }))))
+const PatternPage = lazy(() => fresh(() => import('./pages/production/Pattern').then((m) => ({ default: m.PatternPage }))))
+const EconomyPage = lazy(() => fresh(() => import('./pages/economy/EconomyPage').then((m) => ({ default: m.EconomyPage }))))
+const ExpensesPage = lazy(() => fresh(() => import('./pages/economy/Expenses').then((m) => ({ default: m.ExpensesPage }))))
+const NotFound = lazy(() => fresh(() => import('./pages/Sections').then((m) => ({ default: m.NotFound }))))
+const TabletPad = lazy(() => fresh(() => import('./pages/tablet/TabletPad').then((m) => ({ default: m.TabletPad }))))
 
 /** Rutas de la app. Entrar y crear cuenta son públicas; el resto necesita sesión. */
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <Suspense fallback={<PageLoading />}>
         <Routes>
           {/* Móvil como tableta: se abre con el QR del lienzo, sin iniciar sesión (el token es la llave) */}
           <Route path="tableta/:token" element={<TabletPad />} />
@@ -79,9 +106,15 @@ export default function App() {
             </Route>
           </Route>
         </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   )
+}
+
+/** Mientras llega el código de una página (la primera vez que se abre). */
+export function PageLoading() {
+  return <p className="page-loading">Cargando…</p>
 }
 
 /** Enlaces antiguos a «Nuevo diseño»: el Diseñador ya abre un lienzo nuevo (con su cliente y proyecto, si vienen). */

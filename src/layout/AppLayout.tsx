@@ -1,3 +1,5 @@
+import { Suspense } from 'react'
+import { PageLoading } from '../components/ui'
 import { Fragment } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
@@ -78,7 +80,9 @@ export function AppLayout() {
         )}
       </aside>
       <main className="content">
-        <Outlet />
+        <Suspense fallback={<PageLoading />}>
+          <Outlet />
+        </Suspense>
       </main>
       <UndoToasts />
     </div>

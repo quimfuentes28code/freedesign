@@ -1,3 +1,4 @@
+import './designer.css'
 import { FlatView } from '../../designer/FlatView'
 import { getTemplate } from '../../designer/templates'
 import type { DesignData } from '../../shared/designs'

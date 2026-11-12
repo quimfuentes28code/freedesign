@@ -302,7 +302,7 @@ Hecho (12-11-2026):
 - **Autoguardado** del lienzo e **historial de versiones** de cada diseño.
 - ✅ **Móvil como tableta** (12-11-2026): QR en el lienzo; el móvil o iPad dibuja en el lienzo del ordenador.
 - ✅ **App instalable (PWA)** para iPad y móvil, que se actualiza sola (12-11-2026: Mi perfil → «Instalar la app»).
-- Que la app cargue más rápido: dividir el código, porque hoy el paquete pasa de 2 MB.
+- ✅ Que la app cargue más rápido (12-11-2026): al arrancar baja 237 KB en vez de 2,3 MB; cada apartado y el 3D se descargan al abrirlos.
 - Pruebas automáticas de lo importante (guardar, lienzo, ficha).
 - **PDF de presentación** del diseño y **moodboard** o tablero de presentación.
 - **Carta Pantone** en el selector de color.
