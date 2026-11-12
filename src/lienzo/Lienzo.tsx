@@ -1,3 +1,5 @@
+import { SURFACE_KINDS } from '../shared/designs'
+import { PATTERN_GROUPS, patternDefaults } from '../designer/morePatterns'
 import { curvePath, curveThrough, hull, isScribble, recognize, snapPoint, type Guide, type P as ShaperPoint } from './shaper'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -77,6 +79,11 @@ interface Settings {
   fillMode: 'pieza' | 'zona'
   /** Con qué rellena el bote: color liso o un estampado (con su segundo color, tamaño en cm y, si es imagen, el archivo). */
   fillPattern: { kind: SurfaceKind; color2: string; size: number; angle: number; file?: string }
+  /** Pincel de estampado: segundo y tercer color y tamaño del dibujo (cm; 0 = el de siempre). */
+  patternColors?: [string, string]
+  patternSize?: number
+  /** Botón flotante del menú rápido: dónde está (fracción del ancho y alto del lienzo). */
+  fab?: [number, number]
   /** Guía de perspectiva: sin, de 1 o de 2 puntos de fuga (en fracción del lienzo). */
   perspective: 0 | 1 | 2
   vps: [number, number][]
@@ -446,6 +453,8 @@ export function Lienzo(props: Props) {
     const pg = preview.current.getContext('2d')!
     pg.clearRect(f.x0, f.y0, w, h)
     pg.drawImage(src, f.x0, f.y0, w, h, f.x0, f.y0, w, h)
+    const pb = brushOf(st)
+    if (pb.pattern) fillWithPattern(pg, f, pb.pattern, st.opts.color, settings.patternColors, settings.patternSize)
     grained(pg)
   }
   const previewTmp = useRef<HTMLCanvasElement | null>(null)
@@ -1068,7 +1077,7 @@ export function Lienzo(props: Props) {
   const fillSurface = (): Surface | null => {
     const p = settings.fillPattern
     if (!p || p.kind === 'liso') return null
-    return { kind: p.kind, color2: p.color2, color3: '#6b7280', size: p.size || DEFAULT_SIZE[p.kind] || 3, angle: p.angle, ...(p.file ? { file: p.file } : {}) }
+    return { kind: p.kind, color2: p.color2, color3: patternDefaults(p.kind).c3, size: p.size || DEFAULT_SIZE[p.kind] || 3, angle: p.angle, ...(p.file ? { file: p.file } : {}) }
   }
   /** Rellena la zona cerrada por líneas alrededor de (x, y), en la capa de pintura `layer`. */
   const fillZone = (layer: PaintLayer, x: number, y: number) => {
@@ -2041,17 +2050,13 @@ export function Lienzo(props: Props) {
           <Icon d="M13 6.5l3.5 3.5-3.5 3.5M16.5 10H8a4.5 4.5 0 000 9h2" />
           <span>Rehacer</span>
         </button>
-        <button
-          className="lz-icon"
-          onClick={(e) => {
-            const b = (e.currentTarget as HTMLElement).getBoundingClientRect()
-            setQuick(quick ? null : { x: b.right + 110, y: b.top + b.height / 2 })
-          }}
-          title="Menú rápido (también con clic derecho en el lienzo)"
-        >
-          <Icon d="M10 3a7 7 0 100 14 7 7 0 000-14zM10 7.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5z" />
-        </button>
       </aside>
+      <QuickButton
+        at={settings.fab ?? [0.035, 0.9]}
+        open={!!quick}
+        onMove={(fab) => setSettings({ fab })}
+        onToggle={(b) => setQuick(quick ? null : { x: b.left < window.innerWidth / 2 ? b.right + 110 : b.left - 110, y: b.top + b.height / 2 })}
+      />
 
       <div
         ref={viewport}
@@ -2539,7 +2544,13 @@ export function Lienzo(props: Props) {
           <BrushLibrary
             brushes={allBrushes}
             current={brush.id}
-            onPick={(id) => setSettings(tool === 'eraser' ? { eraser: id } : { brush: id })}
+            onPick={(id) => {
+              const picked = allBrushes.find((b) => b.id === id)
+              if (tool !== 'eraser' && picked?.pattern) {
+                const d = patternDefaults(picked.pattern)
+                setSettings({ brush: id, patternColors: [d.c2, d.c3], patternSize: 0 })
+              } else setSettings(tool === 'eraser' ? { eraser: id } : { brush: id })
+            }}
             color={tool === 'eraser' ? '#e7e5e4' : settings.color}
           />
           <p className="lz-label">Mis pinceles</p>
@@ -2582,6 +2593,41 @@ export function Lienzo(props: Props) {
               />
             ) : null
           })()}
+          {tool !== 'eraser' && brush.pattern && (
+            <div className="lz-field lz-pattern-brush">
+              <span>
+                Estampado: <strong>{brush.name}</strong>
+              </span>
+              <div className="lz-chips">
+                <label className="lz-mini-color" title="Color de fondo (el color elegido)">
+                  <input type="color" value={settings.color} onChange={(e) => setSettings({ color: e.target.value })} />
+                </label>
+                {([0, 1] as const).map((i) => (
+                  <label key={i} className="lz-mini-color" title={i ? 'Tercer color' : 'Segundo color'}>
+                    <input
+                      type="color"
+                      value={(settings.patternColors ?? [patternDefaults(brush.pattern!).c2, patternDefaults(brush.pattern!).c3])[i]}
+                      onChange={(e) => {
+                        const cur = settings.patternColors ?? [patternDefaults(brush.pattern!).c2, patternDefaults(brush.pattern!).c3]
+                        setSettings({ patternColors: (i ? [cur[0], e.target.value] : [e.target.value, cur[1]]) as [string, string] })
+                      }}
+                    />
+                  </label>
+                ))}
+              </div>
+              <label className="lz-inline-range" title="Tamaño del dibujo que se repite">
+                <span>{settings.patternSize || DEFAULT_SIZE[brush.pattern] || 4} cm</span>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={Math.max(20, (DEFAULT_SIZE[brush.pattern] ?? 4) * 3)}
+                  step={0.5}
+                  value={settings.patternSize || DEFAULT_SIZE[brush.pattern] || 4}
+                  onChange={(e) => setSettings({ patternSize: Number(e.target.value) })}
+                />
+              </label>
+            </div>
+          )}
           <div className="lz-field">
             <span>
               Estabilizador <strong>{Math.round(streamline * 100)} %</strong>
@@ -2959,11 +3005,12 @@ function BrushPreview({ brush, color }: { brush: BrushPreset; color: string }) {
         rg.fillRect((i * c.width) / 6, 0, c.width / 6, c.height)
       }
     }
-    const s = new Stroke(raw, { brush, color, size: Math.min(brush.shape ? 16 : 26, brush.size * 1.4 + 3), opacity: 1, streamline: 0, symmetry: 'none', axis: { x: 0, y: 0 } })
+    const s = new Stroke(raw, { brush, color, size: brush.pattern ? 34 : Math.min(brush.shape ? 16 : 26, brush.size * 1.4 + 3), opacity: 1, streamline: 0, symmetry: 'none', axis: { x: 0, y: 0 } })
     for (let i = 0; i <= 60; i++) {
       const t = i / 60
       s.add(12 + t * (c.width - 24), c.height / 2 + Math.sin(t * Math.PI * 2) * 10, Math.sin(t * Math.PI) * 0.9 + 0.1)
     }
+    if (brush.pattern) fillWithPattern(raw.getContext('2d')!, { x0: 0, y0: 0, x1: raw.width, y1: raw.height }, brush.pattern, color, undefined, (DEFAULT_SIZE[brush.pattern] ?? 4) > 10 ? 6 : 3, 2.4)
     g.globalAlpha = brush.opacity
     g.drawImage(raw, 0, 0)
     if (brush.grain) {
@@ -3821,18 +3868,10 @@ function TextOptions({ layer: l, onPatch }: { layer: TextLayer; onPatch: (p: Par
 }
 
 /** Estampados del bote (los mismos de las piezas del Diseñador). */
-const FILL_PATTERNS: { id: SurfaceKind; label: string }[] = [
+const FILL_PATTERNS: { id: SurfaceKind; label: string; group?: string }[] = [
   { id: 'liso', label: 'Color liso' },
-  { id: 'rayas', label: 'Rayas' },
-  { id: 'cuadros', label: 'Cuadros' },
-  { id: 'escoces', label: 'Escocés' },
-  { id: 'patagallo', label: 'Pata de gallo' },
-  { id: 'diplomatica', label: 'Diplomática' },
-  { id: 'zigzag', label: 'Zigzag' },
-  { id: 'lunares', label: 'Lunares' },
-  { id: 'camuflaje', label: 'Camuflaje' },
-  { id: 'tiedye', label: 'Tie-dye' },
-  { id: 'imagen', label: 'Tu tela' },
+  ...PATTERN_GROUPS.flatMap((g) => g.ids.map((id) => ({ id: id as SurfaceKind, label: SURFACE_KINDS.find((k) => k.id === id)?.label ?? id, group: g.label }))),
+  { id: 'imagen', label: 'Tu tela', group: 'Otros' },
 ]
 
 /** Con qué rellena el bote: color liso o estampado, con su segundo color y su tamaño. */
@@ -3850,11 +3889,21 @@ function PatternPicker({
   const v = value ?? { kind: 'liso' as SurfaceKind, color2: '#ffffff', size: 3, angle: 0 }
   return (
     <>
-      <select value={v.kind} onChange={(e) => onChange({ ...v, kind: e.target.value as SurfaceKind, size: DEFAULT_SIZE[e.target.value] ?? v.size })} title="Rellenar con color liso o con un estampado" className="lz-select">
-        {FILL_PATTERNS.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.label}
-          </option>
+      <select
+        value={v.kind}
+        onChange={(e) => onChange({ ...v, kind: e.target.value as SurfaceKind, size: DEFAULT_SIZE[e.target.value] ?? v.size, color2: patternDefaults(e.target.value).c2 })}
+        title="Rellenar con color liso o con un estampado"
+        className="lz-select"
+      >
+        <option value="liso">Color liso</option>
+        {[...new Set(FILL_PATTERNS.filter((p) => p.group).map((p) => p.group!))].map((g) => (
+          <optgroup key={g} label={g}>
+            {FILL_PATTERNS.filter((p) => p.group === g).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
       {v.kind !== 'liso' && (
@@ -3872,7 +3921,7 @@ function PatternPicker({
           )}
           <label className="lz-inline-range" title="Tamaño del dibujo que se repite">
             <span>{v.size} cm</span>
-            <input type="range" min={0.5} max={v.kind === 'imagen' || v.kind === 'camuflaje' || v.kind === 'tiedye' ? 80 : 20} step={0.5} value={v.size} onChange={(e) => onChange({ ...v, size: Number(e.target.value) })} />
+            <input type="range" min={0.5} max={Math.max(20, (DEFAULT_SIZE[v.kind] ?? 0) * 3)} step={0.5} value={v.size} onChange={(e) => onChange({ ...v, size: Number(e.target.value) })} />
           </label>
         </>
       )}
@@ -4254,5 +4303,68 @@ function BrushEditor({ asset, onSave, onDelete }: { asset: LienzoAsset; onSave: 
         </button>
       </div>
     </div>
+  )
+}
+
+/** Rellena lo pintado en el rectángulo con un estampado (el azulejo del Diseñador, a unos 10 px por cm del papel). */
+function fillWithPattern(g: CanvasRenderingContext2D, f: { x0: number; y0: number; x1: number; y1: number }, kind: string, base: string, colors?: [string, string], size?: number, pxPerCm = 10) {
+  const d = patternDefaults(kind)
+  const tile = pieceTile({ color: base, surface: { kind: kind as SurfaceKind, color2: colors?.[0] ?? d.c2, color3: colors?.[1] ?? d.c3, size: size || DEFAULT_SIZE[kind] || 4, angle: 0 } })
+  if (!tile) return
+  const pattern = g.createPattern(tile.canvas, 'repeat')
+  if (!pattern) return
+  pattern.setTransform(new DOMMatrix().scale((tile.cm * pxPerCm) / tile.canvas.width))
+  g.save()
+  g.globalCompositeOperation = 'source-in'
+  g.fillStyle = pattern
+  g.fillRect(f.x0, f.y0, f.x1 - f.x0, f.y1 - f.y0)
+  g.restore()
+}
+
+/**
+ * Botón flotante del menú rápido: se arrastra a cualquier sitio del lienzo (se recuerda) y al tocarlo abre el menú.
+ */
+function QuickButton({ at, open, onMove, onToggle }: { at: [number, number]; open: boolean; onMove: (at: [number, number]) => void; onToggle: (rect: DOMRect) => void }) {
+  const [pos, setPos] = useState(at)
+  const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null)
+  useEffect(() => setPos(at), [at[0], at[1]]) // eslint-disable-line react-hooks/exhaustive-deps
+  const place = (ev: { clientX: number; clientY: number }, el: HTMLElement) => {
+    const box = (el.offsetParent as HTMLElement | null)?.getBoundingClientRect() ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight)
+    const x = Math.min(0.98, Math.max(0.02, (ev.clientX - box.left) / box.width))
+    const y = Math.min(0.97, Math.max(0.06, (ev.clientY - box.top) / box.height))
+    return [x, y] as [number, number]
+  }
+  return (
+    <button
+      className={open ? 'lz-fab on' : 'lz-fab'}
+      style={{ left: `${pos[0] * 100}%`, top: `${pos[1] * 100}%` }}
+      title="Menú rápido: tócalo para abrirlo o arrástralo donde quieras (también con clic derecho en el lienzo)"
+      aria-label="Menú rápido"
+      onPointerDown={(e) => {
+        e.stopPropagation()
+        drag.current = { x: e.clientX, y: e.clientY, moved: false }
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId)
+        } catch {
+          // Puntero ya suelto
+        }
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current
+        if (!d) return
+        if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 5) return
+        d.moved = true
+        setPos(place(e, e.currentTarget))
+      }}
+      onPointerUp={(e) => {
+        const d = drag.current
+        drag.current = null
+        if (!d) return
+        if (d.moved) onMove(place(e, e.currentTarget))
+        else onToggle(e.currentTarget.getBoundingClientRect())
+      }}
+    >
+      <Icon d="M10 3a7 7 0 100 14 7 7 0 000-14zM10 7.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5z" />
+    </button>
   )
 }

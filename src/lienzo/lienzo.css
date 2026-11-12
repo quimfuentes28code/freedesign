@@ -1722,3 +1722,39 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Botón flotante del menú rápido (se arrastra a donde se quiera) */
+.lz-fab {
+  position: absolute;
+  z-index: 6;
+  width: 46px;
+  height: 46px;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 50%;
+  background: rgb(36 36 40 / 0.94);
+  color: #f2f2f3;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 0.45);
+  cursor: grab;
+  touch-action: none;
+}
+.lz-fab:active {
+  cursor: grabbing;
+}
+.lz-fab.on,
+.lz-fab:hover {
+  background: var(--accent, #3d8bfd);
+  border-color: transparent;
+}
+.lz-fab svg {
+  width: 22px;
+  height: 22px;
+}
+.lienzo.v3d-full .lz-fab {
+  display: none;
+}
+.lz-pattern-brush .lz-chips {
+  margin: 4px 0;
+}

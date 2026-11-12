@@ -4,6 +4,7 @@ import type { PieceDef } from '../../designer/types'
 import type { Artwork } from '../../shared/artworks'
 import { BUTTON_STYLES, PULLER_STYLES, SURFACE_KINDS, WASH_KINDS, ZIP_STYLES, type ColorBlock, type HardwareStyle, type PieceStyle, type Surface, type SurfaceKind, type WashKind } from '../../shared/designs'
 import { DEFAULT_SIZE } from '../../designer/surfaces'
+import { PATTERN_GROUPS, patternDefaults, THREE_COLORS } from '../../designer/morePatterns'
 import { ArtPicker } from './DetailsPanel'
 import type { Material } from '../../shared/library'
 import { MaterialPicker } from './MaterialPicker'
@@ -259,14 +260,16 @@ function SurfaceControls({ style, artworks, onChange }: { style: PieceStyle; art
   const kind: SurfaceKind = s?.kind ?? 'liso'
   const setKind = (k: SurfaceKind) => {
     if (k === 'liso') return onChange({ surface: undefined })
-    const base: Surface = s ?? { kind: k, color2: '#ffffff', color3: '#6b7280', size: 0, angle: 0 }
-    // Al cambiar de tipo se pone el tamaño que le toca
-    onChange({ surface: { ...base, kind: k, size: DEFAULT_SIZE[k] ?? 10 } })
+    const d = patternDefaults(k)
+    const base: Surface = s ?? { kind: k, color2: d.c2, color3: d.c3, size: 0, angle: 0 }
+    // Al cambiar de tipo se ponen el tamaño y los colores de partida que le tocan
+    onChange({ surface: { ...base, kind: k, color2: d.c2, color3: d.c3, size: DEFAULT_SIZE[k] ?? 10 } })
   }
   const set = (patch: Partial<Surface>) => s && onChange({ surface: { ...s, ...patch } })
   const wash = style.wash
   const setWash = (k: WashKind) => onChange({ wash: k === 'ninguno' ? undefined : { kind: k, amount: wash?.amount ?? 0.6 } })
-  const big = kind === 'camuflaje' || kind === 'tiedye' || kind === 'imagen' || kind === 'escoces'
+  const big = (DEFAULT_SIZE[kind] ?? 0) >= 12 || kind === 'imagen'
+  const three = THREE_COLORS.has(kind)
   const [uploading, setUploading] = useState(false)
   const uploadTile = async (file: File | undefined) => {
     if (!file || !s) return
@@ -285,13 +288,23 @@ function SurfaceControls({ style, artworks, onChange }: { style: PieceStyle; art
     <>
       <div className="inspector-sub">
         <h3>Superficie</h3>
-        <div className="chips">
-          {SURFACE_KINDS.map((k) => (
-            <button key={k.id} className={kind === k.id ? 'chip active' : 'chip'} onClick={() => setKind(k.id)}>
-              {k.label}
-            </button>
+        <select value={kind} onChange={(e) => setKind(e.target.value as SurfaceKind)} aria-label="Estampado de la pieza">
+          <option value="liso">Liso</option>
+          {PATTERN_GROUPS.map((g) => (
+            <optgroup key={g.label} label={g.label}>
+              {g.ids.map((id) => (
+                <option key={id} value={id}>
+                  {SURFACE_KINDS.find((k) => k.id === id)?.label ?? id}
+                </option>
+              ))}
+            </optgroup>
           ))}
-        </div>
+          <optgroup label="Otros">
+            <option value="logo">Logo repetido</option>
+            <option value="degradado">Degradado</option>
+            <option value="imagen">Imagen propia</option>
+          </optgroup>
+        </select>
         {s && (
           <div className="surface-fields">
             {kind === 'imagen' && (
@@ -311,7 +324,7 @@ function SurfaceControls({ style, artworks, onChange }: { style: PieceStyle; art
                 <input type="color" value={s.color2} onChange={(e) => set({ color2: e.target.value })} />
               </label>
             )}
-            {big && kind !== 'imagen' && (
+            {three && (
               <label className="field">
                 <span>{kind === 'escoces' ? 'Color de las rayas finas' : 'Tercer color'}</span>
                 <input type="color" value={s.color3} onChange={(e) => set({ color3: e.target.value })} />

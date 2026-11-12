@@ -1,3 +1,5 @@
+import { PATTERN_GROUPS } from '../designer/morePatterns'
+import { SURFACE_KINDS } from '../shared/designs'
 /**
  * Pinceles del lienzo. Cada trazo se pinta estampando la punta del pincel a lo largo del recorrido (como Procreate):
  * su tamaño y opacidad siguen la presión del lápiz, el estabilizador quita el temblor y el grano del papel da textura.
@@ -6,7 +8,7 @@
 
 import { textureGrain } from './textures'
 
-export type BrushGroup = 'Bocetar' | 'Entintar' | 'Pintar' | 'Aerógrafo' | 'Luces y sombras' | 'Texturas' | 'Costuras' | 'Fornituras' | 'Tejidos' | 'Desgaste' | 'Mis pinceles'
+export type BrushGroup = 'Bocetar' | 'Entintar' | 'Pintar' | 'Aerógrafo' | 'Luces y sombras' | 'Texturas' | 'Costuras' | 'Estampados' | 'Tejidos' | 'Desgaste' | 'Mis pinceles'
 
 /** Formas que se dibujan en cada estampado en vez de la punta (costuras, cremallera, fornituras, desgaste). */
 export type StampShape =
@@ -31,6 +33,8 @@ export interface BrushPreset {
   id: string
   name: string
   group: BrushGroup
+  /** Pincel de estampado: el trazo se rellena con este estampado (ver morePatterns.ts y surfaces.ts). */
+  pattern?: string
   /** Tamaño por defecto (px del lienzo) y opacidad por defecto. */
   size: number
   opacity: number
@@ -78,6 +82,10 @@ const STITCH = { opacity: 1, flow: 1, hardness: 1, grain: 0, pressureSize: 0, pr
 const STAMP = { opacity: 1, flow: 1, hardness: 1, grain: 0, pressureSize: 0, pressureOpacity: 0, taper: 0, streamline: 0.3, tip: 'round', scatter: 0 } as const
 const FABRIC = { opacity: 1, flow: 1, spacing: 0.05, hardness: 0.85, grain: 0.95, pressureSize: 0.2, pressureOpacity: 0.2, taper: 0, streamline: 0.2, tip: 'round', scatter: 0 } as const
 
+/** Pinceles de estampado: uno por cada estampado (cuadros, escocés, camuflaje, animal print…). */
+const PATTERN_BRUSH = { group: 'Estampados', size: 70, opacity: 1, flow: 1, spacing: 0.05, hardness: 0.92, grain: 0, pressureSize: 0.15, pressureOpacity: 0, taper: 0, streamline: 0.25, tip: 'round', scatter: 0 } as const
+const PATTERN_BRUSHES: BrushPreset[] = PATTERN_GROUPS.flatMap((g) => g.ids).map((id) => ({ ...PATTERN_BRUSH, id: `est-${id}`, name: SURFACE_KINDS.find((k) => k.id === id)?.label ?? id, pattern: id }))
+
 export const BRUSHES: BrushPreset[] = [
   { id: 'hb', name: 'Lápiz HB', group: 'Bocetar', size: 3, opacity: 0.85, flow: 0.7, spacing: 0.12, hardness: 0.7, grain: 0.55, pressureSize: 0.5, pressureOpacity: 0.8, taper: 0, streamline: 0.15, tip: 'round', scatter: 0 },
   { id: '6b', name: 'Lápiz 6B', group: 'Bocetar', size: 9, opacity: 0.9, flow: 0.6, spacing: 0.1, hardness: 0.55, grain: 0.75, pressureSize: 0.45, pressureOpacity: 0.85, taper: 0, streamline: 0.1, tip: 'round', scatter: 0 },
@@ -110,14 +118,6 @@ export const BRUSHES: BrushPreset[] = [
   { ...STITCH, id: 'cadeneta', name: 'Cadeneta', group: 'Costuras', size: 6, spacing: 1.6, shape: 'chain' },
   { ...STITCH, id: 'cruz', name: 'Punto de cruz', group: 'Costuras', size: 10, spacing: 1.4, shape: 'cross' },
   // Fornituras: al arrastrar sale una fila; con un toque, una sola
-  { ...STAMP, id: 'cremallera', name: 'Cremallera', group: 'Fornituras', size: 22, spacing: 0.42, shape: 'zip' },
-  { ...STAMP, id: 'cremallerafina', name: 'Cremallera fina', group: 'Fornituras', size: 12, spacing: 0.42, shape: 'zip' },
-  { ...STAMP, id: 'botones', name: 'Botones', group: 'Fornituras', size: 40, spacing: 2.4, shape: 'button4' },
-  { ...STAMP, id: 'botonjeans', name: 'Botón jeans', group: 'Fornituras', size: 36, spacing: 2.4, shape: 'jeansbutton' },
-  { ...STAMP, id: 'remaches', name: 'Remaches', group: 'Fornituras', size: 16, spacing: 2.6, shape: 'rivet' },
-  { ...STAMP, id: 'ojetes', name: 'Ojetes', group: 'Fornituras', size: 18, spacing: 2.2, shape: 'eyelet' },
-  { ...STAMP, id: 'anillas', name: 'Anillas', group: 'Fornituras', size: 30, spacing: 2.2, shape: 'ring' },
-  { ...STAMP, id: 'tiradores', name: 'Tiradores', group: 'Fornituras', size: 40, spacing: 3, shape: 'puller' },
   // Tejidos: el trazo sale con el dibujo de la tela
   { ...FABRIC, id: 'tej-denim', name: 'Denim', group: 'Tejidos', size: 60, grainTexture: 'denim' },
   { ...FABRIC, id: 'tej-punto', name: 'Punto', group: 'Tejidos', size: 60, grainTexture: 'punto' },
@@ -131,6 +131,7 @@ export const BRUSHES: BrushPreset[] = [
   { ...STAMP, id: 'rotos', name: 'Rotos (hilos)', group: 'Desgaste', size: 50, spacing: 0.5, shape: 'rip', scatter: 0.15, streamline: 0.1 },
   { ...STAMP, id: 'deshilachado', name: 'Deshilachado', group: 'Desgaste', size: 30, spacing: 0.35, shape: 'fray', streamline: 0.1 },
   { id: 'bigotes', name: 'Sombra de jean (bigotes)', group: 'Desgaste', size: 40, opacity: 0.7, flow: 0.3, spacing: 0.15, hardness: 0, grain: 0.3, pressureSize: 0.5, pressureOpacity: 0.6, taper: 30, streamline: 0.4, tip: 'round', scatter: 0, shape: 'whisker', grainTexture: 'denim' },
+  ...PATTERN_BRUSHES,
 ]
 
 /** Imágenes de la punta y el grano de los pinceles propios (se cargan al abrir el lienzo). */

@@ -1,3 +1,4 @@
+import { drawMorePattern, MORE_PATTERNS } from './morePatterns'
 import type { ColorBlock, PieceStyle, Surface, Wash } from '../shared/designs'
 import { fileUrl } from '../shared/library'
 
@@ -20,7 +21,7 @@ export interface Tile {
 }
 
 /** Tamaño por defecto del dibujo que se repite (cm) en cada superficie. */
-export const DEFAULT_SIZE: Record<string, number> = { escoces: 12, patagallo: 1.2, diplomatica: 1.5, zigzag: 3, imagen: 20, rayas: 2, cuadros: 3, lunares: 2, camuflaje: 40, tiedye: 55, logo: 8, degradado: 70 }
+export const DEFAULT_SIZE: Record<string, number> = { escoces: 12, patagallo: 1.2, diplomatica: 1.5, zigzag: 3, imagen: 20, rayas: 2, cuadros: 3, lunares: 2, camuflaje: 40, tiedye: 55, logo: 8, degradado: 70, ...Object.fromEntries(MORE_PATTERNS.map((p) => [p.id, p.size])) }
 
 /** Generador de números pseudoaleatorios con semilla (el camuflaje sale siempre igual para la misma pieza). */
 function rng(seed: number) {
@@ -186,6 +187,10 @@ function drawSurface(ctx: CanvasRenderingContext2D, s: Surface, base: string, on
       }
       break
     }
+    default:
+      // Cuadros, rayas, motivos, animal print, camuflajes y efectos de morePatterns.ts
+      drawMorePattern(ctx, s.kind, W, base, s.color2, s.color3 || s.color2)
+      break
     case 'degradado': {
       const g = ctx.createLinearGradient(0, 0, 0, W)
       g.addColorStop(0, base)
