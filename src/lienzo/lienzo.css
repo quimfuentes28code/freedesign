@@ -7,6 +7,8 @@
   --lz-text: #f2f2f3;
   --lz-muted: #a1a1a6;
   --lz-accent: #3d8bfd;
+  /* Alto de la barra de arriba (en pantallas estrechas pasa a dos filas: ver el final del archivo) */
+  --lz-top-h: 52px;
   position: fixed;
   inset: 0;
   z-index: 200;
@@ -27,7 +29,7 @@
 .lz-top {
   position: absolute;
   inset: 0 0 auto 0;
-  height: 52px;
+  height: var(--lz-top-h);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -159,7 +161,7 @@
 /* Zona de dibujo */
 .lz-viewport {
   position: absolute;
-  inset: 52px 0 0 0;
+  inset: var(--lz-top-h) 0 0 0;
   overflow: hidden;
   background: var(--lz-bg);
   touch-action: none;
@@ -250,10 +252,10 @@
 /* Paneles flotantes */
 .lz-pop {
   position: absolute;
-  top: 60px;
+  top: calc(var(--lz-top-h) + 8px);
   z-index: 4;
   width: 320px;
-  max-height: calc(100% - 76px);
+  max-height: calc(100% - var(--lz-top-h) - 24px);
   overflow: auto;
   padding: 14px;
   border-radius: 16px;
@@ -562,7 +564,7 @@
 /* Barra de opciones de la herramienta (bote) */
 .lz-toolbar {
   position: absolute;
-  top: 60px;
+  top: calc(var(--lz-top-h) + 8px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 3;
@@ -886,7 +888,7 @@
 }
 .lz-3d {
   position: absolute;
-  top: 52px;
+  top: var(--lz-top-h);
   right: 0;
   bottom: 0;
   left: 0;
@@ -906,12 +908,12 @@
 /* Paneles grandes del editor (Diseños, Prenda) */
 .lz-sheet {
   position: absolute;
-  top: 60px;
+  top: calc(var(--lz-top-h) + 8px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 6;
   width: min(920px, calc(100% - 24px));
-  max-height: calc(100% - 76px);
+  max-height: calc(100% - var(--lz-top-h) - 24px);
   overflow: auto;
   padding: 18px;
   border-radius: 18px;
@@ -1062,7 +1064,7 @@
 }
 .lz-error {
   position: absolute;
-  top: 60px;
+  top: calc(var(--lz-top-h) + 8px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 7;
@@ -1452,7 +1454,7 @@
 /* Móvil como tableta (tablet.tsx): ventana con el QR y aviso de conectado */
 .lz-tablet {
   position: absolute;
-  top: 60px;
+  top: calc(var(--lz-top-h) + 8px);
   right: 12px;
   z-index: 6;
   width: 300px;
@@ -1502,7 +1504,7 @@
 }
 .lienzo .lz-tablet-badge {
   position: absolute;
-  top: 64px;
+  top: calc(var(--lz-top-h) + 12px);
   right: 16px;
   z-index: 4;
   padding: 6px 12px;
@@ -1570,4 +1572,81 @@
   border: 1px solid rgb(255 255 255 / 0.1);
   font: 12px var(--font-tech, monospace);
   color: #c9c9ce;
+}
+
+/*
+ * Barra de arriba en pantallas estrechas (iPad en vertical, móvil): no cabía en una fila y los botones se montaban o se
+ * salían por la derecha (Texto, Cuentagotas, Bote, Capas, Color… no se podían tocar). Pasa a dos filas: arriba la
+ * navegación y las herramientas de la izquierda, abajo las de la derecha; cada fila se desliza de lado si aún no cabe.
+ */
+@media (max-width: 1260px) {
+  .lienzo {
+    --lz-top-h: 100px;
+  }
+  .lz-top {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 4px;
+    padding: 2px 0;
+  }
+  .lz-left,
+  .lz-right {
+    height: 44px;
+    padding: 0 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    /* La fila se desliza con el dedo aunque el lienzo no deje hacer gestos de la página */
+    touch-action: pan-x;
+  }
+  .lz-left::-webkit-scrollbar,
+  .lz-right::-webkit-scrollbar {
+    display: none;
+  }
+  .lz-left > *,
+  .lz-right > * {
+    flex: none;
+  }
+  .lz-right {
+    justify-content: flex-start;
+  }
+  .lz-title {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .lienzo {
+    --lz-top-h: 92px;
+  }
+  .lz-left,
+  .lz-right {
+    height: 40px;
+    gap: 4px;
+  }
+  /* En el móvil se ve el estado de guardado (en una fila propia ya hay sitio) */
+  .lz-save {
+    display: inline;
+  }
+}
+/* La columna de la izquierda, centrada en el espacio que queda bajo la barra (con dos filas se metía debajo); en el
+   móvil, más baja para que quepa entera */
+.lz-side {
+  top: calc(var(--lz-top-h) + (100% - var(--lz-top-h)) / 2);
+  max-height: calc(100% - var(--lz-top-h) - 16px);
+}
+@media (max-width: 760px), (max-height: 560px) {
+  .lz-side {
+    left: 6px;
+    gap: 4px;
+    padding: 8px 5px;
+  }
+  .lz-side .lz-vslider {
+    height: 96px;
+    width: 26px;
+  }
+  .lz-side .lz-side-val {
+    margin-bottom: 2px;
+  }
 }
