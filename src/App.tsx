@@ -52,6 +52,7 @@ const PatternPage = lazy(() => fresh(() => import('./pages/production/Pattern').
 const EconomyPage = lazy(() => fresh(() => import('./pages/economy/EconomyPage').then((m) => ({ default: m.EconomyPage }))))
 const ExpensesPage = lazy(() => fresh(() => import('./pages/economy/Expenses').then((m) => ({ default: m.ExpensesPage }))))
 const NotFound = lazy(() => fresh(() => import('./pages/Sections').then((m) => ({ default: m.NotFound }))))
+const TabletScan = lazy(() => fresh(() => import('./pages/tablet/TabletScan').then((m) => ({ default: m.TabletScan }))))
 const TabletPad = lazy(() => fresh(() => import('./pages/tablet/TabletPad').then((m) => ({ default: m.TabletPad }))))
 
 /** Rutas de la app. Entrar y crear cuenta son públicas; el resto necesita sesión. */
@@ -61,7 +62,9 @@ export default function App() {
       <AuthProvider>
         <Suspense fallback={<PageLoading />}>
         <Routes>
-          {/* Móvil como tableta: se abre con el QR del lienzo, sin iniciar sesión (el token es la llave) */}
+          {/* Móvil como tableta: el escáner del QR (para la app instalada) y la tableta, que se abre con el QR del lienzo sin
+              iniciar sesión (el token es la llave) */}
+          <Route path="tableta" element={<TabletScan />} />
           <Route path="tableta/:token" element={<TabletPad />} />
           <Route element={<GuestOnly />}>
             <Route path="entrar" element={<LoginPage />} />

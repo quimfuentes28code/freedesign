@@ -62,6 +62,12 @@ export function AppLayout() {
             </Fragment>
           ))}
         </nav>
+        {/* En el móvil o la tableta: escanear el QR del lienzo para dibujar con este dispositivo (en ordenadores con ratón
+            no sale, ver .nav-tablet en styles.css) */}
+        <Link to="/tableta" className="nav-link nav-tablet" title="Usar como tableta: escanea el QR del lienzo">
+          <Icon name="tablet" />
+          <span>Usar como tableta</span>
+        </Link>
         {user && (
           <div className="account">
             <Link to="/perfil" className="account-link" title="Mi perfil">

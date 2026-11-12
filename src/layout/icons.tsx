@@ -92,6 +92,16 @@ const ICONS = {
     ),
     accent: <path d="m10.6 17 6.4-6.4" {...STITCH} />,
   },
+  // Móvil como tableta: el móvil con un lápiz y las esquinas del visor del QR
+  tablet: {
+    main: (
+      <>
+        <rect x="6.5" y="3" width="11" height="18" rx="2" />
+        <path d="M10.5 18h3" />
+      </>
+    ),
+    accent: <path d="M9 7.5V6.5h1M15 7.5V6.5h-1M9 12.5v1h1M15 12.5v1h-1" />,
+  },
 } satisfies Record<string, { main: ReactNode; accent: ReactNode }>
 
 export type IconName = keyof typeof ICONS

@@ -1485,3 +1485,21 @@ textarea,
   padding-left: 1.25rem;
   line-height: 1.6;
 }
+
+/* Menú → «Usar como tableta» (escáner del QR del lienzo): abajo, encima de la cuenta. Solo en móviles y tabletas:
+   en un ordenador con ratón y sin pantalla táctil no tiene sentido */
+.nav-tablet {
+  margin-top: auto;
+  margin-bottom: 8px;
+}
+.nav-tablet + .account {
+  margin-top: 0;
+}
+@media (hover: hover) and (pointer: fine) {
+  .nav-tablet {
+    display: none;
+  }
+  .nav-tablet + .account {
+    margin-top: auto;
+  }
+}

@@ -7,7 +7,7 @@
  * Protocolo en `src/shared/tablet.ts`; lado del ordenador en `src/lienzo/tablet.tsx`.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import type { HostMessage, PadMessage, PadPoint, PadTool, RoomMessage } from '../../shared/tablet'
 import './tablet.css'
 
@@ -447,7 +447,18 @@ export function TabletPad() {
           </div>
         )}
         <canvas ref={overlay} className="tpad-overlay" />
-        {message && <div className="tpad-msg">{message}</div>}
+        {message && (
+          <div className="tpad-msg">
+            {message}
+            {(conn === 'failed' || conn === 'replaced') && (
+              <div>
+                <Link to="/tableta" className="tpad-again">
+                  Escanear el QR
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
