@@ -251,3 +251,12 @@ html .lienzo .lz-label {
     transform: translateY(8px);
   }
 }
+
+/* --- Iconos del menú: el detalle de taller (pespunte, cinta, piloto) en naranja; en el activo, del color del texto --- */
+.icon .icon-accent {
+  color: var(--accent-2);
+  transition: color 0.15s;
+}
+.nav-link.active .icon .icon-accent {
+  color: inherit;
+}

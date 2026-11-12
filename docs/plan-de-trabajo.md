@@ -260,7 +260,7 @@ Queda: lo pintado en mangas y capucha (igual que en la fase 8).
 2. Ver cómo quedan los diseños nuevos y corregir.
 3. **Elegir las medidas de cada prenda** aquí (largo, pecho, manga, ancho…), que pasan a la ficha técnica y al patrón.
 
-## Fase 10 — Interfaz y procesos (darle una vuelta) 🔄 en marcha
+## Fase 10 — Interfaz y procesos (darle una vuelta) ✅ hecha (12-11-2026)
 Hecho (12-11-2026):
 - **Estilo elegido:** «Estudio + Taller técnico».
 - **Letras:** Space Grotesk e IBM Plex Mono.
@@ -276,8 +276,9 @@ Hecho (12-11-2026):
   - Probador y Lookbook salen en el menú.
   - La vista 3D suelta se une al Probador.
 
-Queda:
-- iconos propios;
+- **Iconos propios del menú:** tablero de corte, camiseta, percha, cámara, muestrario, carpeta, máquina de coser, busto y etiqueta, cada uno con un pespunte o detalle naranja.
+
+Fase 10 hecha. (Los iconos de la columna del lienzo siguen siendo los de antes.)
 
 1. **Estilo visual**, para que no parezca «hecho con Claude». Te enseñaré 3 o 4 propuestas para elegir (tipografías, menús, botones, iconos propios, colores, densidad), en preguntas cortas y con recomendación. Después lo aplico en toda la app.
 2. **Procesos más sencillos** (te iré preguntando):
