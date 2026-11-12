@@ -14,7 +14,10 @@ import { Scene } from '../../three/Scene'
 import { isRealShoe, REAL_SHOES } from '../../three/RealShoes'
 import { SHOE_STYLES } from '../../three/Shoes'
 import type { ShoeStyle } from '../../types'
-import { basicTee, bodyOf, outfitOf, underChoices, useDesign3D, type TeeChoice } from './Design3D'
+import { basicTee, bodyOf, outfitOf, underChoices, useDesign3D, useSavedArt, type TeeChoice } from './Design3D'
+import { MeasuresPanel } from './MeasuresPanel'
+import { standardBody } from '../../production/measurements'
+import type { DesignData } from '../../shared/designs'
 import './studio.css'
 
 /**
@@ -49,16 +52,28 @@ export function Probador() {
   const heads = all.filter((d) => getTemplate(d.template)!.family === 'head')
   const hatDesign = heads.find((d) => d.id === hatId) ?? null
   const bottoms = all.filter((d) => isPants(getTemplate(d.template)!))
-  const top = tops.find((d) => d.id === topId) ?? null
-  const bottom = bottoms.find((d) => d.id === bottomId) ?? null
+  // Medidas de cada prenda cambiadas aquí (aún sin guardar en su diseño)
+  const [edits, setEdits] = useState<Record<string, DesignData['measures']>>({})
+  const [savingMeasures, setSavingMeasures] = useState(false)
+  const withEdits = (d: SavedDesign | undefined) => (d && edits[d.id] ? { ...d, data: { ...d.data, measures: edits[d.id] } } : (d ?? null))
+  const rawTop = tops.find((d) => d.id === topId)
+  const rawBottom = bottoms.find((d) => d.id === bottomId)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const top = useMemo(() => withEdits(rawTop), [rawTop, edits])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const bottom = useMemo(() => withEdits(rawBottom), [rawBottom, edits])
+  const [measureOf, setMeasureOf] = useState<'top' | 'bottom'>('top')
   const client = clients.data?.find((c) => c.id === clientId)
   const auto = [top, bottom, hatDesign].some((d) => d && bodyKind(d.data) === 'mujer') ? 'mujer' : 'hombre'
   const kind = bodyPick === 'auto' ? auto : bodyPick
   const body = useMemo(() => bodyOf(client, kind), [client, kind])
   const measurements = useMemo(() => mannequinMeasurements(client?.measurements, kind), [client, kind])
 
-  const top3d = useDesign3D(top ? getTemplate(top.template) : null, top?.data, materials, body)
-  const bottom3d = useDesign3D(bottom ? getTemplate(bottom.template) : null, bottom?.data, materials, body)
+  // Lo pintado en el lienzo de cada prenda (colores, texturas, logos…) también va puesto
+  const topArt = useSavedArt(top?.id, top ? getTemplate(top.template) : null, top?.data, materials, body)
+  const bottomArt = useSavedArt(bottom?.id, bottom ? getTemplate(bottom.template) : null, bottom?.data, materials, body)
+  const top3d = useDesign3D(top ? getTemplate(top.template) : null, top?.data, materials, body, topArt)
+  const bottom3d = useDesign3D(bottom ? getTemplate(bottom.template) : null, bottom?.data, materials, body, bottomArt)
   const hat3d = useDesign3D(hatDesign ? getTemplate(hatDesign.template) : null, hatDesign?.data, materials, body)
   // La prenda de arriba va por fuera; el pantalón, debajo
   const canOpen = !!top3d?.top?.closure?.full
@@ -210,6 +225,64 @@ export function Probador() {
             <input type="checkbox" checked={autoRotate} onChange={(e) => setAutoRotate(e.target.checked)} />
           </label>
         </section>
+
+        {(top || bottom) &&
+          (() => {
+            // Medidas de la prenda: se ven al momento en el maniquí y, al guardarlas, pasan a la ficha técnica y al patrón
+            const target = (measureOf === 'bottom' ? bottom : top) ?? top ?? bottom!
+            const t = getTemplate(target.template)!
+            const changed = !!edits[target.id]
+            const mBody = body ?? standardBody('M', kind)
+            return (
+              <section>
+                <h2>Medidas de la prenda</h2>
+                {top && bottom && (
+                  <div className="segmented" role="group" aria-label="Prenda">
+                    <button className={target.id === top.id ? 'active' : ''} onClick={() => setMeasureOf('top')}>
+                      Arriba
+                    </button>
+                    <button className={target.id === bottom.id ? 'active' : ''} onClick={() => setMeasureOf('bottom')}>
+                      Pantalón
+                    </button>
+                  </div>
+                )}
+                <p className="muted small">
+                  {target.name}: cambia largos y anchos y míralo puesto. Al guardar pasan a la ficha técnica y al patrón.
+                </p>
+                <MeasuresPanel template={t} data={target.data} body={mBody} bodyLabel={client ? `a medida de ${client.name}` : 'talla M'} onChange={(measures) => setEdits({ ...edits, [target.id]: measures })} />
+                {changed && (
+                  <div className="probador-actions">
+                    <button
+                      className="button primary"
+                      disabled={savingMeasures}
+                      onClick={async () => {
+                        setSavingMeasures(true)
+                        try {
+                          await api.updateDesign(target.id, { name: target.name, template: target.template, clientId: target.clientId, projectId: target.projectId, data: target.data })
+                          designs.reload()
+                          const { [target.id]: _done, ...rest } = edits
+                          setEdits(rest)
+                        } finally {
+                          setSavingMeasures(false)
+                        }
+                      }}
+                    >
+                      {savingMeasures ? 'Guardando…' : 'Guardar medidas en el diseño'}
+                    </button>
+                    <button
+                      className="button"
+                      onClick={() => {
+                        const { [target.id]: _undo, ...rest } = edits
+                        setEdits(rest)
+                      }}
+                    >
+                      Deshacer
+                    </button>
+                  </div>
+                )}
+              </section>
+            )
+          })()}
       </aside>
     </div>
   )

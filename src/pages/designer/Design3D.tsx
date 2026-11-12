@@ -12,6 +12,8 @@ import { bodyKind, type DesignData } from '../../shared/designs'
 import type { Material } from '../../shared/library'
 import { Scene } from '../../three/Scene'
 import { garmentArt, garmentArtPending, peekRuntime, type GarmentArtViews } from '../../lienzo/engine'
+import { savedGarmentArt } from '../../lienzo/savedArt'
+import { standardBody } from '../../production/measurements'
 import './studio.css'
 
 /**
@@ -39,6 +41,25 @@ export function useDesign3D(template: GarmentTemplate | null | undefined, data: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [printKey])
   return useMemo(() => (template && data ? { ...designTo3D(template, data, materials, body), prints: layers } : null), [template, data, materials, body, layers])
+}
+
+/**
+ * Lo pintado en el lienzo de un diseño guardado (para el Probador, sin el lienzo abierto): colores, texturas, logos…
+ * Mientras se prepara, o si no hay nada pintado, undefined.
+ */
+export function useSavedArt(id: string | undefined, template: GarmentTemplate | null | undefined, data: DesignData | null | undefined, materials: Map<string, Material>, body?: Body) {
+  const [art, setArt] = useState<{ views: GarmentArtViews; key: string }>()
+  useEffect(() => {
+    if (!id || !template || !data?.canvas) return setArt(undefined)
+    let alive = true
+    savedGarmentArt(id, template, data, materials, body ?? standardBody('M', bodyKind(data))).then((views) => {
+      if (alive) setArt(Object.keys(views).length ? { views, key: `${id}|${JSON.stringify(data.canvas)}` } : undefined)
+    })
+    return () => {
+      alive = false
+    }
+  }, [id, template, data, materials, body])
+  return art
 }
 
 /** Cuerpo del maniquí: el del cliente si tiene medidas. */

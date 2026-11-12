@@ -249,7 +249,13 @@ Queda:
 4. Botón para exportar la imagen o un vídeo girando.
 5. Revisar prenda por prenda que quede bien: sudadera, camiseta, polo, camisa, bomber, puffer, pantalones y gorros.
 
-## Fase 9 — 3D: el probador
+## Fase 9 — 3D: el probador ✅ hecha (12-11-2026)
+Hecho:
+- El maniquí lleva el diseño completo con lo pintado en su lienzo: texturas, logos y colores. La luz la pone el 3D.
+- **«Medidas de la prenda»:** cambias largo, pecho, manga… de la prenda de arriba o del pantalón, lo ves puesto y lo guardas en el diseño (pasa a la ficha técnica y al patrón).
+
+Queda: lo pintado en mangas y capucha (igual que en la fase 8).
+
 1. El maniquí lleva el diseño completo, con las texturas, y la luz del 3D cambia al girarlo.
 2. Ver cómo quedan los diseños nuevos y corregir.
 3. **Elegir las medidas de cada prenda** aquí (largo, pecho, manga, ancho…), que pasan a la ficha técnica y al patrón.
