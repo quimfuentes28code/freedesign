@@ -1,3 +1,4 @@
+import { deleteWithUndo } from '../../components/undo'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { api, useApi } from '../../api/client'
@@ -36,9 +37,7 @@ export function CollectionsPage() {
     setForm({ name: c.name, season: c.season, description: c.description })
   }
   const remove = async (c: Collection) => {
-    if (!confirm(`¿Eliminar la colección «${c.name}»? Sus proyectos se quedan sin colección, no se borran.`)) return
-    await api.deleteCollection(c.id)
-    reload()
+    deleteWithUndo(`/collections/${c.id}`, c.name || 'Colección')
   }
 
   return (

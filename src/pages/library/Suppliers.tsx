@@ -1,3 +1,4 @@
+import { deleteWithUndo } from '../../components/undo'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { api, useApi } from '../../api/client'
@@ -114,14 +115,9 @@ export function SupplierForm() {
   }
 
   const remove = async () => {
-    const extra = own.length ? ` Sus ${own.length} materiales se quedarán sin proveedor.` : ''
-    if (!id || !confirm(`¿Eliminar el proveedor «${form.name}»?${extra}`)) return
-    try {
-      await api.deleteSupplier(id)
-      navigate('/biblioteca/proveedores')
-    } catch (err) {
-      setError((err as Error).message)
-    }
+    if (!id) return
+    deleteWithUndo(`/suppliers/${id}`, form.name || 'Proveedor')
+    navigate('/biblioteca/proveedores')
   }
 
   if (loading) return <div className="page"><Status loading /></div>

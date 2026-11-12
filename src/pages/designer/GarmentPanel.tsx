@@ -1,3 +1,4 @@
+import { deleteWithUndo } from '../../components/undo'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { api, useApi } from '../../api/client'
@@ -48,8 +49,8 @@ export function GarmentPanel(props: Props) {
   const used = [...new Set(pieces.map((p) => styleOf(p.id).color))]
 
   const remove = async () => {
-    if (!props.id || !confirm(`¿Eliminar el diseño «${design.name}»? No se puede deshacer.`)) return
-    await api.deleteDesign(props.id)
+    if (!props.id) return
+    deleteWithUndo(`/designs/${props.id}`, design.name || 'Diseño')
     props.onDeleted()
   }
 

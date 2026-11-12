@@ -480,3 +480,31 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+/* Botón «+ Diseño» de cada tarjeta del tablero: abre un lienzo ya unido al proyecto */
+.project-card-wrap {
+  position: relative;
+}
+.project-card-wrap .project-card {
+  padding-bottom: 34px;
+}
+.project-card-design {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--soft);
+  color: var(--muted);
+  font: 500 12px var(--font-ui, inherit);
+  text-decoration: none;
+  opacity: 0.75;
+}
+.project-card-wrap:hover .project-card-design {
+  opacity: 1;
+}
+.project-card-design:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}

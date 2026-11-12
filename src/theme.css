@@ -201,3 +201,53 @@ html .lienzo :is(.lz-label, .lz-side-val, .lz-save, .lz-hex, .lz-field strong) {
 html .lienzo .lz-label {
   letter-spacing: 0.1em;
 }
+
+/* --- Aviso de «Eliminado · Deshacer» (abajo al centro, encima de todo, también del lienzo) --- */
+.undo-toasts {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+}
+.undo-toast {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 10px 10px 16px;
+  background: #2a2a2e;
+  color: #f2f2f3;
+  border: 1px solid #3a3a40;
+  border-left: 3px solid var(--accent-2, #ff6a2b);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.45);
+  font: 14px var(--font-ui, system-ui);
+  animation: undo-in 0.18s ease-out;
+}
+.undo-toast strong {
+  font-weight: 600;
+}
+.undo-toast button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 7px;
+  background: var(--accent, #3d8bfd);
+  color: #fff;
+  font: 600 13px var(--font-ui, system-ui);
+  cursor: pointer;
+}
+.undo-toast.error {
+  border-left-color: #e5484d;
+  padding-right: 16px;
+}
+@keyframes undo-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}

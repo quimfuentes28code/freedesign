@@ -1,3 +1,4 @@
+import { deleteWithUndo } from '../../components/undo'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, useApi } from '../../api/client'
@@ -100,13 +101,9 @@ export function MaterialForm() {
   }
 
   const remove = async () => {
-    if (!id || !confirm(`¿Eliminar «${form.name}» de la biblioteca? No se puede deshacer.`)) return
-    try {
-      await api.deleteMaterial(id)
-      navigate(`/biblioteca?categoria=${form.category}`)
-    } catch (err) {
-      setError((err as Error).message)
-    }
+    if (!id) return
+    deleteWithUndo(`/materials/${id}`, form.name || 'Material')
+    navigate(`/biblioteca?categoria=${form.category}`)
   }
 
   if (loading) return <div className="page"><Status loading /></div>

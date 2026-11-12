@@ -1,3 +1,4 @@
+import { deleteWithUndo } from '../../components/undo'
 import { useState, type FormEvent } from 'react'
 import { api, useApi } from '../../api/client'
 import { Field, PageHeader, Status } from '../../components/ui'
@@ -16,7 +17,6 @@ export function ExpensesPage() {
   const suppliers = useApi(() => api.listSuppliers(), [])
   const [category, setCategory] = useState<ExpenseCategory | ''>('')
   const [editing, setEditing] = useState<Expense | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   const thisYear = new Date().getFullYear()
   const years = Array.from({ length: 6 }, (_, i) => thisYear - i)
@@ -24,13 +24,7 @@ export function ExpensesPage() {
   const total = list.reduce((n, e) => n + e.amount, 0)
 
   const remove = async (e: Expense) => {
-    if (!confirm(`¿Eliminar el gasto «${e.concept}»?`)) return
-    try {
-      await api.deleteExpense(e.id)
-      expenses.reload()
-    } catch (err) {
-      setError((err as Error).message)
-    }
+    deleteWithUndo(`/expenses/${e.id}`, e.concept || 'Gasto')
   }
 
   return (
@@ -47,7 +41,6 @@ export function ExpensesPage() {
         }
       />
       <EconomyTabs />
-      {error && <p className="status error">{error}</p>}
 
       <ExpenseForm
         key={editing?.id ?? 'new'}

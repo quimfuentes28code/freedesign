@@ -1,3 +1,4 @@
+import { deleteWithUndo } from '../../components/undo'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { api, useApi } from '../../api/client'
@@ -61,13 +62,9 @@ export function ClientForm() {
   }
 
   const remove = async () => {
-    if (!id || !confirm(`¿Eliminar la ficha de ${form.name}? No se puede deshacer.`)) return
-    try {
-      await api.deleteClient(id)
-      navigate('/clientes')
-    } catch (err) {
-      setError((err as Error).message)
-    }
+    if (!id) return
+    deleteWithUndo(`/clients/${id}`, form.name || 'Cliente')
+    navigate('/clientes')
   }
 
   if (loading) return <div className="page"><Status loading /></div>

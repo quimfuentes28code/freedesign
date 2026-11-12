@@ -7,6 +7,7 @@ import type { Collection, CollectionInput, FileCategory, Project, ProjectInput, 
 import type { EconomySummary, Expense, ExpenseInput } from '../shared/economy'
 import type { ProductionOrder, ProductionOrderInput, TechPack, TechPackInput } from '../shared/production'
 import type { BrandColor, ProfileInput, RegisterInput, User } from '../shared/users'
+import { isPendingDelete, PENDING_CHANGED } from '../components/undo'
 
 /** Evento que se lanza cuando la API responde que no hay sesión (caducada o cerrada en otro sitio). */
 export const SESSION_EXPIRED = 'fd:session-expired'
@@ -22,7 +23,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (res.status === 401 && !path.startsWith('/auth/')) window.dispatchEvent(new Event(SESSION_EXPIRED))
     throw new Error(body?.error ?? `Error ${res.status}`)
   }
-  return (res.status === 204 ? undefined : await res.json()) as T
+  const data = res.status === 204 ? undefined : await res.json()
+  return (init?.method ? data : hidePending(path, data)) as T
+}
+
+/** Las listas no enseñan lo que se acaba de borrar y aún se puede deshacer (`deleteWithUndo`). */
+function hidePending(path: string, data: unknown) {
+  if (!Array.isArray(data)) return data
+  const collection = path.split(/[/?]/)[1]
+  return data.filter((x) => !(x && typeof x === 'object' && 'id' in x && isPendingDelete(collection, String(x.id))))
 }
 
 const send = (method: string, body?: unknown): RequestInit => ({ method, body: body === undefined ? undefined : JSON.stringify(body) })
@@ -181,6 +190,17 @@ export function useApi<T>(load: () => Promise<T>, deps: DependencyList) {
   }, [run])
 
   useEffect(() => reload(), [reload])
+  // Al borrar con «Deshacer» (o deshacerlo), las listas se vuelven a pedir sin enseñar «cargando» (las fichas no: no
+  // se pisan los cambios a medio escribir)
+  const isList = Array.isArray(data)
+  useEffect(() => {
+    if (!isList) return
+    const again = () => {
+      run().then(setData, () => {})
+    }
+    window.addEventListener(PENDING_CHANGED, again)
+    return () => window.removeEventListener(PENDING_CHANGED, again)
+  }, [run, isList])
   return { data, error, loading, reload, setData }
 }
 

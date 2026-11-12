@@ -4,7 +4,7 @@ import { api, useApi } from '../../api/client'
 import { PageHeader, Status } from '../../components/ui'
 import { fileUrl } from '../../shared/library'
 import { PROJECT_STATUSES, type ProjectStatus, type ProjectSummary } from '../../shared/projects'
-import { euro, isOverdue, margin, ProjectsTabs, shortDate } from './common'
+import { designLink, euro, isOverdue, margin, ProjectsTabs, shortDate } from './common'
 import './projects.css'
 
 /** Proyectos: tablero por fases (arrastrando se cambia de fase) o lista, con filtros por cliente y colección. */
@@ -144,6 +144,7 @@ function Board({ projects, onMove }: { projects: ProjectSummary[]; onMove: (id: 
 
 function ProjectCard({ project: p }: { project: ProjectSummary }) {
   return (
+    <div className="project-card-wrap">
     <Link
       to={`/proyectos/${p.id}`}
       className="card project-card"
@@ -166,6 +167,10 @@ function ProjectCard({ project: p }: { project: ProjectSummary }) {
         {p.designs > 0 && <span className="tag muted">{p.designs} diseño{p.designs > 1 ? 's' : ''}</span>}
       </div>
     </Link>
+      <Link to={designLink(p)} className="project-card-design" title="Nuevo diseño para este proyecto">
+        + Diseño
+      </Link>
+    </div>
   )
 }
 

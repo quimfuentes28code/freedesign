@@ -34,3 +34,8 @@ export function ProjectsTabs() {
     </nav>
   )
 }
+
+/** Lienzo en blanco ya unido al proyecto (y a su cliente): de un proyecto a diseñar en un toque. */
+export function designLink(p: { id: string; clientId: string | null }) {
+  return `/disenador?${new URLSearchParams({ proyecto: p.id, ...(p.clientId && { cliente: p.clientId }) })}`
+}

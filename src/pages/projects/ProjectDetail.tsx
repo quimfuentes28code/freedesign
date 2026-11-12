@@ -1,3 +1,4 @@
+import { deleteWithUndo } from '../../components/undo'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, useApi } from '../../api/client'
@@ -15,7 +16,7 @@ import {
   type Project,
   type ProjectInput,
 } from '../../shared/projects'
-import { euro, isOverdue, margin } from './common'
+import { designLink, euro, isOverdue, margin } from './common'
 import './projects.css'
 
 const toInput = (p: Project): ProjectInput => ({
@@ -82,8 +83,8 @@ export function ProjectDetail() {
   }
 
   const remove = async () => {
-    if (!id || !confirm(`¿Eliminar el proyecto «${form.name}» con sus archivos, materiales, costes y tareas? Sus diseños se conservan.`)) return
-    await api.deleteProject(id)
+    if (!id) return
+    deleteWithUndo(`/projects/${id}`, form.name || 'Proyecto')
     navigate('/proyectos')
   }
 
@@ -110,8 +111,11 @@ export function ProjectDetail() {
               <Link to="/proyectos" className="button">
                 Volver
               </Link>
-              {!isNew && (
+              {!isNew && project && (
                 <>
+                  <Link to={designLink(project)} className="button">
+                    Diseñar
+                  </Link>
                   <Link to={`/produccion/ficha/${id}`} className="button">
                     Ficha técnica
                   </Link>
@@ -240,7 +244,6 @@ function Designs({ project }: { project: Project }) {
     designs.reload()
     all.reload()
   }
-  const query = new URLSearchParams({ proyecto: project.id, ...(project.clientId && { cliente: project.clientId }) })
 
   return (
     <section className="card project-section">
@@ -257,7 +260,7 @@ function Designs({ project }: { project: Project }) {
               ))}
             </select>
           )}
-          <Link to={`/disenador/nuevo?${query}`} className="button">
+          <Link to={designLink(project)} className="button">
             Nuevo diseño
           </Link>
         </div>

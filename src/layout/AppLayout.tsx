@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthContext'
 import { ACCOUNT_TYPES, displayName } from '../shared/users'
 import { Icon, type IconName } from './icons'
 import { StudioBackdrop } from './StudioBackdrop'
+import { UndoToasts } from '../components/undo'
 
 /** Apartados de la app, en el orden del menú. */
 export const SECTIONS: { to: string; label: string; icon: IconName }[] = [
@@ -66,6 +67,7 @@ export function AppLayout() {
       <main className="content">
         <Outlet />
       </main>
+      <UndoToasts />
     </div>
     </StudioBackdrop>
   )

@@ -1,3 +1,4 @@
+import { deleteWithUndo } from '../../components/undo'
 import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { api, imageSize } from '../../api/client'
@@ -438,8 +439,8 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
   })
 
   const removeArtwork = async () => {
-    if (!id || !confirm(`¿Eliminar el gráfico «${name}»? Los diseños que ya lo usan lo conservan.`)) return
-    await api.deleteArtwork(id)
+    if (!id) return
+    deleteWithUndo(`/artworks/${id}`, name || 'Gráfico')
     navigate('/biblioteca/graficos')
   }
 

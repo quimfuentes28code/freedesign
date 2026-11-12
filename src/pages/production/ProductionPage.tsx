@@ -1,3 +1,4 @@
+import { deleteWithUndo } from '../../components/undo'
 import { useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { api, useApi } from '../../api/client'
@@ -54,9 +55,7 @@ export function ProductionPage() {
     }
   }
   const remove = async (o: ProductionOrder) => {
-    if (!confirm(`¿Eliminar esta orden de ${o.projectName}?`)) return
-    await api.deleteOrder(o.id).catch((e: Error) => setError(e.message))
-    orders.reload()
+    deleteWithUndo(`/production/${o.id}`, `Orden de ${o.projectName}`)
   }
 
   const all = orders.data ?? []

@@ -268,9 +268,11 @@ Hecho (12-11-2026):
 - **Fondo y paneles:** fondo grafito con cuadrícula de patronaje y paneles lisos. El plató 3D queda solo en la portada.
 - **Densidad:** normal.
 
+- **Borrar con «Deshacer»:** ya no se pregunta antes de borrar. Sale un aviso con «Deshacer» durante 6 s (clientes, diseños, proyectos, colecciones, materiales, proveedores, gráficos, gastos y órdenes).
+- **De un proyecto a diseñar en un toque:** «Diseñar» en la ficha del proyecto y «+ Diseño» en cada tarjeta del tablero.
+
 Queda:
 - iconos propios;
-- simplificar procesos (borrar con deshacer, de proyecto a diseño en un toque);
 - revisar la organización de los apartados.
 
 1. **Estilo visual**, para que no parezca «hecho con Claude». Te enseñaré 3 o 4 propuestas para elegir (tipografías, menús, botones, iconos propios, colores, densidad), en preguntas cortas y con recomendación. Después lo aplico en toda la app.
