@@ -10,6 +10,7 @@ import { loadFont } from './fonts'
 import { CLOSED_SHAPES, drawingPath } from './drawings'
 import { printSize, textLayout } from './prints'
 import { isPants, type GarmentTemplate, type View } from './types'
+import type { GarmentArt } from '../lienzo/engine'
 
 /**
  * Estampados para la vista 3D: los de una vista del dibujo (delantero o espalda) pintados en una imagen que
@@ -72,7 +73,7 @@ export interface PrintLayer {
 }
 
 /** Imagen con los estampados, detalles y fornituras de una vista, o null si esa vista no tiene nada. */
-export async function printLayer(t: GarmentTemplate, raw: DesignData, view: View, body?: Body): Promise<PrintLayer | null> {
+export async function printLayer(t: GarmentTemplate, raw: DesignData, view: View, body?: Body, art?: GarmentArt): Promise<PrintLayer | null> {
   const data = withMirrors(raw)
   const prints = (data.prints ?? []).filter((p) => p.view === view && !p.hidden)
   const details = (data.details ?? []).filter((d) => d.view === view && !d.hidden)
@@ -87,7 +88,7 @@ export async function printLayer(t: GarmentTemplate, raw: DesignData, view: View
   // Trazos y formas dibujados a mano (los canales de acolchado ya salen en el relieve de la tela)
   const drawings = (data.drawings ?? []).filter((d) => d.view === view && !d.hidden && !d.quilt)
   const f = bodyFrame(t, data, view, body)
-  if ((!prints.length && !details.length && !shapes.length && !blocks.length && !drawings.length) || !f) return null
+  if ((!prints.length && !details.length && !shapes.length && !blocks.length && !drawings.length && !art) || !f) return null
   const k = HEIGHT / (f.bottom - f.top)
   const make = () => {
     const c = document.createElement('canvas')
@@ -116,6 +117,16 @@ export async function printLayer(t: GarmentTemplate, raw: DesignData, view: View
     c.scale(k, k)
     paint()
     c.restore()
+  }
+
+  // Lo pintado en el lienzo encima de esta vista de la prenda (colores, texturas, logos, desgastes), en su sitio
+  if (art) {
+    ctx.save()
+    ctx.setTransform(k, 0, 0, k, -(CX - f.half) * k, -f.top * k)
+    const s = art.box.w / art.w
+    ctx.transform(s, 0, 0, s, art.box.x - art.x * s, art.box.y - art.y * s)
+    ctx.drawImage(art.image, 0, 0)
+    ctx.restore()
   }
 
   // Bloques de color: recortados a la forma de su pieza, con su costura

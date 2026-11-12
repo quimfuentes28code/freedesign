@@ -207,7 +207,7 @@ export function DesignEditor() {
         onGarment={() => setSheet(sheet === 'garment' ? null : 'garment')}
         mode3d={mode3d}
         onMode3d={setMode3d}
-        view3d={<Design3D template={template} data={design.data} materials={materials} client={client} designId={id} />}
+        view3d={<Design3D template={template} data={design.data} materials={materials} client={client} designId={id} runtimeId={runtimeId} />}
         pendingImage={pendingImage}
         onPendingImage={() => setPendingImage(null)}
       >

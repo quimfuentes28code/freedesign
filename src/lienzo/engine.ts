@@ -84,6 +84,10 @@ export class Runtime {
 }
 
 const runtimes = new Map<string, Runtime>()
+/** Lienzo en memoria de un diseño, si está abierto (sin crearlo). */
+export function peekRuntime(designId: string) {
+  return runtimes.get(designId) ?? null
+}
 /** Lienzo en memoria de un diseño (se crea al abrirlo por primera vez). */
 export function runtimeFor(designId: string, doc: CanvasDoc) {
   let r = runtimes.get(designId)
@@ -288,6 +292,83 @@ export function refreshClip(r: Runtime, l: CanvasLayer, rect: Rect) {
   g.globalCompositeOperation = 'destination-in'
   g.drawImage(c.base, rect.x0, rect.y0, w, h, rect.x0, rect.y0, w, h)
   g.globalCompositeOperation = 'source-over'
+}
+
+/**
+ * Lo pintado en el lienzo que va encima de la prenda en 3D: todo menos los dibujos de las prendas (sus líneas) y las
+ * capas de luz y sombra (en 3D la luz la pone la escena). Sin papel, transparente donde no hay nada.
+ */
+export function composeForGarment(r: Runtime, doc: CanvasDoc, base?: HTMLCanvasElement) {
+  const out = document.createElement('canvas')
+  out.width = doc.w
+  out.height = doc.h
+  const g = out.getContext('2d')!
+  // Debajo, el color de cada pieza: así las capas en Superponer, Multiplicar… se mezclan con él como en el dibujo
+  if (base) g.drawImage(base, 0, 0)
+  for (const l of doc.layers) {
+    if (!l.visible || l.role) continue
+    if (l.kind === 'mockup' || (l.kind === 'image' && l.asset)) continue
+    const base = clipBaseOf(doc, l)
+    if (base && !base.visible) continue
+    g.save()
+    g.globalAlpha = l.opacity
+    g.globalCompositeOperation = (l.blend === 'normal' ? 'source-over' : l.blend) as GlobalCompositeOperation
+    if (base) g.drawImage(clippedLayer(r, doc, l, base).canvas, 0, 0)
+    else drawLayer(g, r, l)
+    g.restore()
+  }
+  return out
+}
+
+/** Lo del lienzo para cada vista de la prenda del diseño: la imagen y dónde está esa vista en el papel. */
+export interface GarmentArt {
+  image: HTMLCanvasElement
+  /** Capa de la prenda en el papel (px) y lo que abarca del dibujo (unidades del dibujo). */
+  x: number
+  y: number
+  w: number
+  box: { x: number; y: number; w: number; h: number }
+}
+export type GarmentArtViews = Partial<Record<'front' | 'back' | 'side', GarmentArt>>
+
+/**
+ * Lo pintado encima de la prenda del propio diseño, por vistas (delantero, espalda, lado), para llevarlo al 3D.
+ * Vacío si en el lienzo no hay nada pintado encima o aún no se han dibujado sus prendas.
+ */
+export function garmentArt(r: Runtime, doc: CanvasDoc, pieceColor: (piece: string) => string): GarmentArtViews {
+  // Sin nada pintado encima de la prenda, no hay nada que llevar
+  const painted = doc.layers.some((l) => l.visible && !l.role && l.kind !== 'mockup' && !(l.kind === 'image' && l.asset))
+  if (!painted) return {}
+  const own = doc.layers.filter((l): l is Extract<CanvasLayer, { kind: 'mockup' }> => l.kind === 'mockup' && !l.template && l.visible)
+  if (own.some((l) => !r.mockupInfo.has(l.id))) return {}
+  // Las piezas de la prenda del diseño con su color, en su sitio del papel
+  const base = document.createElement('canvas')
+  base.width = doc.w
+  base.height = doc.h
+  const bg = base.getContext('2d')!
+  for (const l of own) {
+    const info = r.mockupInfo.get(l.id)!
+    const s = l.w / info.box.w
+    bg.save()
+    bg.setTransform(s, 0, 0, s, l.x - info.box.x * s, l.y - info.box.y * s)
+    for (const sh of info.shapes) {
+      if (sh.kind !== 'fill' || !sh.piece) continue
+      bg.fillStyle = pieceColor(sh.piece)
+      bg.fill(new Path2D(sh.d))
+    }
+    bg.restore()
+  }
+  const image = composeForGarment(r, doc, base)
+  const out: GarmentArtViews = {}
+  for (const l of own) {
+    if (out[l.view]) continue
+    out[l.view] = { image, x: l.x, y: l.y, w: l.w, box: r.mockupInfo.get(l.id)!.box }
+  }
+  return out
+}
+/** ¿Faltan por dibujar prendas del diseño en el lienzo? (entonces aún no se sabe dónde va lo pintado) */
+export function garmentArtPending(r: Runtime, doc: CanvasDoc) {
+  return doc.layers.some((l) => l.kind === 'mockup' && !l.template && l.visible && !r.mockupInfo.has(l.id))
 }
 
 /** Pinta el lienzo entero (papel y capas visibles, con su opacidad, fusión y máscaras de recorte) en un canvas. */

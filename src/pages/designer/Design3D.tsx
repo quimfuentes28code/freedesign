@@ -11,19 +11,21 @@ import type { Client } from '../../shared/clients'
 import { bodyKind, type DesignData } from '../../shared/designs'
 import type { Material } from '../../shared/library'
 import { Scene } from '../../three/Scene'
+import { garmentArt, garmentArtPending, peekRuntime, type GarmentArtViews } from '../../lienzo/engine'
 import './studio.css'
 
 /**
  * Un diseño del Diseñador como prenda 3D, con sus estampados (que se pintan en una imagen por lado cada vez que
  * cambian, o cambia la forma de la prenda). Sin diseño, devuelve null.
  */
-export function useDesign3D(template: GarmentTemplate | null | undefined, data: DesignData | null | undefined, materials: Map<string, Material>, body?: Body) {
+export function useDesign3D(template: GarmentTemplate | null | undefined, data: DesignData | null | undefined, materials: Map<string, Material>, body?: Body, art?: { views: GarmentArtViews; key: string }) {
   const [layers, setLayers] = useState<Design['prints']>()
-  const printKey = template && data ? JSON.stringify([data.prints ?? [], data.details ?? [], data.drawings ?? [], data.hardware ?? {}, data.blocks ?? [], data.pieces, data.options, data.measures ?? {}, template.id, !!body]) : ''
+  const printKey = template && data ? JSON.stringify([data.prints ?? [], data.details ?? [], data.drawings ?? [], data.hardware ?? {}, data.blocks ?? [], data.pieces, data.options, data.measures ?? {}, template.id, !!body, art?.key ?? '']) : ''
   useEffect(() => {
     if (!template || !data) return setLayers(undefined)
     let alive = true
-    Promise.all([printLayer(template, data, 'front', body), printLayer(template, data, 'back', body), printLayer(template, data, 'side', body)]).then(([front, back, side]) => {
+    const v = art?.views ?? {}
+    Promise.all([printLayer(template, data, 'front', body, v.front), printLayer(template, data, 'back', body, v.back), printLayer(template, data, 'side', body, v.side)]).then(([front, back, side]) => {
       if (alive)
         setLayers(
           front || back || side
@@ -102,6 +104,8 @@ interface Props {
   client?: Client
   /** Id del diseño (para recordar con qué otra prenda se ve). */
   designId?: string
+  /** Lienzo abierto del diseño: lo pintado encima de la prenda se lleva al 3D. */
+  runtimeId?: string
 }
 
 const stored = (key: string) => {
@@ -113,12 +117,26 @@ const stored = (key: string) => {
 }
 
 /** Vista 3D del diseño que se está editando: el maniquí con la prenda, sus colores y materiales, al momento. */
-export function Design3D({ template, data, materials, client, designId }: Props) {
+export function Design3D({ template, data, materials, client, designId, runtimeId }: Props) {
   // Sin maniquí, la capucha se ve mejor bajada
   const [hoodUp, setHoodUp] = useState(false)
   const kind = bodyKind(data)
   const body = useMemo(() => bodyOf(client, kind), [client, kind])
-  const main = useDesign3D(template, data, materials, body)!
+  // Lo pintado en el lienzo (colores, texturas, logos…) va encima de la prenda; si el lienzo aún está dibujando sus
+  // prendas, se vuelve a mirar en un momento
+  const [tick, setTick] = useState(0)
+  const art = useMemo(() => {
+    const r = runtimeId ? peekRuntime(runtimeId) : null
+    if (!r || !data.canvas) return undefined
+    const color = (piece: string) => data.pieces[piece]?.color ?? template.pieces.find((p) => p.id === piece)?.defaultColor ?? '#cccccc'
+    return { views: garmentArt(r, data.canvas, color), key: `${tick}|${JSON.stringify(data.canvas)}`, pending: garmentArtPending(r, data.canvas) }
+  }, [runtimeId, data.canvas, data.pieces, template, tick])
+  useEffect(() => {
+    if (!art?.pending) return
+    const t = setTimeout(() => setTick((n) => n + 1), 700)
+    return () => clearTimeout(t)
+  }, [art])
+  const main = useDesign3D(template, data, materials, body, art)!
   const pants = isPants(template)
 
   // «Llevar con…»: otra prenda ya diseñada (de abajo si esta es de arriba, y al revés), recordada en este navegador

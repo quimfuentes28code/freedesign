@@ -228,7 +228,18 @@ Hecho:
 
    > Convierte este dibujo técnico de una prenda en una fotografía de producto hiperrealista. Mantén EXACTAMENTE el diseño: la misma forma, el mismo largo y corte, los mismos colores, el logo y el texto idénticos y en el mismo sitio y tamaño, la misma cremallera, cordones, bolsillos, costuras y forro (con su estampado). No añadas ni quites ningún elemento ni texto. Tejido: [felpa de algodón gruesa con acabado lavado/vintage], con su textura real, pliegues naturales, costuras con relieve y ligero desgaste en bordes. La prenda cuelga de una percha invisible delante de una pared de hormigón gris claro, de frente, centrada, con luz natural suave de ventana desde la izquierda y sombra suave en la pared. Fotografía de catálogo, cámara 50 mm, enfoque nítido, alta resolución, sin personas, sin marcas de agua.
 
-## Fase 8 — 3D: la prenda sola (lo más urgente del 3D)
+## Fase 8 — 3D: la prenda sola (lo más urgente del 3D) ✅ primera parte hecha (12-11-2026)
+Hecho:
+- **Lo pintado en el lienzo sale en la prenda 3D** del modo 3D y 2D+3D, en su sitio: colores, texturas (bien mezcladas con el color de la pieza), estampados, logos, fornituras y desgastes.
+- Las líneas del dibujo y las capas de luz y sombra no pasan.
+- Delantero, espalda y lado.
+
+Queda:
+- llevar también lo pintado en mangas y capucha;
+- exportar la imagen o un vídeo girando;
+- revisar prenda por prenda;
+- el bajo raro de la sudadera en 3D.
+
 1. Usar la forma inflada sin maniquí que ya tenemos (✅ forma «fantasma» y plató de producto).
 2. **Pegar el lienzo 2D sobre la prenda 3D:**
    - delantera al delantero, trasera a la espalda, laterales a las mangas;
