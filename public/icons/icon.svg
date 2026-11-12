@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Icono de FreeDesign: una camiseta en línea fina sobre grafito, con pespunte naranja (estilo de los iconos del menú) -->
+  <rect width="512" height="512" fill="#161618"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M196 128 L136 154 L96 230 L150 256 L168 226 L168 392 L344 392 L344 226 L362 256 L416 230 L376 154 L316 128 C306 158 284 174 256 174 C228 174 206 158 196 128 Z" stroke="#f2f2f4" stroke-width="16"/>
+    <path d="M190 366 L322 366" stroke="#ff6a2b" stroke-width="9" stroke-dasharray="16 13"/>
+    <path d="M208 142 C220 162 236 160 256 160 C276 160 292 162 304 142" stroke="#ff6a2b" stroke-width="7" stroke-dasharray="12 10"/>
+  </g>
+</svg>

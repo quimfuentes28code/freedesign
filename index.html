@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FreeDesign</title>
+    <!-- App instalable (PWA): manifiesto, iconos y ajustes para iPhone/iPad (el service worker se registra en src/pwa.ts) -->
+    <meta name="description" content="Taller para diseñar y fabricar prendas: lienzo, 3D, fichas técnicas y producción." />
+    <meta name="theme-color" content="#161618" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="FreeDesign" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <!-- Letras de la app: Space Grotesk (textos) e IBM Plex Mono (etiquetas, medidas, referencias). Se cargan sin
          bloquear el arranque (media=print y al cargar, all): sin conexión a Google Fonts la app arranca igual -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

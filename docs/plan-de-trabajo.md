@@ -297,7 +297,7 @@ Hecho (12-11-2026):
 - **Pendiente en producción:** crear la tabla con `npm run db:migrate:remote` (migraciones 0011, 0012 y 0013). Mientras no esté, se guarda igual pero sin versiones.
 
 - **Autoguardado** del lienzo e **historial de versiones** de cada diseño.
-- **App instalable (PWA)** para iPad y móvil, que se actualiza sola.
+- ✅ **App instalable (PWA)** para iPad y móvil, que se actualiza sola (12-11-2026: Mi perfil → «Instalar la app»).
 - Que la app cargue más rápido: dividir el código, porque hoy el paquete pasa de 2 MB.
 - Pruebas automáticas de lo importante (guardar, lienzo, ficha).
 - **PDF de presentación** del diseño y **moodboard** o tablero de presentación.

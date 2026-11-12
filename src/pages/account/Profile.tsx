@@ -5,6 +5,7 @@ import { Field, PageHeader } from '../../components/ui'
 import { COLOR_CHART } from '../../designer/colors'
 import { MAX_BRAND_COLORS, MIN_PASSWORD, type BrandColor, type ProfileInput } from '../../shared/users'
 import { AccountTypePicker } from '../auth/AuthPages'
+import { InstallAppCard } from './InstallAppCard'
 
 /** /perfil — datos de la cuenta y cambio de contraseña. */
 export function ProfilePage() {
@@ -84,6 +85,7 @@ export function ProfilePage() {
           </div>
         </form>
         <BrandColorsCard />
+        <InstallAppCard />
         <PasswordCard />
       </div>
     </div>
