@@ -505,3 +505,12 @@
   border: 1px solid rgb(0 0 0 / 0.3);
   vertical-align: -1px;
 }
+
+/* Vista previa del bordado */
+.embroidery-preview {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}

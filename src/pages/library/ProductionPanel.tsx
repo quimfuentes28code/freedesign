@@ -1,3 +1,4 @@
+import { embroideryCanvas } from './embroidery'
 import { filmPng, films, zip } from './separations'
 import { useEffect, useMemo, useState, type RefObject } from 'react'
 import { FlatView } from '../../designer/FlatView'
@@ -39,6 +40,9 @@ export function ProductionPanel({ layers, exportRef, brand, name }: { layers: Ar
   const [garmentColor, setGarmentColor] = useState(GARMENT_COLORS[0])
   const [zone, setZone] = useState('pecho')
   const [error, setError] = useState<string | null>(null)
+  // Vista previa del bordado: sobre la tela elegida y, sin fondo, para la prueba en una prenda
+  const [fabric, setFabric] = useState(GARMENT_COLORS[1])
+  const [embroidered, setEmbroidered] = useState<{ url: string; bare: string; aspect: number; scale: number } | null>(null)
   const visible = layers.filter((l) => !l.hidden)
   const report = useMemo(() => inkReport(visible, brand), [visible, brand])
 
@@ -70,6 +74,35 @@ export function ProductionPanel({ layers, exportRef, brand, name }: { layers: Ar
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
+
+  const stitched = technique === 'bordado' || technique === 'parche'
+  useEffect(() => {
+    if (!stitched || !rendered) return
+    let cancelled = false
+    const t = setTimeout(async () => {
+      try {
+        const opts = { width: 720, widthCm }
+        const [onFabric, bare] = await Promise.all([
+          embroideryCanvas(rendered.blob, rendered.aspect, report.inks, { ...opts, fabric }),
+          embroideryCanvas(rendered.blob, rendered.aspect, report.inks, { ...opts, fabric: null }),
+        ])
+        const url = (c: HTMLCanvasElement) => new Promise<string>((r) => c.toBlob((b) => r(b ? URL.createObjectURL(b) : ''), 'image/png'))
+        const next = { url: await url(onFabric), bare: await url(bare), aspect: bare.height / bare.width, scale: bare.width / 720 }
+        if (cancelled) return
+        setEmbroidered((prev) => {
+          if (prev) [prev.url, prev.bare].forEach((u) => URL.revokeObjectURL(u))
+          return next
+        })
+      } catch {
+        // Si falla se queda la anterior
+      }
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stitched, rendered, fabric, widthCm, JSON.stringify(report.inks)])
 
   const heightCm = rendered ? widthCm * rendered.aspect : 0
   const cmPerUnit = rendered ? widthCm / rendered.units : 0
@@ -110,9 +143,9 @@ export function ProductionPanel({ layers, exportRef, brand, name }: { layers: Ar
               view: z.view,
               kind: 'artwork',
               artworkId: null,
-              file: rendered.url,
-              aspect: rendered.aspect,
-              w: widthCm * unitsOf(template),
+              file: stitched && embroidered ? embroidered.bare : rendered.url,
+              aspect: stitched && embroidered ? embroidered.aspect : rendered.aspect,
+              w: widthCm * unitsOf(template) * (stitched && embroidered ? embroidered.scale : 1),
               text: '',
               font: '',
               size: 0,
@@ -169,6 +202,23 @@ export function ProductionPanel({ layers, exportRef, brand, name }: { layers: Ar
           Unas <strong>{stitches.toLocaleString('es-ES')}</strong> puntadas ({areaCm2.toFixed(0)} cm² rellenos) y {report.inks.length} cambios de hilo. Cálculo
           orientativo: el taller lo afina al picar el diseño.
         </p>
+      )}
+      {stitched && rendered && (
+        <>
+          <h3 className="form-sub">Vista previa del bordado</h3>
+          <div className="color-line">
+            {GARMENT_COLORS.map((c) => (
+              <button key={c} className={c === fabric ? 'swatch-button active' : 'swatch-button'} style={{ background: c }} onClick={() => setFabric(c)} aria-label={`Tela ${c}`} />
+            ))}
+          </div>
+          {embroidered ? <img className="embroidery-preview" src={embroidered.url} alt="Vista previa del bordado" /> : <p className="muted small">Bordando…</p>}
+          <div className="print-actions">
+            <button className="button" disabled={!embroidered} onClick={async () => embroidered && download(await (await fetch(embroidered.url)).blob(), `${file}-bordado.png`)}>
+              Descargar imagen
+            </button>
+          </div>
+          <p className="muted small">Orientativa: cada color con su relleno de puntadas y relieve. El taller decide el picado (dirección y tipo de puntada).</p>
+        </>
       )}
       {technique !== 'bordado' && rendered && <p className="muted small">Superficie con tinta: {areaCm2.toFixed(0)} cm² de {(widthCm * heightCm).toFixed(0)} cm².</p>}
       {notes.map((n) => (

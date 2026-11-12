@@ -299,6 +299,7 @@ Hecho (12-11-2026):
 - **Presentación del proyecto** (botón «Presentación» en la ficha del proyecto): portada, moodboard (fotos, notas, paleta y tejidos), una hoja por diseño (lienzo, delantero, espalda, colores y variantes) y materiales, en A4 apaisado para imprimir o guardar en PDF.
 - **Vectorizar imágenes** en el creador de gráficos: un logo en foto o PNG pasa a formas editables (colores, detalle y quitar fondo), una capa por color.
 - **Separación de colores para serigrafía** (creador de gráficos → Producción → Serigrafía): una película por tinta con marcas de registro, base blanca opcional para prendas oscuras, en un ZIP a tamaño real.
+- **Vista previa de bordado** (creador de gráficos → Producción → Bordado o Parche): el gráfico con hilo, puntadas y relieve sobre la tela elegida, también en la prueba en una prenda.
 - **Pendiente en producción:** crear la tabla con `npm run db:migrate:remote` (migraciones 0011, 0012 y 0013). Mientras no esté, se guarda igual pero sin versiones.
 
 - **Autoguardado** del lienzo e **historial de versiones** de cada diseño.
