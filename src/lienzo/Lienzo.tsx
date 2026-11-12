@@ -49,12 +49,14 @@ import type { Artwork } from '../shared/artworks'
 import { fileUrl as fileOf } from '../shared/library'
 import { TabletPanel, useTabletHost, type TabletApi } from './tablet'
 import type { PadPoint } from '../shared/tablet'
+import { isVectorTool, useVector, VectorOverlay, VectorPanel, VectorSvg } from './VectorTools'
+import { translatePath } from './vectorPaths'
 import './lienzo.css'
 
 /** Puntero de los trazos que llegan del móvil que hace de tableta (no choca con los del navegador). */
 const REMOTE_POINTER = 987654
 
-type Tool = 'brush' | 'eraser' | 'picker' | 'fill' | 'move' | 'text' | 'select' | 'shaper' | 'curve'
+type Tool = 'brush' | 'eraser' | 'picker' | 'fill' | 'move' | 'text' | 'select' | 'shaper' | 'curve' | 'pen' | 'direct' | 'vshape'
 type Panel = 'brushes' | 'layers' | 'color' | 'ajustes' | 'acciones' | 'biblioteca' | 'opciones' | 'ia' | 'luces' | null
 
 interface Settings {
@@ -344,6 +346,18 @@ export function Lienzo(props: Props) {
     const s = Math.sin(-view.r)
     return { x: (px * c - py * s) / view.s, y: (px * s + py * c) / view.s }
   }
+
+  // --- Trazados vectoriales: Pluma, Selección directa y Formas (VectorTools.tsx) ---
+  const vec = useVector({
+    doc,
+    change: (next) => change(next),
+    active,
+    setActive,
+    scale: view.s,
+    color: settings.color,
+    tool,
+    flash: (t) => flash(t),
+  })
 
   // --- Pintar ---
   const raw = useRef<HTMLCanvasElement | null>(null)
@@ -1127,6 +1141,8 @@ export function Lienzo(props: Props) {
       r.history.push({ kind: 'pixels', layer: l.id, rect: all, before, after: grab(lc, all) })
       r.dirty.add(l.id)
       touch()
+    } else if (l.kind === 'vector') {
+      change({ ...doc, layers: doc.layers.map((x) => (x.id === l.id ? { ...l, paths: l.paths.map((p) => translatePath(p, m.dx, m.dy)) } : x)) })
     } else if (l.kind !== 'texture') {
       change({ ...doc, layers: doc.layers.map((x) => (x.id === l.id ? ({ ...x, x: Math.round(l.x + m.dx), y: Math.round(l.y + m.dy) } as CanvasLayer) : x)) })
       maskCache.current = null
@@ -1166,6 +1182,7 @@ export function Lienzo(props: Props) {
     if (e.pointerType === 'touch' && touches.length >= 2) {
       // Segundo dedo: si el primero empezó a pintar hace muy poco, se cancela (era un gesto)
       if (stroke.current && stroke.current.touchStart && performance.now() - stroke.current.touchStart < 300) endStroke(null, true)
+      if (vec.dragging()) vec.cancel()
       const g = gestureState()
       gesture.current = { view, mid: g.mid, dist: g.dist, ang: g.ang, moved: false, count: touches.length, t: performance.now() }
       return
@@ -1179,6 +1196,7 @@ export function Lienzo(props: Props) {
     const p = toDoc(e.clientX, e.clientY)
     if (tool === 'brush' || tool === 'eraser' || tool === 'shaper') startStroke(e, tool === 'eraser')
     else if (tool === 'curve') curveClick(p)
+    else if (isVectorTool(tool)) vec.down([p.x, p.y], e)
     else if (tool === 'picker') pick(p.x, p.y)
     else if (tool === 'fill') fill(p.x, p.y)
     else if (tool === 'select') {
@@ -1226,6 +1244,10 @@ export function Lienzo(props: Props) {
       setView({ ...p.view, x: p.view.x + e.clientX - p.x, y: p.view.y + e.clientY - p.y })
       return
     }
+    if (vec.dragging()) {
+      const q = toDoc(e.clientX, e.clientY)
+      return vec.move([q.x, q.y], e)
+    }
     if (stroke.current) return moveStroke(e)
     if (lasso && tool === 'select') {
       const p = toDoc(e.clientX, e.clientY)
@@ -1259,6 +1281,7 @@ export function Lienzo(props: Props) {
       panning.current = null
       return
     }
+    if (vec.dragging()) return vec.up()
     if (stroke.current) return endStroke(e)
     if (lasso) {
       if (lasso.length >= 8) {
@@ -1335,7 +1358,12 @@ export function Lienzo(props: Props) {
           if (k === 'enter') finishCurve(false)
           else if (k === 'escape') setCurvePts([])
           else setCurvePts(curvePts.slice(0, -1))
-        } else if (k === 'n') setTool('shaper')
+        } else if (isVectorTool(tool) && vec.key(k)) {
+          e.preventDefault()
+        } else if (k === 'p') setTool('pen')
+        else if (k === 'a') setTool('direct')
+        else if (k === 'm') setTool('vshape')
+        else if (k === 'n') setTool('shaper')
         else if (k === 'c') setTool('curve')
         else if (k === 'b') setTool('brush')
         else if (k === 'e') setTool('eraser')
@@ -1820,7 +1848,7 @@ export function Lienzo(props: Props) {
 
   const brand = (user?.brandColors ?? []).map((c) => c.hex)
   const transform = `translate(${view.x}px, ${view.y}px) rotate(${view.r}rad) scale(${view.s})`
-  const cursor = tool === 'move' ? 'move' : tool === 'text' ? 'text' : tool === 'select' || tool === 'curve' ? 'crosshair' : tool === 'picker' || tool === 'fill' ? 'crosshair' : 'none'
+  const cursor = tool === 'pen' || tool === 'vshape' ? 'crosshair' : tool === 'direct' ? 'default' : tool === 'move' ? 'move' : tool === 'text' ? 'text' : tool === 'select' || tool === 'curve' ? 'crosshair' : tool === 'picker' || tool === 'fill' ? 'crosshair' : 'none'
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
   /** Creador de gráficos abierto encima del lienzo (nuevo, con una plantilla de logo o editando uno). */
   const [creator, setCreator] = useState<{ id?: string; template?: string; graffiti?: boolean } | null>(null)
@@ -1918,6 +1946,15 @@ export function Lienzo(props: Props) {
           </button>
           <button className={tool === 'select' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('select')} title="Selección a mano (S): rodea una zona para moverla, escalarla, girarla, copiarla o borrarla">
             <Icon d="M10 3.5c4 0 6.5 1.8 6.5 4.2S14 12 10 12 3.5 10.1 3.5 7.7 6 3.5 10 3.5zM6 11.5l-1.5 5 2-1 1 1.5" />
+          </button>
+          <button className={tool === 'pen' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('pen')} title="Pluma (P): trazados vectoriales con puntos y curvas, como en Illustrator">
+            <Icon d="M10 2.5l4.5 7-4.5 8-4.5-8zM10 9.5v8M10 9.5a1 1 0 100 .01" />
+          </button>
+          <button className={tool === 'direct' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('direct')} title="Selección directa (A): mueve puntos, manejadores o trazados vectoriales">
+            <Icon d="M5 3l10 6.5-4.5 1.2 2.6 4.8-1.8 1-2.6-4.8L5 15z" />
+          </button>
+          <button className={tool === 'vshape' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('vshape')} title="Formas vectoriales (M): rectángulo, elipse, polígono, estrella y línea">
+            <Icon d="M3.5 3.5h7v7h-7zM14 9.5a3.5 3.5 0 110 7 3.5 3.5 0 010-7z" />
           </button>
           <button className={tool === 'move' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('move')} title="Mover la capa (V)">
             <Icon d="M10 2.5v15M2.5 10h15M10 2.5l-2.5 2.5M10 2.5l2.5 2.5M10 17.5l-2.5-2.5M10 17.5l2.5-2.5M2.5 10l2.5-2.5M2.5 10l2.5 2.5M17.5 10l-2.5-2.5M17.5 10l-2.5 2.5" />
@@ -2023,6 +2060,10 @@ export function Lienzo(props: Props) {
         onPointerDown={onPointerDown}
         onPointerMove={(e) => {
           onPointerMove(e)
+          if (tool === 'pen') {
+            const q = toDoc(e.clientX, e.clientY)
+            vec.setHover([q.x, q.y])
+          }
           if (e.pointerType !== 'touch') setHover({ x: e.clientX, y: e.clientY })
         }}
         onPointerUp={onPointerUp}
@@ -2100,6 +2141,12 @@ export function Lienzo(props: Props) {
                 />
               )
             }
+            if (l.kind === 'vector')
+              return (
+                <div key={l.id} className="lz-layer" style={{ ...style, transform: off ? `translate(${off.dx}px, ${off.dy}px)` : undefined }}>
+                  <VectorSvg layer={vec.viewOf(l)} w={doc.w} h={doc.h} />
+                </div>
+              )
             if (l.kind === 'texture')
               return (
                 <div key={l.id} className="lz-layer" style={style}>
@@ -2118,6 +2165,7 @@ export function Lienzo(props: Props) {
               </div>
             )
           })}
+          {isVectorTool(tool) && <VectorOverlay vec={vec} w={doc.w} h={doc.h} scale={view.s} />}
           {(lasso || selectionPts) && (
             <svg className="lz-overlay" viewBox={`0 0 ${doc.w} ${doc.h}`} width={doc.w} height={doc.h}>
               <polygon points={(lasso ?? selectionPts)!.join(' ')} className="lz-ants" style={{ strokeWidth: 2 / view.s }} />
@@ -2543,6 +2591,7 @@ export function Lienzo(props: Props) {
           </div>
         </Pop>
       )}
+      {isVectorTool(tool) && <VectorPanel vec={vec} tool={tool} color={settings.color} />}
       {tabletOpen && <TabletPanel tablet={tablet} onClose={() => setTabletOpen(false)} />}
       {!tabletOpen && tablet.status === 'connected' && (
         <button className="lz-tablet-badge" onClick={() => setTabletOpen(true)} title="Móvil como tableta">
@@ -2962,7 +3011,7 @@ function LayerRow(props: {
     g.drawImage(props.thumb, (c.width - props.thumb.width * k) / 2, (c.height - props.thumb.height * k) / 2, props.thumb.width * k, props.thumb.height * k)
   })
   const [editing, setEditing] = useState(false)
-  const kind = l.kind === 'paint' ? 'Pintura' : l.kind === 'mockup' ? 'Prenda' : l.kind === 'detail' ? 'Fornitura' : l.kind === 'text' ? 'Texto' : l.kind === 'texture' ? 'Textura' : 'Imagen'
+  const kind = l.kind === 'paint' ? 'Pintura' : l.kind === 'mockup' ? 'Prenda' : l.kind === 'detail' ? 'Fornitura' : l.kind === 'text' ? 'Texto' : l.kind === 'texture' ? 'Textura' : l.kind === 'vector' ? 'Trazados' : 'Imagen'
   return (
     <div className={`lz-layer-row${active ? ' on' : ''}${props.clipped ? ' clipped' : ''}`}>
       <div className="lz-layer-main" onClick={props.onSelect}>

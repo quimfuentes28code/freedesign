@@ -1650,3 +1650,75 @@
     margin-bottom: 2px;
   }
 }
+
+/* --- Trazados vectoriales (VectorTools.tsx): capa en SVG, vista de edición y panel de propiedades --- */
+.lz-vector {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.lz-vector-edit {
+  overflow: visible;
+}
+.lz-vbar {
+  position: absolute;
+  top: calc(var(--lz-top-h) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  max-width: calc(100% - 24px);
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: var(--lz-pop);
+  border: 1px solid var(--lz-line);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lz-vbar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+.lz-vbar-row::-webkit-scrollbar {
+  display: none;
+}
+.lz-vbar-row > * {
+  flex: none;
+}
+.lz-vbar-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 9px;
+  border: 1px solid var(--lz-line);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.lienzo .lz-vbar-field input[type='color'] {
+  width: 30px;
+  height: 24px;
+  padding: 1px;
+}
+.lz-vbar-field input[type='range'] {
+  width: 110px;
+  accent-color: var(--lz-accent);
+}
+.lz-vbar-num {
+  font: 12px var(--font-tech, monospace);
+  color: var(--lz-muted);
+  min-width: 46px;
+}
+.lz-vbar-hint {
+  font-size: 11.5px;
+  color: var(--lz-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

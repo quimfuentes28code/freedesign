@@ -552,7 +552,37 @@ export interface TextLayer extends CanvasLayerBase {
   stroke?: string
   strokeWidth?: number
 }
-export type CanvasLayer = PaintLayer | MockupLayer | ImageLayer | DetailLayer | TextLayer | TextureLayer
+/**
+ * Punto de un trazado vectorial (como en Illustrator): el ancla (x, y) y sus manejadores de entrada (`hi`) y salida
+ * (`ho`), en píxeles del lienzo. Sin manejadores es un punto de esquina; con los dos alineados, un punto suave.
+ */
+export interface VNode {
+  x: number
+  y: number
+  hi?: [number, number]
+  ho?: [number, number]
+}
+/** Trazado vectorial: puntos, abierto o cerrado, relleno y trazo (sin color = ninguno). */
+export interface VPath {
+  id: string
+  nodes: VNode[]
+  closed: boolean
+  fill: string | null
+  stroke: string | null
+  /** Grosor del trazo en px. */
+  width: number
+  /** Trazo discontinuo, como un pespunte. */
+  dash?: boolean
+  /** Extremos redondos (si no, rectos). */
+  round?: boolean
+  opacity?: number
+}
+/** Capa de trazados vectoriales (pluma, formas): se editan punto a punto y se ven nítidos a cualquier zoom. */
+export interface VectorLayer extends CanvasLayerBase {
+  kind: 'vector'
+  paths: VPath[]
+}
+export type CanvasLayer = PaintLayer | MockupLayer | ImageLayer | DetailLayer | TextLayer | TextureLayer | VectorLayer
 
 /** Documento del lienzo: tamaño en píxeles, color del papel y capas (la primera, la de más abajo). */
 export interface CanvasDoc {

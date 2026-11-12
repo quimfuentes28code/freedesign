@@ -19,7 +19,7 @@ import {
   type Drawing,
   type HardwareStyle,
   type Print,
-  type Tracing, BLEND_MODES, type CanvasDoc, type CanvasLayer } from '../src/shared/designs'
+  type Tracing, BLEND_MODES, type CanvasDoc, type CanvasLayer, type VNode, type VPath } from '../src/shared/designs'
 import { isFileKey } from './files'
 import { autoVersion, dropVersions } from './versions'
 import { HttpError, json, noContent, now, ownedRef, readBody, required, text, type Env } from './http'
@@ -235,10 +235,47 @@ function readCanvas(raw: unknown): CanvasDoc | null {
         scale: Math.min(10, Math.max(0.05, finite(l.scale, 1))),
         rotation: finite(l.rotation, 0),
       })
+    else if (l.kind === 'vector') layers.push({ ...base, kind: 'vector', paths: readPaths(l.paths) })
     else if (l.kind === 'image' && (isFileKey(file) || /^\/mockups\/[a-z0-9-]+\.png$/.test(text(l.asset))))
       layers.push({ ...base, kind: 'image', file: isFileKey(file) ? file : '', ...(isFileKey(file) ? {} : { asset: text(l.asset) }), aspect: Math.max(0.05, finite(l.aspect, 1)), x: finite(l.x, 0), y: finite(l.y, 0), w: Math.max(4, finite(l.w, 400)), rotation: finite(l.rotation, 0), ...(l.flipX === true ? { flipX: true } : {}), ...(l.flipY === true ? { flipY: true } : {}) })
   }
   return { w, h, paper: hex(c.paper, '#ffffff'), layers }
+}
+
+/** Trazados de una capa vectorial (pluma y formas del lienzo), con límites para que un documento no crezca sin fin. */
+function readPaths(raw: unknown): VPath[] {
+  const out: VPath[] = []
+  let total = 0
+  const pt = (v: unknown): [number, number] | undefined =>
+    Array.isArray(v) && v.length === 2 && Number.isFinite(v[0]) && Number.isFinite(v[1]) ? [Number(v[0]), Number(v[1])] : undefined
+  for (const r of Array.isArray(raw) ? raw.slice(0, 500) : []) {
+    if (!r || typeof r !== 'object') continue
+    const p = r as Record<string, unknown>
+    const nodes: VNode[] = []
+    for (const n of Array.isArray(p.nodes) ? p.nodes.slice(0, 2000) : []) {
+      if (!n || typeof n !== 'object' || total >= 40000) break
+      const o = n as Record<string, unknown>
+      const hi = pt(o.hi)
+      const ho = pt(o.ho)
+      nodes.push({ x: finite(o.x, 0), y: finite(o.y, 0), ...(hi ? { hi } : {}), ...(ho ? { ho } : {}) })
+      total++
+    }
+    if (nodes.length < 2) continue
+    const fill = hex(p.fill, '')
+    const stroke = hex(p.stroke, '')
+    out.push({
+      id: text(p.id).slice(0, 40) || crypto.randomUUID(),
+      nodes,
+      closed: p.closed === true,
+      fill: fill || null,
+      stroke: stroke || null,
+      width: Math.min(400, Math.max(0.25, finite(p.width, 4))),
+      ...(p.dash === true ? { dash: true } : {}),
+      ...(p.round === true ? { round: true } : {}),
+      ...(Number.isFinite(p.opacity) && Number(p.opacity) < 1 ? { opacity: Math.max(0, Number(p.opacity)) } : {}),
+    })
+  }
+  return out
 }
 
 function readPieces(raw: unknown): DesignData['pieces'] {

@@ -1,3 +1,4 @@
+import { drawVector } from './vectorPaths'
 import { textureTile } from './textures'
 import { api } from '../api/client'
 import { detailAspect, detailPrims, drawPrims } from '../designer/details'
@@ -202,6 +203,8 @@ export function drawLayer(g: CanvasRenderingContext2D, r: Runtime, l: CanvasLaye
     g.translate(l.x, l.y)
     g.rotate((l.rotation * Math.PI) / 180)
     g.drawImage(c, -l.w / 2, -h / 2, l.w, h)
+  } else if (l.kind === 'vector') {
+    drawVector(g, l)
   } else if (l.kind === 'texture') {
     // Textura: su azulejo repetido por todo el lienzo, con su escala y su giro
     const tile = l.file ? r.images.get(l.file) : textureTile(l.texture)
