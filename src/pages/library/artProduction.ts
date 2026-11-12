@@ -248,7 +248,7 @@ export async function realSizePng(svg: Blob, widthCm: number, heightCm: number, 
 }
 
 /** Añade al PNG el bloque pHYs con su resolución, para que los programas lo abran a su tamaño en cm. */
-async function withDpi(png: Blob, dpi: number) {
+export async function withDpi(png: Blob, dpi: number) {
   const bytes = new Uint8Array(await png.arrayBuffer())
   const ppm = Math.round(dpi / 0.0254)
   const chunk = new Uint8Array(21)
@@ -265,7 +265,7 @@ async function withDpi(png: Blob, dpi: number) {
 }
 
 let crcTable: Uint32Array | null = null
-function crc32(data: Uint8Array) {
+export function crc32(data: Uint8Array) {
   if (!crcTable) {
     crcTable = new Uint32Array(256)
     for (let n = 0; n < 256; n++) {

@@ -1,3 +1,4 @@
+import { filmPng, films, zip } from './separations'
 import { useEffect, useMemo, useState, type RefObject } from 'react'
 import { FlatView } from '../../designer/FlatView'
 import { unitsOf } from '../../designer/prints'
@@ -7,7 +8,7 @@ import { TECHNIQUES, type ArtLayer, type Technique } from '../../shared/artworks
 import type { DesignData, Print } from '../../shared/designs'
 import type { BrandColor } from '../../shared/users'
 import { exportSvg } from './artLayers'
-import { coverage, download, inkReport, productionNotes, realSizePng, realSizeSvg, STITCHES_PER_CM2 } from './artProduction'
+import { coverage, download, inkReport, productionNotes, realSizePng, realSizeSvg, STITCHES_PER_CM2, type Ink } from './artProduction'
 
 /** Prendas para ver el gráfico puesto. */
 const MOCKUP_GARMENTS = ['camiseta', 'sudadera', 'gorra'] as const
@@ -213,6 +214,8 @@ export function ProductionPanel({ layers, exportRef, brand, name }: { layers: Ar
         </div>
       )}
 
+      {technique === 'serigrafia' && rendered && <Separations svg={rendered.blob} inks={report.inks} widthCm={widthCm} heightCm={heightCm} dpi={dpi} title={name.trim() || 'Gráfico'} file={file} warn={report.blends || report.images} />}
+
       <h3 className="form-sub">Exportar a tamaño real</h3>
       <div className="chips">
         {[150, 300].map((v) => (
@@ -231,5 +234,105 @@ export function ProductionPanel({ layers, exportRef, brand, name }: { layers: Ar
       </div>
       {error && <p className="status error">{error}</p>}
     </section>
+  )
+}
+
+/**
+ * Separación de colores para serigrafía: una película por tinta (y la base blanca si se pide), con marcas de registro,
+ * para el taller de estampación. Ver separations.ts.
+ */
+function Separations({ svg, inks, widthCm, heightCm, dpi, title, file, warn }: { svg: Blob; inks: Ink[]; widthCm: number; heightCm: number; dpi: number; title: string; file: string; warn: boolean }) {
+  const [underbase, setUnderbase] = useState(false)
+  const [choke, setChoke] = useState(0.3)
+  const [previews, setPreviews] = useState<{ name: string; code: string; hex: string; order: number; url: string }[] | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const opts = { widthCm, heightCm, underbase, chokeMm: choke, title }
+
+  // Las miniaturas se rehacen si cambia el gráfico o las opciones
+  useEffect(() => {
+    setPreviews((p) => {
+      p?.forEach((x) => URL.revokeObjectURL(x.url))
+      return null
+    })
+  }, [svg, underbase, choke, widthCm])
+
+  const preview = async () => {
+    setBusy('Separando…')
+    setError(null)
+    try {
+      const out: NonNullable<typeof previews> = []
+      // Vista previa a poca resolución (rápida); las de verdad salen a los ppp elegidos
+      for await (const f of films(svg, inks, { ...opts, dpi: 40 })) {
+        const blob = await new Promise<Blob | null>((r) => f.canvas.toBlob(r, 'image/png'))
+        if (blob) out.push({ name: f.name, code: f.code, hex: f.hex, order: f.order, url: URL.createObjectURL(blob) })
+      }
+      setPreviews(out)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const downloadAll = async () => {
+    setBusy('Preparando películas…')
+    setError(null)
+    try {
+      const files: { name: string; blob: Blob }[] = []
+      for await (const f of films(svg, inks, { ...opts, dpi })) {
+        const slug = f.name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').toLowerCase() || 'tinta'
+        files.push({ name: `${file}-${String(f.order).padStart(2, '0')}-${slug}.png`, blob: await filmPng(f, dpi) })
+      }
+      download(await zip(files), `${file}-peliculas-${Math.round(widthCm)}cm.zip`)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <>
+      <h3 className="form-sub">Separación de colores</h3>
+      <p className="muted small">
+        Una película por tinta ({inks.length}{underbase ? ' + base blanca' : ''}), en negro, del mismo tamaño y con marcas de registro para que encajen en el taller. Van de la tinta más clara a la más oscura.
+      </p>
+      {warn && <p className="muted small">Ojo: los degradados, sombras difuminadas o fotos se reparten a la tinta más parecida (sin semitonos).</p>}
+      <label className="toggle-row">
+        <span>Base blanca (para prendas oscuras)</span>
+        <input type="checkbox" checked={underbase} onChange={(e) => setUnderbase(e.target.checked)} />
+      </label>
+      {underbase && (
+        <label className="field">
+          <span>Estrangular la base (mm)</span>
+          <input type="number" min={0} max={2} step={0.1} value={choke} onChange={(e) => setChoke(Math.max(0, Math.min(2, Number(e.target.value) || 0)))} />
+        </label>
+      )}
+      <div className="print-actions">
+        <button className="button" onClick={preview} disabled={!!busy || !inks.length}>
+          Ver películas
+        </button>
+        <button className="button primary" onClick={downloadAll} disabled={!!busy || !inks.length} title={`Un PNG por película a ${dpi} ppp, en un ZIP`}>
+          Descargar películas (ZIP)
+        </button>
+      </div>
+      {busy && <p className="muted small">{busy}</p>}
+      {error && <p className="status error">{error}</p>}
+      {previews && (
+        <div className="film-grid">
+          {previews.map((p) => (
+            <figure key={p.order}>
+              <img src={p.url} alt={`Película ${p.order}: ${p.name}`} />
+              <figcaption>
+                <span className="film-ink" style={{ background: p.hex }} />
+                {p.order}. {p.name}
+                {p.code && <em> · {p.code}</em>}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
+    </>
   )
 }
