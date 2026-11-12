@@ -163,7 +163,19 @@ Queda: ajustar el estilo con más ejemplos tuyos si lo quieres más parecido a l
    Sale en capas aparte y editables, con un deslizador de intensidad y un estilo (suave, marcado, cómic). **Pásame ejemplos de los diseños finales que te gustan** y ajusto el estilo para que se parezcan.
 3. Esas capas no pasan al 3D (ver arriba).
 
-## Fase 5 — Crear gráficos, fornituras y logos dentro del Diseñador
+## Fase 5 — Crear gráficos, fornituras y logos dentro del Diseñador ✅ hecha (12-11-2026)
+Hecho:
+- **El creador de gráficos se abre encima del lienzo:** nuevo, con una plantilla o editando uno con doble toque. Al guardar, el gráfico va al lienzo.
+- **12 logos tipográficos** de la hoja, con textos inventados.
+- **Fornituras nuevas:**
+  - cremallera de dientes gruesos;
+  - 6 tiradores: rayo, lágrima, pestaña, candado, mosquetón y cinta larga;
+  - botones jeans con texto, cuadrado, escudo y estrella;
+  - cordón plano con texto y cordón plano con dibujo;
+  - topes de cordón: barril, doble agujero y plano.
+
+Queda: más tiradores (cordón trenzado con herrete) y cremalleras de colores ya preparadas como «Mis fornituras» de ejemplo.
+
 1. El **creador de gráficos** (hoy en Biblioteca → Gráficos) se abre **desde el lienzo**: se crea un logo y se coloca en la prenda sin salir.
 2. **Plantillas editables** sacadas de tu hoja de ejemplo, redibujadas en vectorial, estirables y con colores cambiables:
    - **Cremalleras:** 8 estilos (metal, plástico, invisible, de dientes gruesos, con cinta de colores), de cualquier largo.

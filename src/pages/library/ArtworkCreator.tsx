@@ -5,7 +5,7 @@ import { Field, Status } from '../../components/ui'
 import { Transformable } from '../../designer/prints'
 import { FontPicker } from '../../components/FontPicker'
 import { loadFont, useFontsVersion } from '../../designer/fonts'
-import { SHAPE_KINDS, TEXT_WARPS, type ArtLayer, type FillStyle, type PathNode, type ShapeKind } from '../../shared/artworks'
+import { SHAPE_KINDS, TEXT_WARPS, type ArtLayer, type Artwork, type FillStyle, type PathNode, type ShapeKind } from '../../shared/artworks'
 import { fileUrl } from '../../shared/library'
 import { useHistory } from '../designer/useHistory'
 import { ART_SIZE, ArtLayerView, exportSvg, layerSize, warpOf } from './artLayers'
@@ -47,8 +47,19 @@ const layerName = (l: ArtLayer) =>
  * pegan a guías (centro y bordes del lienzo y de las otras capas). Al guardar se genera un SVG que queda en la
  * Biblioteca y se puede colocar sobre las prendas.
  */
-export function ArtworkCreator() {
-  const { id } = useParams()
+/** El creador abierto encima del lienzo del Diseñador: al guardar, el gráfico vuelve al lienzo. */
+export interface EmbeddedCreator {
+  /** Gráfico que se edita (sin poner, uno nuevo). */
+  id?: string
+  /** Plantilla de logo con la que empezar. */
+  template?: string
+  onSaved: (a: Artwork) => void
+  onClose: () => void
+}
+
+export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}) {
+  const params = useParams()
+  const id = embedded ? embedded.id : params.id
   const isNew = !id
   const navigate = useNavigate()
   const [name, setName] = useState('Logo sin título')
@@ -148,6 +159,13 @@ export function ArtworkCreator() {
     add({ id: crypto.randomUUID(), type: 'shape', shape, fill: shape === 'laurel' ? '#2f4a3a' : '#c4643a', stroke: '', strokeWidth: 6, w, h, ...center })
     setShapeMenu(false)
   }
+
+  // Abierto desde el lienzo con una plantilla elegida: se empieza con ella
+  useEffect(() => {
+    const t = embedded?.template && LOGO_TEMPLATES.find((x) => x.id === embedded.template)
+    if (t && !id) applyTemplate(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   /** Empieza desde una plantilla: sustituye lo que hay en el lienzo (se puede deshacer). */
   const applyTemplate = (t: LogoTemplate) => {
@@ -345,6 +363,11 @@ export function ArtworkCreator() {
       const { blob, width, height } = await exportSvg(exportRef.current, layers.filter((l) => !l.hidden))
       const { key } = await api.uploadImage(new File([blob], 'grafico.svg', { type: 'image/svg+xml' }))
       const input = { name: name.trim() || 'Gráfico', file: key, width, height, data: { layers }, tags: '' }
+      if (embedded) {
+        // Desde el lienzo: se guarda en la Biblioteca y vuelve al lienzo
+        embedded.onSaved(isNew ? await api.createArtwork(input) : await api.updateArtwork(id!, input))
+        return
+      }
       if (isNew) {
         const created = await api.createArtwork(input)
         navigate(`/biblioteca/graficos/${created.id}`, { replace: true })
@@ -472,9 +495,15 @@ export function ArtworkCreator() {
     <div className="creator">
       <div className="creator-main">
         <header className="editor-header">
-          <Link to="/biblioteca/graficos" className="button">
-            ← Gráficos
-          </Link>
+          {embedded ? (
+            <button className="button" onClick={embedded.onClose}>
+              ← Volver al lienzo
+            </button>
+          ) : (
+            <Link to="/biblioteca/graficos" className="button">
+              ← Gráficos
+            </Link>
+          )}
           <input className="editor-name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Nombre del gráfico" />
           <div className="history-buttons">
             <button className="tool" onClick={history.undo} disabled={!history.canUndo} title="Deshacer (Ctrl+Z)" aria-label="Deshacer">
@@ -487,7 +516,7 @@ export function ArtworkCreator() {
           <div className="editor-actions">
             {savedAt && <span className="save-state">Guardado a las {savedAt}</span>}
             <button className="button primary" onClick={save} disabled={saving || layers.length === 0} title="Guardar (Ctrl+S)">
-              {saving ? 'Guardando…' : 'Guardar en la Biblioteca'}
+              {saving ? 'Guardando…' : embedded ? 'Guardar y poner en el lienzo' : 'Guardar en la Biblioteca'}
             </button>
           </div>
         </header>
@@ -1036,7 +1065,7 @@ function BackgroundRemover({ layer, onChange, onError }: { layer: Extract<ArtLay
 }
 
 /** Miniaturas de las plantillas de logo, con los colores de la marca. */
-function TemplateGallery({ brand, onPick }: { brand: BrandColor[]; onPick: (t: LogoTemplate) => void }) {
+export function TemplateGallery({ brand, onPick }: { brand: BrandColor[]; onPick: (t: LogoTemplate) => void }) {
   const palette = templatePalette(brand)
   const previews = LOGO_TEMPLATES.map((t) => ({ t, layers: buildTemplate(t, palette, `tpl-${t.id}`) }))
   useFontsVersion()

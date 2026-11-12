@@ -319,7 +319,8 @@
 .template-pick svg {
   width: 100%;
   aspect-ratio: 1;
-  background: var(--soft);
+  /* Papel claro también en modo oscuro (los logos se ven como sobre la tela) */
+  background: #f2efe8;
   border-radius: 6px;
 }
 

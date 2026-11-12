@@ -174,6 +174,7 @@ export const DETAIL_KINDS = [
   { id: 'bolsillo', label: 'Bolsillo' },
   { id: 'trabilla', label: 'Trabilla' },
   { id: 'cordon', label: 'Cordón con topes' },
+  { id: 'tope', label: 'Tope de cordón' },
   { id: 'cinta', label: 'Cinta o banda' },
   { id: 'velcro', label: 'Velcro' },
   { id: 'hebilla', label: 'Hebilla' },
@@ -193,6 +194,10 @@ export const BUTTON_STYLES = [
   { id: 'automatico', label: 'Automático' },
   { id: 'pie', label: 'De pie' },
   { id: 'trenca', label: 'Trenca' },
+  { id: 'jeans', label: 'Jeans (con texto)' },
+  { id: 'cuadrado', label: 'Cuadrado' },
+  { id: 'escudo', label: 'Escudo' },
+  { id: 'estrella', label: 'Estrella' },
   { id: 'logo', label: 'Con logo' },
 ] as const
 export type ButtonStyle = (typeof BUTTON_STYLES)[number]['id']
@@ -203,6 +208,7 @@ export const ZIP_STYLES = [
   { id: 'nylon', label: 'Nylon (espiral)' },
   { id: 'vislon', label: 'Plástico (Vislon)' },
   { id: 'invisible', label: 'Invisible' },
+  { id: 'grueso', label: 'Dientes gruesos' },
 ] as const
 export type ZipStyle = (typeof ZIP_STYLES)[number]['id']
 
@@ -211,6 +217,12 @@ export const PULLER_STYLES = [
   { id: 'clasico', label: 'Clásico' },
   { id: 'aro', label: 'Aro' },
   { id: 'cordon', label: 'Cordón' },
+  { id: 'rayo', label: 'Rayo' },
+  { id: 'lagrima', label: 'Lágrima' },
+  { id: 'pestana', label: 'Pestaña' },
+  { id: 'candado', label: 'Candado' },
+  { id: 'mosqueton', label: 'Mosquetón' },
+  { id: 'cinta', label: 'Cinta larga' },
   { id: 'logo', label: 'Con logo' },
 ] as const
 export type PullerStyle = (typeof PULLER_STYLES)[number]['id']
@@ -257,6 +269,15 @@ export const CORD_STYLES = [
   { id: 'tope', label: 'Con tope' },
   { id: 'herrete', label: 'Con herretes' },
   { id: 'nudo', label: 'Con nudo' },
+  { id: 'plano', label: 'Plano (con texto)' },
+  { id: 'plano-dibujo', label: 'Plano con dibujo' },
+] as const
+
+/** Topes de cordón. */
+export const STOPPER_STYLES = [
+  { id: 'barril', label: 'Barril' },
+  { id: 'doble', label: 'Doble agujero' },
+  { id: 'plano', label: 'Plano' },
 ] as const
 
 /** Rotos: rasgado con los hilos de la trama a la vista, agujero con el borde deshilachado o cortes en escalera. */
@@ -290,6 +311,7 @@ export const DETAIL_STYLES: Partial<Record<DetailKind, readonly { id: string; la
   hebilla: BUCKLE_STYLES,
   costura: STITCH_STYLES,
   cordon: CORD_STYLES,
+  tope: STOPPER_STYLES,
   roto: RIP_STYLES,
   deshilachado: FRAY_STYLES,
   desgaste: WEAR_STYLES,

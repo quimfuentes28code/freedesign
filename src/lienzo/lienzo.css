@@ -1200,3 +1200,38 @@
   margin: 14px 0 4px;
   justify-content: center;
 }
+/* Fase 5: creador de gráficos encima del lienzo y logos de partida */
+.lz-creator {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  overflow: auto;
+  background: var(--bg, #f4f4f2);
+  color: var(--text, #1d1c1a);
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: auto;
+}
+.lz-creator .creator {
+  min-height: 100%;
+}
+.lz-templates .template-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.lz-templates .template-pick {
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 0;
+  background: #f4f4f2;
+  color: #1d1c1a;
+  cursor: pointer;
+  font-size: 11px;
+}
+.lz-templates .template-pick svg {
+  width: 100%;
+  aspect-ratio: 1;
+}

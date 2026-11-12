@@ -39,6 +39,7 @@ import { BRUSHES, grainFor, registerBrushImages, Stroke, union, type BrushPreset
 import { grainFromImage, importProcreate, pngOf, tipFromImage } from './brushImport'
 import { TEXTURES, textureTile, type TextureDef } from './textures'
 import { autoShade, lightOf, shadeOf, type LightFrom, type ShadeStyle } from './shading'
+import { ArtworkCreator, TemplateGallery } from '../pages/library/ArtworkCreator'
 import { ColorPicker } from './ColorPicker'
 import { afterSave, clipBaseOf, clippedLayer, compose, textureCanvas, detailCanvas, floodMask, garmentMask, grab, imageKey, loadImage, onArtLoaded, pieceAt, refreshClip, registerFlush, runtimeFor, textCanvas, uploadDirty, type Runtime } from './engine'
 import { FontPicker } from '../components/FontPicker'
@@ -206,6 +207,8 @@ export function Lienzo(props: Props) {
 
   const docRef = useRef(doc)
   docRef.current = doc
+  // Con el creador de gráficos abierto, el lienzo no atiende al teclado ni a pegar
+  const creatorOpen = useRef(false)
   const allBrushes = [...BRUSHES, ...customBrushes]
   const brush = allBrushes.find((b) => b.id === (tool === 'eraser' ? settings.eraser : settings.brush)) ?? BRUSHES[0]
   const size = (tool === 'eraser' ? settings.sizes[`e:${brush.id}`] : settings.sizes[brush.id]) ?? (tool === 'eraser' ? brush.size * 1.5 : brush.size)
@@ -1240,6 +1243,7 @@ export function Lienzo(props: Props) {
   // Atajos de teclado (el lienzo se queda con Ctrl+Z; el resto del editor no lo recibe)
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      if (creatorOpen.current) return
       const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement
       if (typing) return
       const mod = e.ctrlKey || e.metaKey
@@ -1301,6 +1305,7 @@ export function Lienzo(props: Props) {
   // Pegar una imagen (Ctrl+V): se sube y queda como capa de imagen en el centro
   useEffect(() => {
     const paste = (e: ClipboardEvent) => {
+      if (creatorOpen.current) return
       const item = [...(e.clipboardData?.items ?? [])].find((i) => i.type.startsWith('image/'))
       const file = item?.getAsFile()
       if (!file) return
@@ -1744,6 +1749,9 @@ export function Lienzo(props: Props) {
   const transform = `translate(${view.x}px, ${view.y}px) rotate(${view.r}rad) scale(${view.s})`
   const cursor = tool === 'move' ? 'move' : tool === 'text' ? 'text' : tool === 'select' ? 'crosshair' : tool === 'picker' || tool === 'fill' ? 'crosshair' : 'none'
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
+  /** Creador de gráficos abierto encima del lienzo (nuevo, con una plantilla de logo o editando uno). */
+  const [creator, setCreator] = useState<{ id?: string; template?: string } | null>(null)
+  creatorOpen.current = !!creator
   const [quick, setQuick] = useState<{ x: number; y: number } | null>(null)
   const QUICK: { label: string; run: () => void }[] = [
     { label: 'Capa nueva', run: addPaint },
@@ -2160,6 +2168,14 @@ export function Lienzo(props: Props) {
       {panel === 'biblioteca' && (
         <Pop className="lz-pop left wide" title="Biblioteca">
           <Library
+            onCreateArtwork={(template) => {
+              setPanel(null)
+              setCreator({ template })
+            }}
+            onEditArtwork={(a) => {
+              setPanel(null)
+              setCreator({ id: a.id })
+            }}
             textures={assets.filter((a) => a.kind === 'textura')}
             onTexture={addTexture}
             onUploadTexture={uploadTexture}
@@ -2480,6 +2496,22 @@ export function Lienzo(props: Props) {
         </Pop>
       )}
       {props.mode3d !== 'off' && <div className="lz-3d">{props.view3d}</div>}
+      {creator && (
+        <div className="lz-creator" onPointerDown={(ev) => ev.stopPropagation()}>
+          <ArtworkCreator
+            embedded={{
+              ...creator,
+              onClose: () => setCreator(null),
+              onSaved: (a) => {
+                setArtworks((list) => [a, ...list.filter((x) => x.id !== a.id)])
+                setCreator(null)
+                const c = center()
+                addArtwork(a, c.x, c.y)
+              },
+            }}
+          />
+        </div>
+      )}
       {props.children}
       {panel === 'acciones' && (
         <Pop className="lz-pop left" title="Acciones">
@@ -2927,6 +2959,8 @@ const HARDWARE: { kind: DetailKind; styles: (string | null)[] }[] = DETAIL_KINDS
 
 /** Biblioteca visual: prendas del catálogo y fornituras, para tocar (al centro) o arrastrar al lienzo. */
 function Library({
+  onCreateArtwork,
+  onEditArtwork,
   textures,
   onTexture,
   onUploadTexture,
@@ -2937,6 +2971,8 @@ function Library({
   onDeletePreset,
   onStart,
 }: {
+  onCreateArtwork: (template?: string) => void
+  onEditArtwork: (a: Artwork) => void
   textures: LienzoAsset[]
   onTexture: (t: TextureDef | LienzoAsset) => void
   onUploadTexture: (f: File) => void
@@ -2947,6 +2983,7 @@ function Library({
   onDeletePreset: (p: HardwarePreset) => void
   onStart: (item: LibraryItem, e: React.PointerEvent) => void
 }) {
+  const brandColors = useAuth().user?.brandColors ?? []
   const [tab, setTab] = useState<'mockups' | 'texturas' | 'prendas' | 'cuellos' | 'graficos' | 'fornituras' | 'mias'>('mockups')
   const [kind, setKind] = useState<DetailKind>('cremallera')
   const body = useMemo(() => standardBody('M'), [])
@@ -3031,10 +3068,21 @@ function Library({
           </div>
         </>
       ) : tab === 'graficos' ? (
-        artworks.length ? (
+        <>
+          <div className="lz-chips">
+            <button className="lz-chip on" onClick={() => onCreateArtwork()}>
+              + Crear un gráfico o logo
+            </button>
+          </div>
+          <p className="lz-label">Empezar con un logo</p>
+          <div className="lz-templates">
+            <TemplateGallery brand={brandColors} onPick={(t) => onCreateArtwork(t.id)} />
+          </div>
+          <p className="lz-label">Tus gráficos (toca para ponerlo; doble toque para editarlo)</p>
+          {artworks.length ? (
           <div className="lz-grid-items">
             {artworks.map((a) => (
-              <button key={a.id} className="lz-lib-item" onPointerDown={(ev) => onStart({ kind: 'art', artwork: a, label: a.name }, ev)} title={a.name}>
+              <button key={a.id} className="lz-lib-item" onPointerDown={(ev) => onStart({ kind: 'art', artwork: a, label: a.name }, ev)} onDoubleClick={() => onEditArtwork(a)} title={a.name + " (doble toque para editarlo)"}>
                 <div className="lz-lib-thumb checker">
                   <img src={fileOf(a.file)} alt={a.name} draggable={false} />
                 </div>
@@ -3043,8 +3091,9 @@ function Library({
             ))}
           </div>
         ) : (
-          <p className="lz-muted">Aún no tienes gráficos. Créalos o súbelos en Biblioteca → Gráficos y salen aquí.</p>
-        )
+          <p className="lz-muted">Aún no tienes gráficos: crea uno arriba o súbelos en Biblioteca → Gráficos.</p>
+          )}
+        </>
       ) : tab === 'mockups' ? (
         <div className="lz-grid-items">
           {MOCKUPS.map((m) => (
@@ -3206,7 +3255,7 @@ function DetailOptions({
           <input type="color" value={d.color2} onChange={(e) => set({ color2: e.target.value })} />
         </label>
       </div>
-      {(d.kind === 'etiqueta' || d.kind === 'parche') && (
+      {(d.kind === 'etiqueta' || d.kind === 'parche' || (d.kind === 'boton' && d.style === 'jeans') || (d.kind === 'cordon' && d.style === 'plano')) && (
         <label className="lz-field">
           <span>Texto</span>
           <input className="lz-hex" value={d.text ?? ''} onChange={(e) => set({ text: e.target.value })} />

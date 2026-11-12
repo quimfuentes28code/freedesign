@@ -10,7 +10,7 @@ import { fileUrl } from '../shared/library'
 export type Prim =
   | { t: 'path'; d: string; fill?: string; stroke?: string; sw?: number; dash?: string; opacity?: number }
   | { t: 'image'; file: string; x: number; y: number; w: number; h: number }
-  | { t: 'text'; text: string; x: number; y: number; size: number; color: string; bold?: boolean }
+  | { t: 'text'; text: string; x: number; y: number; size: number; color: string; bold?: boolean; rot?: number }
 
 const n = (v: number) => Math.round(v * 100) / 100
 export const circle = (cx: number, cy: number, r: number) => `M${n(cx - r)} ${n(cy)}a${n(r)} ${n(r)} 0 1 0 ${n(2 * r)} 0a${n(r)} ${n(r)} 0 1 0 ${n(-2 * r)} 0Z`
@@ -135,10 +135,12 @@ function baseAspect(d: Pick<Detail, 'kind' | 'style' | 'length' | 'w' | 'art'>) 
       return 0.42
     case 'herrete':
       return 2.8
+    case 'tope':
+      return d.style === 'barril' ? 1.4 : d.style === 'doble' ? 1.15 : 0.8
     case 'parche':
       return d.style === 'redondo' ? 1 : d.style === 'escudo' ? 1.15 : 0.7
     case 'boton':
-      return d.style === 'trenca' ? 3.2 : d.style === 'logo' && d.art ? d.art.aspect : 1
+      return d.style === 'trenca' ? 3.2 : d.style === 'escudo' ? 1.1 : d.style === 'logo' && d.art ? d.art.aspect : 1
     default:
       return 1
   }
@@ -149,9 +151,44 @@ const POCKET_ASPECT: Record<string, number> = { parche: 1.15, vivo: 0.2, cargo: 
 
 // --- Fornituras ---
 
-export function buttonPrims(style: string, w: number, color: string, art?: DetailArt | null): Prim[] {
+export function buttonPrims(style: string, w: number, color: string, art?: DetailArt | null, text?: string): Prim[] {
   const edge = shade(color, -0.4)
   const r = w / 2
+  const sw = Math.max(0.4, w * 0.07)
+  const hole = (x: number, y: number): Prim => ({ t: 'path', d: circle(x * r, y * r, Math.max(0.35, r * 0.12)), fill: shade(color, -0.55) })
+  if (style === 'jeans') {
+    // Botón de vaquero: metal con aro, puntitos y el texto
+    return [
+      { t: 'path', d: circle(0, 0, r), fill: color, stroke: edge, sw },
+      { t: 'path', d: circle(0, 0, r * 0.78), stroke: shade(color, -0.25), sw: Math.max(0.3, w * 0.04) },
+      ...Array.from({ length: 12 }, (_, k): Prim => {
+        const a = (k / 12) * Math.PI * 2
+        return { t: 'path', d: circle(Math.cos(a) * r * 0.89, Math.sin(a) * r * 0.89, r * 0.045), fill: shade(color, -0.4) }
+      }),
+      { t: 'text', text: (text || 'JEANS').toUpperCase().slice(0, 10), x: 0, y: 0, size: w * 0.17, color: shade(color, -0.55), bold: true },
+      { t: 'path', d: circle(-r * 0.35, -r * 0.35, r * 0.22), fill: '#ffffff', opacity: 0.3 },
+    ]
+  }
+  if (style === 'cuadrado')
+    return [
+      { t: 'path', d: roundRect(-r, -r, w, w, r * 0.35), fill: color, stroke: edge, sw },
+      { t: 'path', d: roundRect(-r * 0.74, -r * 0.74, w * 0.74, w * 0.74, r * 0.25), stroke: shade(color, -0.2), sw: Math.max(0.3, w * 0.045) },
+      hole(-0.22, -0.22),
+      hole(0.22, -0.22),
+      hole(-0.22, 0.22),
+      hole(0.22, 0.22),
+    ]
+  if (style === 'escudo')
+    return [{ t: 'path', d: shield(w, w * 1.1), fill: color, stroke: edge, sw }, hole(-0.22, -0.25), hole(0.22, -0.25), hole(-0.22, 0.15), hole(0.22, 0.15)]
+  if (style === 'estrella') {
+    let d = ''
+    for (let k = 0; k < 10; k++) {
+      const a = -Math.PI / 2 + (k / 10) * Math.PI * 2
+      const rr = k % 2 ? r * 0.5 : r
+      d += `${k ? 'L' : 'M'}${n(Math.cos(a) * rr)} ${n(Math.sin(a) * rr)}`
+    }
+    return [{ t: 'path', d: d + 'Z', fill: color, stroke: edge, sw }, hole(-0.16, 0.05), hole(0.16, 0.05)]
+  }
   if (style === 'logo' && art) return [{ t: 'image', file: art.file, x: -w / 2, y: (-w * art.aspect) / 2, w, h: w * art.aspect }]
   if (style === 'trenca') {
     const h = w * 3.2
@@ -196,12 +233,14 @@ export function zipperPrims(style: ZipStyle | string, puller: PullerStyle | stri
     out.push({ t: 'path', d, stroke: teeth, sw: 0.55 })
   } else {
     const big = style === 'vislon'
-    const step = big ? 2.6 : 2.1
-    const th = big ? 1.5 : 1.1
+    const chunky = style === 'grueso'
+    const step = chunky ? 3.4 : big ? 2.6 : 2.1
+    const th = chunky ? 2.2 : big ? 1.5 : 1.1
+    const tw = chunky ? 0.34 : 0.26
     let d = ''
     for (let y = top + 2, i = 0; y < L / 2 - 1; y += step, i++) {
-      const x = i % 2 ? 0 : -w * 0.26
-      d += `M${n(x)} ${n(y)}h${n(w * 0.26)}v${n(th)}h${n(-w * 0.26)}Z`
+      const x = i % 2 ? 0 : -w * tw
+      d += `M${n(x)} ${n(y)}h${n(w * tw)}v${n(th)}h${n(-w * tw)}Z`
     }
     out.push({ t: 'path', d, fill: teeth, stroke: shade(teeth, -0.35), sw: 0.15 })
   }
@@ -214,6 +253,8 @@ export function zipperPrims(style: ZipStyle | string, puller: PullerStyle | stri
     out.push({ t: 'image', file: art.file, x: -pw / 2, y: py, w: pw, h: pw * art.aspect })
   } else if (puller === 'aro') {
     out.push({ t: 'path', d: circle(0, py + w * 0.55, w * 0.42), stroke: teeth, sw: w * 0.16 })
+  } else if (puller === 'rayo' || puller === 'lagrima' || puller === 'pestana' || puller === 'candado' || puller === 'mosqueton' || puller === 'cinta') {
+    out.push(...pullerPrims(puller, w, py, teeth, tape))
   } else if (puller === 'cordon') {
     out.push({ t: 'path', d: `M0 ${n(py)}L${n(w * 0.12)} ${n(py + w * 2.4)}`, stroke: shade(teeth, -0.2), sw: Math.max(0.6, w * 0.16) })
     out.push({ t: 'path', d: roundRect(-w * 0.15, py + w * 2.3, w * 0.5, w * 0.7, w * 0.2), fill: shade(teeth, -0.3) })
@@ -223,6 +264,51 @@ export function zipperPrims(style: ZipStyle | string, puller: PullerStyle | stri
     out.push({ t: 'path', d: roundRect(-pw * 0.2, py + w * 0.85, pw * 0.4, w * 0.35, pw * 0.2), fill: shade(teeth, -0.5) })
   }
   return out
+}
+
+/** Tiradores de forma (rayo, lágrima, pestaña, candado, mosquetón, cinta larga), colgando desde `py`. */
+function pullerPrims(style: string, w: number, py: number, color: string, tape: string): Prim[] {
+  const dark = shade(color, -0.45)
+  const sw = Math.max(0.3, w * 0.06)
+  const pw = w * 0.95
+  const ph = w * 2.2
+  const P = (pts: [number, number][]) => pts.map(([x, y], i) => `${i ? 'L' : 'M'}${n(x * pw)} ${n(py + y * ph)}`).join('') + 'Z'
+  switch (style) {
+    case 'rayo':
+      return [{ t: 'path', d: P([[0.12, 0], [-0.38, 0.56], [0.02, 0.56], [-0.22, 1], [0.42, 0.38], [0.02, 0.38], [0.3, 0]]), fill: color, stroke: dark, sw }]
+    case 'lagrima':
+      return [
+        { t: 'path', d: `M0 ${n(py)}C${n(pw * 0.55)} ${n(py + ph * 0.45)} ${n(pw * 0.5)} ${n(py + ph)} 0 ${n(py + ph)}C${n(-pw * 0.5)} ${n(py + ph)} ${n(-pw * 0.55)} ${n(py + ph * 0.45)} 0 ${n(py)}Z`, fill: color, stroke: dark, sw },
+        { t: 'path', d: circle(0, py + ph * 0.32, pw * 0.1), fill: dark },
+      ]
+    case 'pestana':
+      return [
+        { t: 'path', d: roundRect(-pw * 0.3, py, pw * 0.6, ph * 1.15, pw * 0.25), fill: color, stroke: dark, sw },
+        { t: 'path', d: roundRect(-pw * 0.12, py + ph * 0.85, pw * 0.24, ph * 0.18, pw * 0.1), fill: dark },
+      ]
+    case 'candado':
+      return [
+        { t: 'path', d: `M${n(-pw * 0.26)} ${n(py + ph * 0.42)}V${n(py + ph * 0.22)}A${n(pw * 0.26)} ${n(pw * 0.26)} 0 0 1 ${n(pw * 0.26)} ${n(py + ph * 0.22)}V${n(py + ph * 0.42)}`, stroke: color, sw: w * 0.14 },
+        { t: 'path', d: roundRect(-pw / 2, py + ph * 0.4, pw, ph * 0.6, pw * 0.15), fill: color, stroke: dark, sw },
+        { t: 'path', d: circle(0, py + ph * 0.62, pw * 0.09), fill: dark },
+        { t: 'path', d: `M0 ${n(py + ph * 0.66)}V${n(py + ph * 0.8)}`, stroke: dark, sw: pw * 0.07 },
+      ]
+    case 'mosqueton':
+      return [
+        { t: 'path', d: roundRect(-pw * 0.32, py, pw * 0.64, ph * 1.05, pw * 0.32), stroke: dark, sw: w * 0.2 },
+        { t: 'path', d: roundRect(-pw * 0.32, py, pw * 0.64, ph * 1.05, pw * 0.32), stroke: color, sw: w * 0.13 },
+        { t: 'path', d: `M${n(pw * 0.32)} ${n(py + ph * 0.25)}L${n(pw * 0.1)} ${n(py + ph * 0.75)}`, stroke: shade(color, -0.25), sw: w * 0.08 },
+      ]
+    default: {
+      // Cinta larga de tela con pespunte y remate metálico
+      const sh = ph * 1.8
+      return [
+        { t: 'path', d: roundRect(-pw * 0.28, py, pw * 0.56, sh, pw * 0.08), fill: tape, stroke: shade(tape, -0.4), sw },
+        { t: 'path', d: roundRect(-pw * 0.2, py + pw * 0.1, pw * 0.4, sh - pw * 0.2, pw * 0.05), stroke: shade(tape, 0.45), sw: sw * 0.7, dash: `${n(w * 0.18)} ${n(w * 0.12)}` },
+        { t: 'path', d: roundRect(-pw * 0.3, py + sh - ph * 0.22, pw * 0.6, ph * 0.22, pw * 0.08), fill: color, stroke: dark, sw },
+      ]
+    }
+  }
 }
 
 // --- Etiquetas y parches ---
@@ -275,7 +361,7 @@ export function patchPrims(d: Pick<Detail, 'style' | 'w' | 'color' | 'color2' | 
 export function detailPrims(d: Detail): Prim[] {
   switch (d.kind) {
     case 'boton':
-      return buttonPrims(d.style, d.w, d.color, d.art)
+      return buttonPrims(d.style, d.w, d.color, d.art, d.text)
     case 'cremallera':
       return zipperPrims(d.style, d.puller ?? 'clasico', d.w, d.length ?? 120, d.color, d.color2, d.art)
     case 'ojal':
@@ -302,8 +388,10 @@ export function detailPrims(d: Detail): Prim[] {
         { t: 'path', d: `M${n(-d.w * 0.4)} ${n(-h * 0.38)}H${n(d.w * 0.4)}M${n(-d.w * 0.4)} ${n(h * 0.38)}H${n(d.w * 0.4)}`, stroke: d.color2, sw: Math.max(0.4, d.w * 0.12) },
       ]
     }
+    case 'tope':
+      return stopperPrims(d.style, d.w, d.color)
     case 'cordon':
-      return cordPrims(d.style, d.w, d.length ?? 80, d.color, d.color2)
+      return cordPrims(d.style, d.w, d.length ?? 80, d.color, d.color2, d.text)
     case 'cinta':
       return tapePrims(d.style, d.w, d.length ?? 120, d.color, d.color2)
     case 'velcro':
@@ -521,9 +609,22 @@ function pocketPrims(style: string, w: number, color: string, thread: string, sh
   ]
 }
 
-function cordPrims(style: string, w: number, L: number, color: string, trim: string): Prim[] {
-  const out: Prim[] = [{ t: 'path', d: `M0 ${n(-L / 2)}V${n(L / 2)}`, stroke: color, sw: Math.max(0.6, w * 0.32) }]
+function cordPrims(style: string, w: number, L: number, color: string, trim: string, text?: string): Prim[] {
   const end = L / 2
+  if (style === 'plano' || style === 'plano-dibujo') {
+    // Cordón plano: cinta con su borde, texto o dibujo en zigzag, y herretes en las puntas
+    const cw = w * 0.9
+    const body = L - w * 2.4
+    const out: Prim[] = [{ t: 'path', d: roundRect(-cw / 2, -body / 2, cw, body, cw * 0.15), fill: color, stroke: shade(color, -0.35), sw: Math.max(0.3, w * 0.05) }]
+    if (style === 'plano-dibujo') {
+      let d = ''
+      for (let y = -body / 2 + cw * 0.3, i = 0; y < body / 2 - cw * 0.3; y += cw * 0.55, i++) d += `${i ? 'L' : 'M'}${n((i % 2 ? 1 : -1) * cw * 0.3)} ${n(y)}`
+      out.push({ t: 'path', d, stroke: trim, sw: Math.max(0.3, cw * 0.1) })
+    } else if (text) out.push({ t: 'text', text: text.toUpperCase().slice(0, 24), x: 0, y: 0, size: cw * 0.6, color: trim, bold: true, rot: -90 })
+    for (const s of [-1, 1]) out.push({ t: 'path', d: roundRect(-cw * 0.22, s < 0 ? -end : end - w * 1.2, cw * 0.44, w * 1.2, cw * 0.12), fill: '#c9c9c9', stroke: '#7c7c7c', sw: Math.max(0.25, w * 0.04) })
+    return out
+  }
+  const out: Prim[] = [{ t: 'path', d: `M0 ${n(-L / 2)}V${n(L / 2)}`, stroke: color, sw: Math.max(0.6, w * 0.32) }]
   if (style === 'tope') {
     const y = -L / 2 + L * 0.35
     out.push({ t: 'path', d: roundRect(-w / 2, y - w * 0.6, w, w * 1.2, w * 0.35), fill: trim, stroke: shade(trim, -0.4), sw: Math.max(0.3, w * 0.06) })
@@ -532,6 +633,35 @@ function cordPrims(style: string, w: number, L: number, color: string, trim: str
   if (style === 'nudo') out.push({ t: 'path', d: circle(0, end - w * 0.4, w * 0.45), fill: color, stroke: shade(color, -0.35), sw: Math.max(0.3, w * 0.06) })
   else out.push({ t: 'path', d: roundRect(-w * 0.2, end - w * 1.1, w * 0.4, w * 1.1, w * 0.12), fill: trim, stroke: shade(trim, -0.4), sw: Math.max(0.25, w * 0.05) })
   return out
+}
+
+/** Tope de cordón: barril con su agujero, de dos agujeros o plano. */
+function stopperPrims(style: string, w: number, color: string): Prim[] {
+  const dark = shade(color, -0.45)
+  const sw = Math.max(0.3, w * 0.07)
+  if (style === 'doble') {
+    const h = w * 1.15
+    return [
+      { t: 'path', d: roundRect(-w / 2, -h / 2, w, h, w * 0.3), fill: color, stroke: dark, sw },
+      { t: 'path', d: circle(-w * 0.18, 0, w * 0.13), fill: dark },
+      { t: 'path', d: circle(w * 0.18, 0, w * 0.13), fill: dark },
+      { t: 'path', d: `M${n(-w * 0.32)} ${n(-h * 0.32)}h${n(w * 0.64)}`, stroke: shade(color, 0.3), sw: sw * 0.8 },
+    ]
+  }
+  if (style === 'plano') {
+    const h = w * 0.8
+    return [
+      { t: 'path', d: roundRect(-w / 2, -h / 2, w, h, w * 0.4), fill: color, stroke: dark, sw },
+      { t: 'path', d: roundRect(-w * 0.28, -h * 0.12, w * 0.56, h * 0.24, h * 0.1), fill: dark },
+    ]
+  }
+  const h = w * 1.4
+  return [
+    { t: 'path', d: roundRect(-w / 2, -h / 2, w, h, w * 0.45), fill: color, stroke: dark, sw },
+    { t: 'path', d: `M${n(-w / 2)} ${n(-h * 0.2)}h${n(w)}M${n(-w / 2)} ${n(h * 0.2)}h${n(w)}`, stroke: shade(color, -0.2), sw: sw * 0.7 },
+    { t: 'path', d: circle(0, -h * 0.05, w * 0.15), fill: dark },
+    { t: 'path', d: circle(-w * 0.22, -h * 0.32, w * 0.1), fill: '#ffffff', opacity: 0.35 },
+  ]
 }
 
 function tapePrims(style: string, w: number, L: number, color: string, color2: string): Prim[] {
@@ -733,7 +863,7 @@ export function PrimsView({ prims }: { prims: Prim[] }) {
         ) : p.t === 'image' ? (
           <image key={i} href={fileUrl(p.file)} x={p.x} y={p.y} width={p.w} height={p.h} preserveAspectRatio="xMidYMid meet" />
         ) : (
-          <text key={i} x={p.x} y={p.y} fontSize={p.size} fontWeight={p.bold ? 700 : 400} fill={p.color} textAnchor="middle" dominantBaseline="central" fontFamily="Inter, system-ui, sans-serif">
+          <text key={i} x={p.x} y={p.y} transform={p.rot ? `rotate(${p.rot} ${p.x} ${p.y})` : undefined} fontSize={p.size} fontWeight={p.bold ? 700 : 400} fill={p.color} textAnchor="middle" dominantBaseline="central" fontFamily="Inter, system-ui, sans-serif">
             {p.text}
           </text>
         ),
@@ -790,7 +920,13 @@ export function drawPrims(ctx: CanvasRenderingContext2D, prims: Prim[], img: (fi
       ctx.fillStyle = mono ?? p.color
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(p.text, p.x, p.y)
+      if (p.rot) {
+        ctx.save()
+        ctx.translate(p.x, p.y)
+        ctx.rotate((p.rot * Math.PI) / 180)
+        ctx.fillText(p.text, 0, 0)
+        ctx.restore()
+      } else ctx.fillText(p.text, p.x, p.y)
     }
   }
 }
