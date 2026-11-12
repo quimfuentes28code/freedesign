@@ -1863,15 +1863,34 @@ export function Lienzo(props: Props) {
   const [creator, setCreator] = useState<{ id?: string; template?: string; graffiti?: boolean } | null>(null)
   creatorOpen.current = !!creator
   const [quick, setQuick] = useState<{ x: number; y: number } | null>(null)
+  // Menú rápido (botón flotante o clic derecho). Recortar y copiar van con lo seleccionado con el lazo (S)
   const QUICK: { label: string; run: () => void }[] = [
     { label: 'Capa nueva', run: addPaint },
-    { label: 'Deshacer', run: undo },
-    { label: 'Rehacer', run: redo },
-    { label: 'Cuentagotas', run: () => setTool('picker') },
-    { label: settings.symmetry === 'none' ? 'Simetría' : 'Sin simetría', run: () => setSettings({ symmetry: settings.symmetry === 'none' ? 'vertical' : 'none' }) },
-    { label: 'Duplicar capa', run: () => layer && duplicate(layer) },
-    { label: 'Sombra', run: () => addShade('sombra') },
+    {
+      label: 'Recortar',
+      run: () => {
+        if (selection) selToLayer(true)
+        else {
+          setTool('select')
+          flash('Rodea con el lazo lo que quieras recortar y vuelve a pulsar «Recortar»')
+        }
+      },
+    },
+    {
+      label: 'Copiar',
+      run: () => {
+        if (selection) selToLayer(false)
+        else if (layer) {
+          duplicate(layer)
+          flash('Capa copiada (para copiar solo una parte, selecciónala antes con el lazo)')
+        }
+      },
+    },
+    { label: 'Subir capa', run: () => (layer ? reorder(layer.id, 1) : flash('Elige una capa')) },
+    { label: 'Bajar capa', run: () => (layer ? reorder(layer.id, -1) : flash('Elige una capa')) },
     { label: 'Encajar', run: fit },
+    { label: 'Sombra', run: () => addShade('sombra') },
+    { label: 'Biblioteca', run: () => setPanel('biblioteca') },
   ]
 
   // --- Móvil como tableta (src/lienzo/tablet.tsx): sus trazos entran como un lápiz con presión sobre el papel ---
