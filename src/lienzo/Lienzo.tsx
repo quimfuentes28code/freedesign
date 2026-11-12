@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { api } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import { mockupCanvas } from '../designer/exportFlat'
-import { LOOK_ANGLES, LOOK_SCENES, lookPrompt, type LookScene } from '../designer/lookbook'
+import { LOOK_ANGLES, LOOK_SCENES, lookPrompt, PRODUCT_FINISHES, PRODUCT_SHOTS, productPrompt, type LookScene, type ProductShot } from '../designer/lookbook'
 import { FlatView } from '../designer/FlatView'
 import { drawScale } from '../designer/measures'
 import { reshapePockets } from '../designer/pocketShape'
@@ -3393,9 +3393,15 @@ function GarmentOptions({ layer, own, materials, onChange }: { layer: MockupLaye
 function AiPanel({ design, materials, female, onExport }: { design: import('../shared/designs').Design; materials: Map<string, import('../shared/library').Material>; female: boolean; onExport: () => void }) {
   const [scene, setScene] = useState<LookScene>(LOOK_SCENES[0].id)
   const [extra, setExtra] = useState('')
+  const [mode, setMode] = useState<'producto' | 'maniqui'>('producto')
+  const [shot, setShot] = useState<ProductShot>('colgada')
+  const [finish, setFinish] = useState('')
+  const [exact, setExact] = useState(true)
   const base = useMemo(
     () =>
-      lookPrompt({
+      mode === 'producto'
+        ? productPrompt({ design, materials, shot, finish, exact, extra })
+        : lookPrompt({
         items: [{ role: 'Prenda', design }],
         materials,
         kind: female ? 'mujer' : 'hombre',
@@ -3406,7 +3412,7 @@ function AiPanel({ design, materials, female, onExport }: { design: import('../s
         angles: [LOOK_ANGLES[0].id],
         extra,
       }),
-    [design, materials, female, scene, extra],
+    [design, materials, female, scene, extra, mode, shot, finish, exact],
   )
   const [text, setText] = useState(base)
   useEffect(() => setText(base), [base])
@@ -3428,14 +3434,49 @@ function AiPanel({ design, materials, female, onExport }: { design: import('../s
         Prepara el texto con todo el detalle de la prenda. Al abrir la IA, el texto queda copiado: pégalo allí (Ctrl+V) junto con la imagen del lienzo como
         referencia. Cuando tengas la imagen, cópiala y pégala aquí con Ctrl+V: queda como una capa.
       </p>
-      <p className="lz-label">Escenario</p>
+      <p className="lz-label">Tipo de foto</p>
       <div className="lz-chips">
-        {LOOK_SCENES.filter((x) => x.id !== 'otro').map((x) => (
-          <button key={x.id} className={scene === x.id ? 'lz-chip on' : 'lz-chip'} onClick={() => setScene(x.id)}>
-            {x.label}
-          </button>
-        ))}
+        <button className={mode === 'producto' ? 'lz-chip on' : 'lz-chip'} onClick={() => setMode('producto')} title="La prenda sola, como en un catálogo">
+          Foto de producto
+        </button>
+        <button className={mode === 'maniqui' ? 'lz-chip on' : 'lz-chip'} onClick={() => setMode('maniqui')} title="Puesta en un maniquí sin rostro (como el Lookbook)">
+          En maniquí
+        </button>
       </div>
+      {mode === 'producto' ? (
+        <>
+          <p className="lz-label">Cómo</p>
+          <div className="lz-chips">
+            {PRODUCT_SHOTS.map((x) => (
+              <button key={x.id} className={shot === x.id ? 'lz-chip on' : 'lz-chip'} onClick={() => setShot(x.id)}>
+                {x.label}
+              </button>
+            ))}
+          </div>
+          <p className="lz-label">Acabado del tejido</p>
+          <div className="lz-chips">
+            {PRODUCT_FINISHES.map((x) => (
+              <button key={x.id} className={finish === x.id ? 'lz-chip on' : 'lz-chip'} onClick={() => setFinish(x.id)}>
+                {x.label}
+              </button>
+            ))}
+          </div>
+          <label className="lz-toggle" title="La IA no cambia nada del dibujo: logos, textos, colores, cremallera, bolsillos…">
+            <input type="checkbox" checked={exact} onChange={(ev) => setExact(ev.target.checked)} /> Mantener el diseño exacto
+          </label>
+        </>
+      ) : (
+        <>
+          <p className="lz-label">Escenario</p>
+          <div className="lz-chips">
+            {LOOK_SCENES.filter((x) => x.id !== 'otro').map((x) => (
+              <button key={x.id} className={scene === x.id ? 'lz-chip on' : 'lz-chip'} onClick={() => setScene(x.id)}>
+                {x.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       <label className="lz-field">
         <span>Algo más (pose, capucha puesta, chaqueta abierta…)</span>
         <input className="lz-hex" value={extra} onChange={(e) => setExtra(e.target.value)} />

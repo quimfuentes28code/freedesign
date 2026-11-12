@@ -111,3 +111,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Lo que no toca en la foto de producto (el display de estas clases pisaba el atributo hidden) */
+.lookbook-fields[hidden],
+.chips[hidden],
+h3[hidden] {
+  display: none !important;
+}

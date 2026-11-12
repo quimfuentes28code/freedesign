@@ -210,7 +210,14 @@ Queda: más estilos si me pasas más ejemplos (p. ej. letras entrelazadas de wil
 
 Se apoya en fuentes de graffiti (Google Fonts tiene varias de spray, marcador y burbuja) y en efectos nuestros. Sale como gráfico editable y como capa del lienzo.
 
-## Fase 7 — Lookbook e IA: de 2D a foto realista
+## Fase 7 — Lookbook e IA: de 2D a foto realista ✅ hecha (12-11-2026)
+Hecho:
+- **«Foto de producto»** en el Lookbook y en el panel de IA del lienzo, donde es la opción por defecto.
+- **Escenarios:** colgada en pared de hormigón, flat lay, maniquí invisible o con modelo en la calle.
+- **Acabado del tejido:** lavado vintage, nuevo, acid wash o felpa gruesa.
+- **«Mantener el diseño exacto».**
+- El texto lleva cada pieza con su color, código, tejido y gramaje.
+
 1. Generar **el texto para Gemini** desde el diseño (✅ `lookPrompt` ya existe), con escenarios nuevos:
    - colgada en pared de hormigón (como tu foto de la sudadera roja);
    - flat lay en el suelo;

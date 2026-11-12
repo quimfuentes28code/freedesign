@@ -283,3 +283,81 @@ export function lookPrompt(i: LookInput): string {
   lines.push(`Formato vertical 4:5, cámara a la altura del pecho, el maniquí entero dentro del encuadre (cabeza y pies sin cortar), sin texto ni marcas de agua.`)
   return lines.join('\n')
 }
+
+/**
+ * Foto de producto: la prenda sola (sin el maniquí del Lookbook), a partir del dibujo del lienzo, como las fotos
+ * hiperrealistas de catálogo: colgada en una pared, en el suelo, con maniquí invisible o puesta en la calle.
+ */
+export const PRODUCT_SHOTS = [
+  {
+    id: 'colgada',
+    label: 'Colgada en pared de hormigón',
+    text: 'La prenda cuelga de una percha invisible delante de una pared de hormigón gris claro, de frente y centrada, con luz natural suave de ventana desde la izquierda y una sombra suave en la pared.',
+  },
+  {
+    id: 'flatlay',
+    label: 'Flat lay en el suelo',
+    text: 'La prenda está extendida en el suelo (flat lay) sobre hormigón pulido gris claro, vista desde arriba, bien colocada y simétrica, con alguna arruga natural y luz suave desde arriba.',
+  },
+  {
+    id: 'fantasma',
+    label: 'Maniquí invisible (estudio)',
+    text: 'Foto de catálogo con maniquí invisible (ghost mannequin): la prenda tiene la forma de ir puesta pero no se ve ningún cuerpo, fondo blanco puro de estudio, luz suave y uniforme y una sombra muy suave debajo.',
+  },
+  {
+    id: 'modelo',
+    label: 'Con modelo en la calle',
+    text: 'La lleva puesta un modelo en una calle urbana, de cuerpo entero o tres cuartos, con luz natural de tarde y ambiente de editorial streetwear (la cara puede quedar fuera de plano).',
+  },
+] as const
+export type ProductShot = (typeof PRODUCT_SHOTS)[number]['id']
+
+/** Acabados del tejido que se pueden pedir. */
+export const PRODUCT_FINISHES = [
+  { id: '', label: 'Según el diseño' },
+  { id: 'lavado', label: 'Lavado vintage', text: 'felpa de algodón gruesa con acabado lavado vintage (desteñido suave y uniforme)' },
+  { id: 'nuevo', label: 'Nuevo y limpio', text: 'tejido nuevo, limpio y sin desgaste, con los colores intensos' },
+  { id: 'acid', label: 'Acid wash', text: 'acabado acid wash: desteñido a manchas, marcado' },
+  { id: 'premium', label: 'Felpa gruesa premium', text: 'felpa de algodón gruesa y pesada (unos 450 g/m²), de caída firme' },
+] as const
+
+export interface ProductInput {
+  design: Design
+  materials: Map<string, Material>
+  shot: ProductShot
+  finish: string
+  /** Mantener el diseño exacto: que la IA no cambie nada del dibujo. */
+  exact: boolean
+  extra: string
+}
+
+/** El texto para pasar de un dibujo de la prenda a una foto de producto hiperrealista. */
+export function productPrompt(i: ProductInput): string {
+  const t = getTemplate(i.design.template)
+  const shot = PRODUCT_SHOTS.find((s) => s.id === i.shot) ?? PRODUCT_SHOTS[0]
+  const finish = PRODUCT_FINISHES.find((f) => f.id === i.finish)
+  const lines: string[] = []
+  lines.push('Convierte este dibujo de una prenda (te lo adjunto) en una fotografía de producto hiperrealista.')
+  lines.push('')
+  lines.push(
+    i.exact
+      ? 'Mantén EXACTAMENTE el diseño: la misma forma, el mismo largo y corte, los mismos colores, el logo y el texto idénticos y en el mismo sitio y tamaño, la misma cremallera, cordones, bolsillos, costuras y forro (con su estampado). No añadas ni quites ningún elemento ni texto, y no cambies ningún color.'
+      : 'Usa el dibujo como guía del diseño: respeta la forma, los colores, los logos y los textos; puedes resolver con naturalidad los detalles pequeños que el dibujo no deja claros.',
+  )
+  lines.push('')
+  lines.push(`La prenda: ${t?.name ?? i.design.template} «${i.design.name}».`)
+  for (const l of garmentLines(i.design, i.materials)) lines.push(`   - ${l}`)
+  lines.push('')
+  lines.push(
+    `Tejido: ${finish && 'text' in finish ? finish.text : 'el de la descripción'}, con su textura real, pliegues naturales, costuras con relieve y un ligero desgaste en los bordes.`,
+  )
+  lines.push('')
+  lines.push(shot.text)
+  if (i.extra.trim()) {
+    lines.push('')
+    lines.push(`Además: ${i.extra.trim()}`)
+  }
+  lines.push('')
+  lines.push('Fotografía de catálogo, cámara de 50 mm, enfoque nítido, alta resolución y colores fieles. Sin personas (salvo en la foto con modelo), sin marcas de agua ni texto añadido.')
+  return lines.join('\n')
+}

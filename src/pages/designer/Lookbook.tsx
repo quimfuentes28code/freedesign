@@ -4,7 +4,7 @@ import { api, useApi } from '../../api/client'
 import { Field, PageHeader, Status } from '../../components/ui'
 import { download, exportFlat } from '../../designer/exportFlat'
 import { FlatView } from '../../designer/FlatView'
-import { LOOK_ANGLES, LOOK_SCENES, LOOK_SHOES, lookPrompt, referenceFile, type LookAngle, type LookScene } from '../../designer/lookbook'
+import { LOOK_ANGLES, LOOK_SCENES, LOOK_SHOES, lookPrompt, PRODUCT_FINISHES, PRODUCT_SHOTS, productPrompt, referenceFile, type LookAngle, type LookScene, type ProductShot } from '../../designer/lookbook'
 import { getTemplate } from '../../designer/templates'
 import { isPants } from '../../designer/types'
 import { standardBody } from '../../production/measurements'
@@ -39,6 +39,11 @@ export function Lookbook() {
   const [sceneText, setSceneText] = useState('')
   const [angles, setAngles] = useState<LookAngle[]>(['frente', 'tres-cuartos', 'espalda'])
   const [extra, setExtra] = useState('')
+  // Tipo de foto: el outfit en el maniquí o una prenda sola (foto de producto)
+  const [photo, setPhoto] = useState<'outfit' | 'producto'>('outfit')
+  const [shot, setShot] = useState<ProductShot>('colgada')
+  const [finish, setFinish] = useState('')
+  const [exact, setExact] = useState(true)
   const [copied, setCopied] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -59,9 +64,11 @@ export function Lookbook() {
   const client = clients.data?.find((c) => c.id === clientId)
   const auto = items.some((x) => bodyKind(x.design.data) === 'mujer') ? 'mujer' : 'hombre'
   const kind = bodyPick === 'auto' ? auto : bodyPick
-  const prompt = items.length
-    ? lookPrompt({ items, materials, kind, client, shoes, shoesText, scene, sceneText, angles, extra })
-    : ''
+  const prompt = !items.length
+    ? ''
+    : photo === 'producto'
+      ? productPrompt({ design: items[0].design, materials, shot, finish, exact, extra })
+      : lookPrompt({ items, materials, kind, client, shoes, shoesText, scene, sceneText, angles, extra })
 
   const copy = async () => {
     await navigator.clipboard.writeText(prompt)
@@ -137,7 +144,42 @@ export function Lookbook() {
 
           <section className="card">
             <h2>Maniquí y foto</h2>
-            <div className="lookbook-fields">
+            <div className="segmented" role="group" aria-label="Tipo de foto">
+              <button className={photo === 'outfit' ? 'active' : ''} onClick={() => setPhoto('outfit')}>
+                Outfit en maniquí
+              </button>
+              <button className={photo === 'producto' ? 'active' : ''} onClick={() => setPhoto('producto')}>
+                Foto de producto
+              </button>
+            </div>
+            {photo === 'producto' && (
+              <div className="lookbook-fields">
+                <p className="muted small">La primera prenda elegida, sola y fotografiada como en un catálogo. Adjunta su dibujo (o el lienzo) a la IA.</p>
+                <Field label="Cómo" wide>
+                  <select value={shot} onChange={(ev) => setShot(ev.target.value as ProductShot)}>
+                    {PRODUCT_SHOTS.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Acabado del tejido" wide>
+                  <select value={finish} onChange={(ev) => setFinish(ev.target.value)}>
+                    {PRODUCT_FINISHES.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <label className="toggle-row">
+                  <span>Mantener el diseño exacto</span>
+                  <input type="checkbox" checked={exact} onChange={(ev) => setExact(ev.target.checked)} />
+                </label>
+              </div>
+            )}
+            <div className="lookbook-fields" hidden={photo === 'producto'}>
               <Field label="Cuerpo">
                 <select value={bodyPick} onChange={(e) => setBodyPick(e.target.value as typeof bodyPick)}>
                   <option value="auto">Según la ropa ({auto})</option>
@@ -170,8 +212,8 @@ export function Lookbook() {
                 </Field>
               )}
             </div>
-            <h3>Vistas</h3>
-            <div className="chips">
+            <h3 hidden={photo === 'producto'}>Vistas</h3>
+            <div className="chips" hidden={photo === 'producto'}>
               {LOOK_ANGLES.map((a) => {
                 const on = angles.includes(a.id)
                 return (
