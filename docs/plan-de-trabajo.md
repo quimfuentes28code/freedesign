@@ -300,6 +300,7 @@ Hecho (12-11-2026):
 - **Vectorizar imágenes** en el creador de gráficos: un logo en foto o PNG pasa a formas editables (colores, detalle y quitar fondo), una capa por color.
 - **Separación de colores para serigrafía** (creador de gráficos → Producción → Serigrafía): una película por tinta con marcas de registro, base blanca opcional para prendas oscuras, en un ZIP a tamaño real.
 - **Vista previa de bordado** (creador de gráficos → Producción → Bordado o Parche): el gráfico con hilo, puntadas y relieve sobre la tela elegida, también en la prueba en una prenda.
+- **Lienzo: deshacer, goma y asistente de dibujo como Illustrator:** columna de la izquierda con Pincel, Goma, Formas y Curva y Deshacer/Rehacer con su nombre; Shaper (formas perfectas y garabato que borra), guías inteligentes y herramienta de curvatura, más el suavizado del trazo a mano.
 - **Pendiente en producción:** crear la tabla con `npm run db:migrate:remote` (migraciones 0011, 0012 y 0013). Mientras no esté, se guarda igual pero sin versiones.
 
 - **Autoguardado** del lienzo e **historial de versiones** de cada diseño.

@@ -1,3 +1,4 @@
+import { curvePath, curveThrough, hull, isScribble, recognize, snapPoint, type Guide, type P as ShaperPoint } from './shaper'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { api } from '../api/client'
@@ -53,7 +54,7 @@ import './lienzo.css'
 /** Puntero de los trazos que llegan del móvil que hace de tableta (no choca con los del navegador). */
 const REMOTE_POINTER = 987654
 
-type Tool = 'brush' | 'eraser' | 'picker' | 'fill' | 'move' | 'text' | 'select'
+type Tool = 'brush' | 'eraser' | 'picker' | 'fill' | 'move' | 'text' | 'select' | 'shaper' | 'curve'
 type Panel = 'brushes' | 'layers' | 'color' | 'ajustes' | 'acciones' | 'biblioteca' | 'opciones' | 'ia' | 'luces' | null
 
 interface Settings {
@@ -449,7 +450,7 @@ export function Lienzo(props: Props) {
     })
   }
 
-  const startStroke = (e: ReactPointerEvent, erase: boolean) => {
+  const startStroke = (e: ReactPointerEvent, erase: boolean, at?: { x: number; y: number }) => {
     // Pincel de sombra o de luz: pinta en su propia capa, con el color de la pieza y sin salirse de la prenda
     let pl = paintLayer
     let strokeColor = settings.color
@@ -463,7 +464,7 @@ export function Lienzo(props: Props) {
         setActive(l.id)
       }
       pl = l
-      const p = toDoc(e.clientX, e.clientY)
+      const p = at ?? toDoc(e.clientX, e.clientY)
       const base = compose(r, { ...doc, layers: doc.layers.filter((x) => !x.role) })
       const d = base.getContext('2d', { willReadFrequently: true })!.getImageData(Math.floor(p.x), Math.floor(p.y), 1, 1).data
       const c = brush.shade === 'sombra' ? shadeOf([d[0], d[1], d[2]]) : lightOf([d[0], d[1], d[2]])
@@ -518,7 +519,7 @@ export function Lienzo(props: Props) {
       axis: { x: settings.axis[0] * doc.w, y: settings.axis[1] * doc.h },
     }
     const s = new Stroke(target, opts)
-    const p = toDoc(e.clientX, e.clientY)
+    const p = at ?? toDoc(e.clientX, e.clientY)
     stroke.current = {
       s,
       opts,
@@ -558,7 +559,7 @@ export function Lienzo(props: Props) {
       flash('Color cogido (cuentagotas)')
       return
     }
-    if (!st.smudge) quickShape(st)
+    if (!st.smudge) quickShape(st, true)
   }
   /** Direcciones de la guía en (x, y): hacia los puntos de fuga, o las de la cuadrícula. */
   const guideDirs = (x: number, y: number): [number, number][] => {
@@ -601,64 +602,29 @@ export function Lienzo(props: Props) {
     const t = (p.x - a.x) * a.dir[0] + (p.y - a.y) * a.dir[1]
     return { x: a.x + a.dir[0] * t, y: a.y + a.dir[1] * t }
   }
-  /** QuickShape: el trazo se rehace como una línea recta, una elipse (o círculo) o un rectángulo perfectos. */
-  const quickShape = (st: NonNullable<typeof stroke.current>) => {
-    const pts = st.pts
-    if (pts.length < 8) return
-    let x0 = Infinity
-    let y0 = Infinity
-    let x1 = -Infinity
-    let y1 = -Infinity
-    for (let i = 0; i < pts.length; i += 2) {
-      x0 = Math.min(x0, pts[i])
-      x1 = Math.max(x1, pts[i])
-      y0 = Math.min(y0, pts[i + 1])
-      y1 = Math.max(y1, pts[i + 1])
+  // --- Asistente de dibujo (Shaper, guías inteligentes y curvatura), ver shaper.ts ---
+  /** Puntos de las formas ya hechas (esquinas, extremos, centros), para engancharse a ellos. */
+  const shaperKeys = useRef<ShaperPoint[]>([])
+  const [guides, setGuides] = useState<Guide[]>([])
+  const guideTimer = useRef(0)
+  const showGuides = (g: Guide[]) => {
+    window.clearTimeout(guideTimer.current)
+    setGuides(g)
+    if (g.length) guideTimer.current = window.setTimeout(() => setGuides([]), 1400)
+  }
+  /** A qué se engancha: centro del papel, eje y medidas de las prendas y las formas ya dibujadas. */
+  const snapCtx = () => {
+    const keys: ShaperPoint[] = [[doc.w / 2, doc.h / 2], ...shaperKeys.current]
+    for (const l of doc.layers) {
+      if (l.kind !== 'mockup' || !l.visible) continue
+      const c = r.mockups.get(l.id)
+      const h = c ? (l.w * c.height) / c.width : l.w
+      keys.push([l.x + l.w / 2, l.y], [l.x + l.w / 2, l.y + h / 2], [l.x + l.w / 2, l.y + h])
     }
-    const diag = Math.hypot(x1 - x0, y1 - y0)
-    if (diag < 12) return
-    const [fx, fy] = pts
-    const lx = pts[pts.length - 2]
-    const ly = pts[pts.length - 1]
-    const closed = Math.hypot(lx - fx, ly - fy) < Math.max(20, diag * 0.25)
-    const shape: number[] = []
-    let label = 'Línea recta'
-    const line = (ax: number, ay: number, bx: number, by: number) => {
-      const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 3))
-      for (let i = 0; i <= n; i++) shape.push(ax + ((bx - ax) * i) / n, ay + ((by - ay) * i) / n)
-    }
-    if (!closed) line(fx, fy, lx, ly)
-    else {
-      const cx = (x0 + x1) / 2
-      const cy = (y0 + y1) / 2
-      let rx = Math.max(1, (x1 - x0) / 2)
-      let ry = Math.max(1, (y1 - y0) / 2)
-      let eErr = 0
-      let rErr = 0
-      for (let i = 0; i < pts.length; i += 2) {
-        const nx = (pts[i] - cx) / rx
-        const ny = (pts[i + 1] - cy) / ry
-        eErr += Math.abs(Math.hypot(nx, ny) - 1)
-        rErr += Math.min(Math.abs(Math.abs(nx) - 1), Math.abs(Math.abs(ny) - 1))
-      }
-      if (rErr < eErr * 0.8) {
-        label = 'Rectángulo'
-        line(x0, y0, x1, y0)
-        line(x1, y0, x1, y1)
-        line(x1, y1, x0, y1)
-        line(x0, y1, x0, y0)
-      } else {
-        // Casi redondo: círculo
-        if (Math.abs(rx - ry) / Math.max(rx, ry) < 0.15) rx = ry = (rx + ry) / 2
-        label = rx === ry ? 'Círculo' : 'Elipse'
-        const n = Math.max(48, Math.ceil((Math.PI * (rx + ry)) / 3))
-        for (let i = 0; i <= n; i++) {
-          const a = -Math.PI / 2 + (i / n) * Math.PI * 2
-          shape.push(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry)
-        }
-      }
-    }
-    // Se rehace el trazo con la forma perfecta (sin estabilizador, con la presión del final)
+    return { keys, near: 12 / view.s, w: doc.w, h: doc.h }
+  }
+  /** El trazo en marcha pasa a ser esta forma (polilínea), con el pincel de siempre. */
+  const applyShape = (st: NonNullable<typeof stroke.current>, shape: number[]) => {
     const target = raw.current!
     target.getContext('2d')!.clearRect(0, 0, doc.w, doc.h)
     const s = new Stroke(target, { ...st.opts, streamline: 0 })
@@ -667,8 +633,70 @@ export function Lienzo(props: Props) {
     st.shaped = true
     s.takeFrame()
     renderFrame({ x0: 0, y0: 0, x1: doc.w, y1: doc.h })
-    flash(`${label} (suelta para dejarla)`)
     redraw()
+  }
+  /** QuickShape (mantener quieto al acabar) y Shaper (siempre): el trazo se rehace como la forma perfecta. */
+  const quickShape = (st: NonNullable<typeof stroke.current>, hold = true) => {
+    const found = recognize(st.pts, snapCtx())
+    if (!found) return
+    applyShape(st, found.shape)
+    shaperKeys.current = [...shaperKeys.current, ...found.keys].slice(-200)
+    showGuides(found.guides)
+    flash(hold ? `${found.label} (suelta para dejarla)` : found.label)
+  }
+  /** Garabato con el Shaper: borra lo que tapa en la capa. */
+  const eraseArea = (layerId: string, pts: number[]) => {
+    const poly = hull(pts)
+    if (poly.length < 3) return
+    const lc = r.layer(layerId)
+    const xs = poly.map((p) => p[0])
+    const ys = poly.map((p) => p[1])
+    const rect = {
+      x0: Math.max(0, Math.floor(Math.min(...xs)) - 2),
+      y0: Math.max(0, Math.floor(Math.min(...ys)) - 2),
+      x1: Math.min(doc.w, Math.ceil(Math.max(...xs)) + 2),
+      y1: Math.min(doc.h, Math.ceil(Math.max(...ys)) + 2),
+    }
+    if (rect.x1 <= rect.x0 || rect.y1 <= rect.y0) return
+    const before = grab(lc, rect)
+    const g = lc.getContext('2d')!
+    g.save()
+    g.globalCompositeOperation = 'destination-out'
+    g.beginPath()
+    poly.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)))
+    g.closePath()
+    g.fill()
+    g.restore()
+    r.history.push({ kind: 'pixels', layer: layerId, rect, before, after: grab(lc, rect) })
+    r.dirty.add(layerId)
+    touch()
+    redraw()
+    flash('Garabato: borrado (Ctrl+Z para recuperarlo)')
+  }
+  // Curvatura: se ponen puntos y la curva pasa por todos; Intro o doble clic acaba, tocar el primero la cierra
+  const [curvePts, setCurvePts] = useState<ShaperPoint[]>([])
+  const curveClick = (p: { x: number; y: number }) => {
+    if (curvePts.length >= 3 && Math.hypot(p.x - curvePts[0][0], p.y - curvePts[0][1]) < 14 / view.s) return finishCurve(true)
+    const c = snapCtx()
+    const s = snapPoint([p.x, p.y], { ...c, keys: [...c.keys, ...curvePts] })
+    showGuides(s.guides)
+    setCurvePts([...curvePts, s.p])
+  }
+  const finishCurve = (closed: boolean) => {
+    // Sin los puntos repetidos (el doble clic pone dos más en el mismo sitio)
+    const pts = curvePts.filter((p, i) => !i || Math.hypot(p[0] - curvePts[i - 1][0], p[1] - curvePts[i - 1][1]) > 3)
+    setCurvePts([])
+    if (pts.length < 2) return
+    const shape = curveThrough(pts, closed)
+    const fake = { clientX: 0, clientY: 0, pointerId: -1, pointerType: 'mouse', pressure: 0.5, button: 0 } as unknown as ReactPointerEvent
+    startStroke(fake, false, { x: shape[0], y: shape[1] })
+    const st = stroke.current
+    if (!st) return
+    st.pts = shape
+    applyShape(st, shape)
+    shaperKeys.current = [...shaperKeys.current, ...pts].slice(-200)
+    endStroke(null)
+    flash(closed ? 'Curva cerrada' : 'Curva')
   }
   const moveStroke = (e: ReactPointerEvent) => {
     const st = stroke.current
@@ -695,6 +723,13 @@ export function Lienzo(props: Props) {
     if (!st) return
     if (e && e.pointerId !== st.pointer) return
     clearTimeout(st.hold)
+    let scribble: number[] | null = null
+    if (tool === 'shaper' && !cancel && !st.shaped && !st.erase && st.pointer !== -1) {
+      if (isScribble(st.pts)) {
+        scribble = st.pts
+        cancel = true
+      } else quickShape(st, false)
+    }
     if (e && !cancel && !st.shaped && !st.assist) {
       const p = toDoc(e.clientX, e.clientY)
       st.s.finish(p.x, p.y, pressureOf(e))
@@ -724,6 +759,7 @@ export function Lienzo(props: Props) {
     preview.current.getContext('2d')!.clearRect(0, 0, doc.w, doc.h)
     stroke.current = null
     redraw()
+    if (scribble) eraseArea(st.layer.id, scribble)
   }
   const remember = (c: string) => {
     if (settings.recent[0] === c) return
@@ -1141,7 +1177,8 @@ export function Lienzo(props: Props) {
     }
     if (e.button !== 0 && e.pointerType === 'mouse') return
     const p = toDoc(e.clientX, e.clientY)
-    if (tool === 'brush' || tool === 'eraser') startStroke(e, tool === 'eraser')
+    if (tool === 'brush' || tool === 'eraser' || tool === 'shaper') startStroke(e, tool === 'eraser')
+    else if (tool === 'curve') curveClick(p)
     else if (tool === 'picker') pick(p.x, p.y)
     else if (tool === 'fill') fill(p.x, p.y)
     else if (tool === 'select') {
@@ -1293,7 +1330,14 @@ export function Lienzo(props: Props) {
         if (k === ' ') {
           space.current = true
           e.preventDefault()
-        } else if (k === 'b') setTool('brush')
+        } else if (tool === 'curve' && curvePts.length && (k === 'enter' || k === 'escape' || k === 'backspace')) {
+          e.preventDefault()
+          if (k === 'enter') finishCurve(false)
+          else if (k === 'escape') setCurvePts([])
+          else setCurvePts(curvePts.slice(0, -1))
+        } else if (k === 'n') setTool('shaper')
+        else if (k === 'c') setTool('curve')
+        else if (k === 'b') setTool('brush')
         else if (k === 'e') setTool('eraser')
         else if (k === 'i') setTool('picker')
         else if (k === 'g') setTool('fill')
@@ -1776,7 +1820,7 @@ export function Lienzo(props: Props) {
 
   const brand = (user?.brandColors ?? []).map((c) => c.hex)
   const transform = `translate(${view.x}px, ${view.y}px) rotate(${view.r}rad) scale(${view.s})`
-  const cursor = tool === 'move' ? 'move' : tool === 'text' ? 'text' : tool === 'select' ? 'crosshair' : tool === 'picker' || tool === 'fill' ? 'crosshair' : 'none'
+  const cursor = tool === 'move' ? 'move' : tool === 'text' ? 'text' : tool === 'select' || tool === 'curve' ? 'crosshair' : tool === 'picker' || tool === 'fill' ? 'crosshair' : 'none'
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
   /** Creador de gráficos abierto encima del lienzo (nuevo, con una plantilla de logo o editando uno). */
   const [creator, setCreator] = useState<{ id?: string; template?: string; graffiti?: boolean } | null>(null)
@@ -1898,6 +1942,12 @@ export function Lienzo(props: Props) {
           <button className={tool === 'eraser' ? 'lz-icon on' : 'lz-icon'} onClick={() => (tool === 'eraser' ? setPanel(panel === 'brushes' ? null : 'brushes') : setTool('eraser'))} title="Borrador (E) — toca otra vez para elegir su pincel">
             <Icon d="M7 16.5h9M3.5 12.5l7-7 5 5-6 6H7z" />
           </button>
+          <button className={tool === 'shaper' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('shaper')} title="Shaper (N): dibuja una forma a mano y sale perfecta; un garabato encima borra">
+            <Icon d="M3.5 14.5c2-6 4-9 6.5-9s3 3 1 5.5-1 4 2 4 3-2 3.5-3.5M4 4.5h4v4H4z" />
+          </button>
+          <button className={tool === 'curve' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('curve')} title="Curvatura (C): pon puntos y la curva pasa por todos">
+            <Icon d="M3.5 15.5C6 6 14 14 16.5 4.5M3.5 15.5h.01M10 10h.01M16.5 4.5h.01" />
+          </button>
           <button className={tool === 'text' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('text')} title="Texto (T): toca el lienzo para escribir">
             <Icon d="M4 5V3.5h12V5M10 3.5v13M7.5 16.5h5" />
           </button>
@@ -1923,15 +1973,36 @@ export function Lienzo(props: Props) {
 
       {/* Columna de la izquierda: tamaño, opacidad, deshacer */}
       <aside className="lz-side">
+        {(
+          [
+            ['brush', 'Pincel', 'M14.5 3.5l2 2-8 8-3 1 1-3zM4 16.5c1.5 0 2.5-1 2.5-2.5', 'Pincel (B)'],
+            ['eraser', 'Goma', 'M7 16.5h9M3.5 12.5l7-7 5 5-6 6H7z', 'Goma de borrar (E)'],
+            ['shaper', 'Formas', 'M3.5 14.5c2-6 4-9 6.5-9s3 3 1 5.5-1 4 2 4 3-2 3.5-3.5M4 4.5h4v4H4z', 'Shaper (N): dibuja una forma a mano y sale perfecta; un garabato encima borra'],
+            ['curve', 'Curva', 'M3.5 15.5C6 6 14 14 16.5 4.5M3.5 15.5h.01M10 10h.01M16.5 4.5h.01', 'Curvatura (C): pon puntos y la curva pasa por todos; Intro o doble clic acaba'],
+          ] as const
+        ).map(([id, label, d, title]) => (
+          <button key={id} className={tool === id ? 'lz-tool on' : 'lz-tool'} onClick={() => (tool === id && (id === 'brush' || id === 'eraser') ? setPanel(panel === 'brushes' ? null : 'brushes') : setTool(id))} title={title}>
+            <Icon d={d} />
+            <span>{label}</span>
+          </button>
+        ))}
         <VSlider value={Math.log(size) / Math.log(500)} onChange={(v) => setSize(Math.max(1, Math.round(500 ** v)))} title={`Tamaño: ${Math.round(size)} px`} />
         <span className="lz-side-val">{Math.round(size)}</span>
         <VSlider value={opacity} onChange={(v) => setOpacity(Math.max(0.02, Math.round(v * 100) / 100))} title={`Opacidad: ${Math.round(opacity * 100)} %`} />
         <span className="lz-side-val">{Math.round(opacity * 100)}%</span>
-        <button className="lz-icon" onClick={undo} disabled={!r.history.canUndo()} title="Deshacer (Ctrl+Z o toque con dos dedos)">
+        {tool !== 'eraser' && (
+          <>
+            <VSlider value={streamline} onChange={(v) => setSettings({ streamline: { ...settings.streamline, [brush.id]: Math.round(v * 20) / 20 } })} title={`Suavizado del trazo: ${Math.round(streamline * 100)} %`} />
+            <span className="lz-side-val" title="Suavizado del trazo">Suav. {Math.round(streamline * 100)}</span>
+          </>
+        )}
+        <button className="lz-tool" onClick={undo} disabled={!r.history.canUndo()} title="Deshacer el último paso (Ctrl+Z o toque con dos dedos)">
           <Icon d="M7 6.5L3.5 10 7 13.5M3.5 10H12a4.5 4.5 0 010 9h-2" />
+          <span>Deshacer</span>
         </button>
-        <button className="lz-icon" onClick={redo} disabled={!r.history.canRedo()} title="Rehacer (Ctrl+Mayús+Z o toque con tres dedos)">
+        <button className="lz-tool" onClick={redo} disabled={!r.history.canRedo()} title="Rehacer (Ctrl+Mayús+Z o toque con tres dedos)">
           <Icon d="M13 6.5l3.5 3.5-3.5 3.5M16.5 10H8a4.5 4.5 0 000 9h2" />
+          <span>Rehacer</span>
         </button>
         <button
           className="lz-icon"
@@ -2122,6 +2193,24 @@ export function Lienzo(props: Props) {
             ) : (
               <div className="lz-grid" style={{ backgroundSize: `${settings.gridSize}px ${settings.gridSize}px` }} />
             ))}
+          {(guides.length > 0 || curvePts.length > 0) && (
+            <svg className="lz-overlay persp" viewBox={`0 0 ${doc.w} ${doc.h}`} width={doc.w} height={doc.h}>
+              {guides.map((g, i) => (
+                <line key={i} x1={g[0]} y1={g[1]} x2={g[2]} y2={g[3]} stroke="#ff3dbb" strokeWidth={1.5 / view.s} strokeDasharray={`${6 / view.s} ${4 / view.s}`} />
+              ))}
+              {curvePts.length > 0 && (
+                <path
+                  d={curvePath(hover && tool === 'curve' ? [...curvePts, (() => { const q = toDoc(hover.x, hover.y); return [q.x, q.y] as ShaperPoint })()] : curvePts, false)}
+                  fill="none"
+                  stroke="#3d8bfd"
+                  strokeWidth={2 / view.s}
+                />
+              )}
+              {curvePts.map(([x, y], i) => (
+                <circle key={i} cx={x} cy={y} r={(i === 0 && curvePts.length >= 3 ? 7 : 5) / view.s} fill="#fff" stroke="#3d8bfd" strokeWidth={2 / view.s} />
+              ))}
+            </svg>
+          )}
           {settings.symmetry !== 'none' && (
             <SymmetryGuide
               w={doc.w}
@@ -2136,7 +2225,7 @@ export function Lienzo(props: Props) {
           )}
         </div>
         {/* Contorno del pincel bajo el puntero (con ratón o lápiz) */}
-        {hover && (tool === 'brush' || tool === 'eraser') && (
+        {hover && (tool === 'brush' || tool === 'eraser' || tool === 'shaper') && (
           <div
             className="lz-cursor"
             style={{
@@ -2146,6 +2235,25 @@ export function Lienzo(props: Props) {
               height: Math.max(4, size * view.s),
             }}
           />
+        )}
+        {tool === 'curve' && curvePts.length > 0 && (
+          <div className="lz-curvebar" onPointerDown={(ev) => ev.stopPropagation()}>
+            <span>{curvePts.length} puntos</span>
+            <button className="lz-chip" onClick={() => finishCurve(false)}>
+              Terminar
+            </button>
+            {curvePts.length >= 3 && (
+              <button className="lz-chip" onClick={() => finishCurve(true)}>
+                Cerrar
+              </button>
+            )}
+            <button className="lz-chip" onClick={() => setCurvePts(curvePts.slice(0, -1))}>
+              Quitar punto
+            </button>
+            <button className="lz-chip" onClick={() => setCurvePts([])}>
+              Cancelar
+            </button>
+          </div>
         )}
         {loading && <div className="lz-loading">Cargando lienzo…</div>}
         {notice && <div className="lz-notice">{notice}</div>}

@@ -1514,3 +1514,60 @@
   font-size: 12.5px;
   cursor: pointer;
 }
+
+/* Columna de la izquierda: herramientas de dibujo y deshacer con su nombre (siempre a la vista) */
+.lz-tool {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 52px;
+  padding: 6px 2px 5px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--lz-text, #f2f2f3);
+  font: 600 10px var(--font-ui, system-ui);
+  cursor: pointer;
+}
+.lz-tool:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+.lz-tool.on {
+  background: var(--accent, #3d8bfd);
+  color: #fff;
+}
+.lz-tool:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.lz-tool svg {
+  width: 20px;
+  height: 20px;
+}
+.lz-side .lz-vslider {
+  height: 104px;
+}
+.lz-side {
+  max-height: calc(100% - 20px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+/* Barra de la curvatura mientras se ponen puntos */
+.lz-curvebar {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 12px;
+  background: rgb(28 28 31 / 0.92);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  font: 12px var(--font-tech, monospace);
+  color: #c9c9ce;
+}
