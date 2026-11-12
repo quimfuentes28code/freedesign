@@ -800,7 +800,7 @@ export function VectorPanel({ vec, tool, color }: { vec: VectorApi; tool: Vector
           </label>
         </div>
       )}
-      <div className="lz-vbar-hint">
+      <div className="lz-vbar-hint" title={HINTS[tool]}>
         <button className="lz-chip" onClick={vec.exportSvg} title="Descarga los trazados vectoriales en SVG, sin pérdida de calidad">
           SVG
         </button>

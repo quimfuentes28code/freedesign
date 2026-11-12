@@ -7,8 +7,9 @@
   --lz-text: #f2f2f3;
   --lz-muted: #a1a1a6;
   --lz-accent: #3d8bfd;
-  /* Alto de la barra de arriba (en pantallas estrechas pasa a dos filas: ver el final del archivo) */
-  --lz-top-h: 52px;
+  /* Alto de la barra de arriba (--lz-bar-h) y, con la barra de opciones debajo, de todo lo de arriba (--lz-top-h) */
+  --lz-bar-h: 48px;
+  --lz-top-h: calc(var(--lz-bar-h) + 44px);
   position: fixed;
   inset: 0;
   z-index: 200;
@@ -29,7 +30,7 @@
 .lz-top {
   position: absolute;
   inset: 0 0 auto 0;
-  height: var(--lz-top-h);
+  height: var(--lz-bar-h);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1574,82 +1575,7 @@
   color: #c9c9ce;
 }
 
-/*
- * Barra de arriba en pantallas estrechas (iPad en vertical, móvil): no cabía en una fila y los botones se montaban o se
- * salían por la derecha (Texto, Cuentagotas, Bote, Capas, Color… no se podían tocar). Pasa a dos filas: arriba la
- * navegación y las herramientas de la izquierda, abajo las de la derecha; cada fila se desliza de lado si aún no cabe.
- */
-@media (max-width: 1260px) {
-  .lienzo {
-    --lz-top-h: 100px;
-  }
-  .lz-top {
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: center;
-    gap: 4px;
-    padding: 2px 0;
-  }
-  .lz-left,
-  .lz-right {
-    height: 44px;
-    padding: 0 10px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    /* La fila se desliza con el dedo aunque el lienzo no deje hacer gestos de la página */
-    touch-action: pan-x;
-  }
-  .lz-left::-webkit-scrollbar,
-  .lz-right::-webkit-scrollbar {
-    display: none;
-  }
-  .lz-left > *,
-  .lz-right > * {
-    flex: none;
-  }
-  .lz-right {
-    justify-content: flex-start;
-  }
-  .lz-title {
-    display: none;
-  }
-}
-@media (max-width: 760px) {
-  .lienzo {
-    --lz-top-h: 92px;
-  }
-  .lz-left,
-  .lz-right {
-    height: 40px;
-    gap: 4px;
-  }
-  /* En el móvil se ve el estado de guardado (en una fila propia ya hay sitio) */
-  .lz-save {
-    display: inline;
-  }
-}
-/* La columna de la izquierda, centrada en el espacio que queda bajo la barra (con dos filas se metía debajo); en el
-   móvil, más baja para que quepa entera */
-.lz-side {
-  top: calc(var(--lz-top-h) + (100% - var(--lz-top-h)) / 2);
-  max-height: calc(100% - var(--lz-top-h) - 16px);
-}
-@media (max-width: 760px), (max-height: 560px) {
-  .lz-side {
-    left: 6px;
-    gap: 4px;
-    padding: 8px 5px;
-  }
-  .lz-side .lz-vslider {
-    height: 96px;
-    width: 26px;
-  }
-  .lz-side .lz-side-val {
-    margin-bottom: 2px;
-  }
-}
+
 
 /* --- Trazados vectoriales (VectorTools.tsx): capa en SVG, vista de edición y panel de propiedades --- */
 .lz-vector {
@@ -1781,4 +1707,244 @@
   flex: none;
   padding: 3px 9px;
   font-size: 11.5px;
+}
+
+/*
+ * Distribución como Photoshop: barra de arriba (aplicación), barra de opciones de la herramienta, herramientas
+ * agrupadas a la izquierda (Toolbar.tsx) y paneles a la derecha. Los paneles que se abren se apartan de las dos columnas.
+ */
+.lz-opts {
+  position: absolute;
+  top: var(--lz-bar-h);
+  left: 0;
+  right: 0;
+  height: 44px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  background: #222224;
+  border-bottom: 1px solid var(--lz-line);
+  overflow-x: auto;
+  scrollbar-width: none;
+  touch-action: pan-x;
+  white-space: nowrap;
+}
+.lz-opts::-webkit-scrollbar {
+  display: none;
+}
+.lz-opts > * {
+  flex: none;
+}
+.lz-opts-tool {
+  font: 600 12px var(--font-tech, monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--lz-text);
+  padding-right: 10px;
+  border-right: 1px solid var(--lz-line);
+}
+.lz-opts-hint {
+  font-size: 12.5px;
+  color: var(--lz-muted);
+}
+.lz-opts .lz-chip {
+  padding: 5px 10px;
+}
+.lz-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--lz-muted);
+}
+.lz-opt input[type='range'] {
+  width: 120px;
+  accent-color: var(--lz-accent);
+}
+.lz-opt b {
+  min-width: 46px;
+  font: 500 12px var(--font-tech, monospace);
+  color: var(--lz-text);
+}
+
+/* Herramientas (izquierda) */
+.lz-tools {
+  position: absolute;
+  left: 10px;
+  top: calc(var(--lz-top-h) + 10px);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--lz-bar);
+  border: 1px solid var(--lz-line);
+  max-height: calc(100% - var(--lz-top-h) - 20px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.lz-tg {
+  position: relative;
+}
+.lz-tg-btn {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+.lz-tg-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.lz-tg-btn.on {
+  background: var(--lz-accent);
+  color: #fff;
+}
+/* Triangulito: el grupo tiene más herramientas */
+.lz-tg-more {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-bottom: 5px solid currentColor;
+  opacity: 0.7;
+}
+.lz-tg-fly {
+  position: fixed;
+  z-index: 30;
+  margin-left: 50px;
+  margin-top: -40px;
+  min-width: 230px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--lz-pop);
+  border: 1px solid var(--lz-line);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+}
+.lz-tg-fly button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.lz-tg-fly button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.lz-tg-fly button.on {
+  background: var(--lz-accent);
+  color: #fff;
+}
+.lz-tg-fly span {
+  flex: 1;
+}
+.lz-tg-fly kbd {
+  font: 11px var(--font-tech, monospace);
+  opacity: 0.7;
+}
+.lz-tools-color {
+  margin-top: 6px;
+}
+
+/* Paneles (derecha) */
+.lz-dock {
+  position: absolute;
+  right: 10px;
+  top: calc(var(--lz-top-h) + 10px);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--lz-bar);
+  border: 1px solid var(--lz-line);
+}
+.lz-pop.left {
+  left: 70px;
+}
+.lz-pop.right,
+.lz-tablet {
+  right: 70px;
+}
+.lienzo .lz-tablet-badge {
+  right: 74px;
+}
+@media (max-width: 760px) {
+  .lienzo {
+    --lz-bar-h: 46px;
+  }
+  /* En el móvil la barra de arriba entera se desliza de lado (todo queda a mano) y se compacta */
+  .lz-top {
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 0 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    touch-action: pan-x;
+  }
+  .lz-top::-webkit-scrollbar {
+    display: none;
+  }
+  .lz-left,
+  .lz-right {
+    flex: none;
+  }
+  .lz-left .lz-btn svg + span,
+  .lz-title,
+  .lz-save {
+    display: none;
+  }
+  .lz-pop.left,
+  .lz-pop.right,
+  .lz-pop.wide {
+    left: 62px;
+    right: 62px;
+    width: auto;
+  }
+  .lz-tablet {
+    right: 62px;
+    left: 62px;
+    width: auto;
+  }
+}
+
+/* Opciones vectoriales dentro de la barra de opciones (una sola fila; la ayuda sale al pasar por encima) */
+.lz-opts .lz-vbar {
+  position: static;
+  transform: none;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.lz-opts .lz-vbar-row {
+  overflow: visible;
+}
+.lz-opts .lz-vbar-hint > span {
+  display: none;
+}
+.lz-opts .lz-vbar-field {
+  padding: 3px 8px;
 }

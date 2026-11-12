@@ -53,6 +53,7 @@ import { TabletPanel, useTabletHost, type TabletApi } from './tablet'
 import type { PadPoint } from '../shared/tablet'
 import { isVectorTool, useVector, VectorOverlay, VectorPanel, VectorSvg } from './VectorTools'
 import { translatePath } from './vectorPaths'
+import { ToolColumn, toolDef } from './Toolbar'
 import './lienzo.css'
 
 /** Puntero de los trazos que llegan del móvil que hace de tableta (no choca con los del navegador). */
@@ -1951,6 +1952,7 @@ export function Lienzo(props: Props) {
   // A pantalla completa, fuera del editor (sus paneles tienen transformaciones que encerrarían el lienzo)
   return createPortal(
     <div className={`lienzo v3d-${props.mode3d}`}>
+      {/* Barra de arriba (como la de aplicación de Photoshop): navegación, nombre, vista, deshacer, tableta y guardar */}
       <header className="lz-top">
         <div className="lz-left">
           <button className="lz-btn lz-exit" onClick={props.onExit} title="Salir del lienzo a tus diseños (se guarda antes)" aria-label="Salir del lienzo">
@@ -1958,47 +1960,20 @@ export function Lienzo(props: Props) {
             <span>Salir</span>
           </button>
           <button className="lz-btn" onClick={props.onMenu} title="Empezar un diseño nuevo o abrir otro">
-            <Icon d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM11 11h5v5h-5z" /> Diseños
+            <Icon d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM11 11h5v5h-5z" /> <span>Diseños</span>
           </button>
           <button className="lz-btn" onClick={props.onGarment} title="La prenda: modelo, piezas, medidas y datos del diseño">
-            Prenda
-          </button>
-          <button className={panel === 'acciones' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'acciones' ? null : 'acciones')} title="Acciones: añadir, exportar">
-            <Icon d="M10 3.5l1.6 3.8 4 .4-3 2.7.9 4-3.5-2.1-3.5 2.1.9-4-3-2.7 4-.4z" />
-          </button>
-          <button className={panel === 'ajustes' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'ajustes' ? null : 'ajustes')} title="Guías: simetría, cuadrícula, estabilizador">
-            <Icon d="M10 2.5v15M2.5 10h15M5 5l10 10" />
-          </button>
-          <button className={panel === 'biblioteca' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'biblioteca' ? null : 'biblioteca')} title="Biblioteca: prendas y fornituras para arrastrar al lienzo">
-            <Icon d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM13.5 11v5M11 13.5h5" />
-          </button>
-          <button className={panel === 'luces' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'luces' ? null : 'luces')} title="Luces y sombras: automáticas o a mano">
-            <Icon d="M10 3.5a6.5 6.5 0 100 13zM10 3.5a6.5 6.5 0 010 13" />
-          </button>
-          <button className={panel === 'ia' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'ia' ? null : 'ia')} title="Imagen con IA: texto preparado para Gemini o ChatGPT">
-            <Icon d="M10 2.5l1.4 3.6 3.6 1.4-3.6 1.4L10 12.5 8.6 8.9 5 7.5l3.6-1.4zM15 12l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8zM5 13l.6 1.4 1.4.6-1.4.6L5 17l-.6-1.4L3 15l1.4-.6z" />
-          </button>
-          <button className={tool === 'select' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('select')} title="Selección a mano (S): rodea una zona para moverla, escalarla, girarla, copiarla o borrarla">
-            <Icon d="M10 3.5c4 0 6.5 1.8 6.5 4.2S14 12 10 12 3.5 10.1 3.5 7.7 6 3.5 10 3.5zM6 11.5l-1.5 5 2-1 1 1.5" />
-          </button>
-          <button className={tool === 'pen' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('pen')} title="Pluma (P): trazados vectoriales con puntos y curvas, como en Illustrator">
-            <Icon d="M10 2.5l4.5 7-4.5 8-4.5-8zM10 9.5v8M10 9.5a1 1 0 100 .01" />
-          </button>
-          <button className={tool === 'vpencil' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('vpencil')} title="Lápiz vectorial (L): dibuja a mano alzada y el trazo se convierte en curvas limpias y editables">
-            <Icon d="M13.5 3.5l3 3-8.5 8.5-3.5.5.5-3.5zM3 17.5c2-1.5 4-1.5 6 0s4 1.5 6 0" />
-          </button>
-          <button className={tool === 'direct' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('direct')} title="Selección directa (A): mueve puntos, manejadores o trazados vectoriales">
-            <Icon d="M5 3l10 6.5-4.5 1.2 2.6 4.8-1.8 1-2.6-4.8L5 15z" />
-          </button>
-          <button className={tool === 'vshape' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('vshape')} title="Formas vectoriales (M): rectángulo, elipse, polígono, estrella y línea">
-            <Icon d="M3.5 3.5h7v7h-7zM14 9.5a3.5 3.5 0 110 7 3.5 3.5 0 010-7z" />
-          </button>
-          <button className={tool === 'move' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('move')} title="Mover la capa (V)">
-            <Icon d="M10 2.5v15M2.5 10h15M10 2.5l-2.5 2.5M10 2.5l2.5 2.5M10 17.5l-2.5-2.5M10 17.5l2.5-2.5M2.5 10l2.5-2.5M2.5 10l2.5 2.5M17.5 10l-2.5-2.5M17.5 10l-2.5 2.5" />
+            <span>Prenda</span>
           </button>
           <span className="lz-title">{props.name}</span>
         </div>
         <div className="lz-right">
+          <button className="lz-icon" onClick={undo} disabled={!r.history.canUndo()} title="Deshacer (Ctrl+Z o toque con dos dedos)" aria-label="Deshacer">
+            <Icon d="M7 6.5L3.5 10 7 13.5M3.5 10H12a4.5 4.5 0 010 9h-2" />
+          </button>
+          <button className="lz-icon" onClick={redo} disabled={!r.history.canRedo()} title="Rehacer (Ctrl+Mayús+Z o toque con tres dedos)" aria-label="Rehacer">
+            <Icon d="M13 6.5l3.5 3.5-3.5 3.5M16.5 10H8a4.5 4.5 0 000 9h2" />
+          </button>
           <div className="lz-seg" role="group" aria-label="Vista">
             {MODES_3D.map((m) => (
               <button key={m.id} className={props.mode3d === m.id ? 'on' : ''} onClick={() => props.onMode3d(m.id)} title={m.title}>
@@ -2006,31 +1981,6 @@ export function Lienzo(props: Props) {
               </button>
             ))}
           </div>
-          <span className="lz-save">{props.saving ? 'Guardando…' : props.dirty ? 'Sin guardar' : 'Guardado'}</span>
-          <button className="lz-btn primary" onClick={props.onSave} disabled={!props.dirty || props.saving} title="Guardar (Ctrl+S)">
-            Guardar
-          </button>
-          <button className={tool === 'brush' ? 'lz-icon on' : 'lz-icon'} onClick={() => (tool === 'brush' ? setPanel(panel === 'brushes' ? null : 'brushes') : setTool('brush'))} title="Pincel (B) — toca otra vez para elegir pincel">
-            <Icon d="M14.5 3.5l2 2-8 8-3 1 1-3zM4 16.5c1.5 0 2.5-1 2.5-2.5" />
-          </button>
-          <button className={tool === 'eraser' ? 'lz-icon on' : 'lz-icon'} onClick={() => (tool === 'eraser' ? setPanel(panel === 'brushes' ? null : 'brushes') : setTool('eraser'))} title="Borrador (E) — toca otra vez para elegir su pincel">
-            <Icon d="M7 16.5h9M3.5 12.5l7-7 5 5-6 6H7z" />
-          </button>
-          <button className={tool === 'shaper' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('shaper')} title="Shaper (N): dibuja una forma a mano y sale perfecta; un garabato encima borra">
-            <Icon d="M3.5 14.5c2-6 4-9 6.5-9s3 3 1 5.5-1 4 2 4 3-2 3.5-3.5M4 4.5h4v4H4z" />
-          </button>
-          <button className={tool === 'curve' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('curve')} title="Curvatura (C): pon puntos y la curva pasa por todos">
-            <Icon d="M3.5 15.5C6 6 14 14 16.5 4.5M3.5 15.5h.01M10 10h.01M16.5 4.5h.01" />
-          </button>
-          <button className={tool === 'text' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('text')} title="Texto (T): toca el lienzo para escribir">
-            <Icon d="M4 5V3.5h12V5M10 3.5v13M7.5 16.5h5" />
-          </button>
-          <button className={tool === 'picker' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('picker')} title="Cuentagotas (I)">
-            <Icon d="M13 3.5l3.5 3.5-2 2-3.5-3.5zM11 5.5l-7 7v3h3l7-7" />
-          </button>
-          <button className={tool === 'fill' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('fill')} title="Bote de pintura: rellena la zona cerrada (G)">
-            <Icon d="M4 9.5l5.5-5.5 6 6-5.5 5.5zM16.5 12.5c0 1.5-1 2.5-1 2.5s-1-1-1-2.5" />
-          </button>
           <button
             className={tablet.status === 'connected' ? 'lz-icon on' : 'lz-icon'}
             onClick={() => setTabletOpen(!tabletOpen)}
@@ -2038,49 +1988,71 @@ export function Lienzo(props: Props) {
           >
             <Icon d="M7 2.5h6a1 1 0 011 1v13a1 1 0 01-1 1H7a1 1 0 01-1-1v-13a1 1 0 011-1zM9 15h2M8.5 11.5l3-5 1 .6-3 5-1.3.7z" />
           </button>
-          <button className={panel === 'layers' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'layers' ? null : 'layers')} title="Capas">
-            <Icon d="M10 3l7 3.5-7 3.5-7-3.5zM3 10l7 3.5 7-3.5M3 13.5l7 3.5 7-3.5" />
+          <span className="lz-save">{props.saving ? 'Guardando…' : props.dirty ? 'Sin guardar' : 'Guardado'}</span>
+          <button className="lz-btn primary" onClick={props.onSave} disabled={!props.dirty || props.saving} title="Guardar (Ctrl+S)">
+            Guardar
           </button>
-          <button className="lz-color-btn" style={{ background: settings.color }} onClick={() => setPanel(panel === 'color' ? null : 'color')} title="Color" aria-label="Color" />
         </div>
       </header>
 
-      {/* Columna de la izquierda: tamaño, opacidad, deshacer */}
-      <aside className="lz-side">
-        {(
-          [
-            ['brush', 'Pincel', 'M14.5 3.5l2 2-8 8-3 1 1-3zM4 16.5c1.5 0 2.5-1 2.5-2.5', 'Pincel (B)'],
-            ['eraser', 'Goma', 'M7 16.5h9M3.5 12.5l7-7 5 5-6 6H7z', 'Goma de borrar (E)'],
-            ['shaper', 'Formas', 'M3.5 14.5c2-6 4-9 6.5-9s3 3 1 5.5-1 4 2 4 3-2 3.5-3.5M4 4.5h4v4H4z', 'Shaper (N): dibuja una forma a mano y sale perfecta; un garabato encima borra'],
-            ['curve', 'Curva', 'M3.5 15.5C6 6 14 14 16.5 4.5M3.5 15.5h.01M10 10h.01M16.5 4.5h.01', 'Curvatura (C): pon puntos y la curva pasa por todos; Intro o doble clic acaba'],
-          ] as const
-        ).map(([id, label, d, title]) => (
-          <button key={id} className={tool === id ? 'lz-tool on' : 'lz-tool'} onClick={() => (tool === id && (id === 'brush' || id === 'eraser') ? setPanel(panel === 'brushes' ? null : 'brushes') : setTool(id))} title={title}>
-            <Icon d={d} />
-            <span>{label}</span>
-          </button>
-        ))}
-        <VSlider value={Math.log(size) / Math.log(500)} onChange={(v) => setSize(Math.max(1, Math.round(500 ** v)))} title={`Tamaño: ${Math.round(size)} px`} />
-        <span className="lz-side-val">{Math.round(size)}</span>
-        <VSlider value={opacity} onChange={(v) => setOpacity(Math.max(0.02, Math.round(v * 100) / 100))} title={`Opacidad: ${Math.round(opacity * 100)} %`} />
-        <span className="lz-side-val">{Math.round(opacity * 100)}%</span>
-        {tool !== 'eraser' && (
+      {/* Barra de opciones (como en Photoshop): lo de la herramienta elegida */}
+      <div className="lz-opts" onPointerDown={(e) => e.stopPropagation()}>
+        <span className="lz-opts-tool">{toolDef(tool)?.label ?? ''}</span>
+        {(tool === 'brush' || tool === 'eraser' || tool === 'shaper' || tool === 'curve') && (
           <>
-            <VSlider value={streamline} onChange={(v) => setSettings({ streamline: { ...settings.streamline, [brush.id]: Math.round(v * 20) / 20 } })} title={`Suavizado del trazo: ${Math.round(streamline * 100)} %`} />
-            <span className="lz-side-val" title="Suavizado del trazo">Suav. {Math.round(streamline * 100)}</span>
+            <button className={panel === 'brushes' ? 'lz-chip on' : 'lz-chip'} onClick={() => setPanel(panel === 'brushes' ? null : 'brushes')} title="Elegir pincel">
+              {brush.name} ▾
+            </button>
+            <label className="lz-opt" title="Tamaño del pincel (teclas [ y ])">
+              <span>Tamaño</span>
+              <input type="range" min={0} max={1} step={0.001} value={Math.log(size) / Math.log(500)} onChange={(e) => setSize(Math.max(1, Math.round(500 ** Number(e.target.value))))} />
+              <b>{Math.round(size)} px</b>
+            </label>
+            <label className="lz-opt" title="Opacidad">
+              <span>Opacidad</span>
+              <input type="range" min={0.02} max={1} step={0.01} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} />
+              <b>{Math.round(opacity * 100)} %</b>
+            </label>
+            {tool !== 'eraser' && (
+              <label className="lz-opt" title="Suavizado del trazo (estabilizador)">
+                <span>Suavizado</span>
+                <input type="range" min={0} max={1} step={0.05} value={streamline} onChange={(e) => setSettings({ streamline: { ...settings.streamline, [brush.id]: Number(e.target.value) } })} />
+                <b>{Math.round(streamline * 100)} %</b>
+              </label>
+            )}
           </>
         )}
-        <button className="lz-tool" onClick={undo} disabled={!r.history.canUndo()} title="Deshacer el último paso (Ctrl+Z o toque con dos dedos)">
-          <Icon d="M7 6.5L3.5 10 7 13.5M3.5 10H12a4.5 4.5 0 010 9h-2" />
-          <span>Deshacer</span>
-        </button>
-        <button className="lz-tool" onClick={redo} disabled={!r.history.canRedo()} title="Rehacer (Ctrl+Mayús+Z o toque con tres dedos)">
-          <Icon d="M13 6.5l3.5 3.5-3.5 3.5M16.5 10H8a4.5 4.5 0 000 9h2" />
-          <span>Rehacer</span>
-        </button>
+        {tool === 'text' && <span className="lz-opts-hint">Toca el lienzo para escribir; el texto elegido se edita en Capas</span>}
+        {tool === 'move' && <span className="lz-opts-hint">Arrastra para mover la capa elegida</span>}
+        {tool === 'select' && <span className="lz-opts-hint">Rodea una zona para moverla, escalarla, girarla, copiarla o borrarla</span>}
+        {tool === 'picker' && <span className="lz-opts-hint">Toca un color del lienzo para cogerlo</span>}
+        {isVectorTool(tool) && <VectorPanel vec={vec} tool={tool} color={settings.color} />}
+      </div>
+
+      {/* Herramientas a la izquierda, agrupadas como en Photoshop (Toolbar.tsx), y el color debajo */}
+      <ToolColumn tool={tool} onPick={(id) => setTool(id as Tool)} onReclick={(id) => (id === 'brush' || id === 'eraser' ? setPanel(panel === 'brushes' ? null : 'brushes') : undefined)}>
+        <button className="lz-color-btn lz-tools-color" style={{ background: settings.color }} onClick={() => setPanel(panel === 'color' ? null : 'color')} title="Color" aria-label="Color" />
+      </ToolColumn>
+
+      {/* Paneles a la derecha (como los de Photoshop): se abren y cierran tocándolos */}
+      <aside className="lz-dock" aria-label="Paneles" onPointerDown={(e) => e.stopPropagation()}>
+        {(
+          [
+            ['layers', 'Capas', 'M10 3l7 3.5-7 3.5-7-3.5zM3 10l7 3.5 7-3.5M3 13.5l7 3.5 7-3.5'],
+            ['biblioteca', 'Biblioteca: prendas, fornituras, gráficos y texturas', 'M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM13.5 11v5M11 13.5h5'],
+            ['ajustes', 'Guías: simetría, cuadrícula, perspectiva', 'M10 2.5v15M2.5 10h15M5 5l10 10'],
+            ['luces', 'Luces y sombras: automáticas o a mano', 'M10 3.5a6.5 6.5 0 100 13zM10 3.5a6.5 6.5 0 010 13'],
+            ['ia', 'Imagen con IA', 'M10 2.5l1.4 3.6 3.6 1.4-3.6 1.4L10 12.5 8.6 8.9 5 7.5l3.6-1.4zM15 12l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8zM5 13l.6 1.4 1.4.6-1.4.6L5 17l-.6-1.4L3 15l1.4-.6z'],
+            ['acciones', 'Acciones: añadir, exportar, historial', 'M10 3.5l1.6 3.8 4 .4-3 2.7.9 4-3.5-2.1-3.5 2.1.9-4-3-2.7 4-.4z'],
+          ] as const
+        ).map(([id, title, d]) => (
+          <button key={id} className={panel === id ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === id ? null : id)} title={title} aria-label={title.split(':')[0]}>
+            <Icon d={d} />
+          </button>
+        ))}
       </aside>
       <QuickButton
-        at={settings.fab ?? [0.035, 0.9]}
+        at={settings.fab ?? [0.965, 0.93]}
         open={!!quick}
         onMove={(fab) => setSettings({ fab })}
         onToggle={(b) => setQuick(quick ? null : { x: b.left < window.innerWidth / 2 ? b.right + 110 : b.left - 110, y: b.top + b.height / 2 })}
@@ -2665,7 +2637,6 @@ export function Lienzo(props: Props) {
           </div>
         </Pop>
       )}
-      {isVectorTool(tool) && <VectorPanel vec={vec} tool={tool} color={settings.color} />}
       {tabletOpen && <TabletPanel tablet={tablet} onClose={() => setTabletOpen(false)} />}
       {!tabletOpen && tablet.status === 'connected' && (
         <button className="lz-tablet-badge" onClick={() => setTabletOpen(true)} title="Móvil como tableta">
@@ -2966,29 +2937,6 @@ function Pop({ title, className, children, action }: { title: string; className:
   )
 }
 
-/** Deslizador vertical (tamaño y opacidad, como en Procreate). */
-function VSlider({ value, onChange, title }: { value: number; onChange: (v: number) => void; title: string }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const set = (clientY: number) => {
-    const r = ref.current!.getBoundingClientRect()
-    onChange(Math.min(1, Math.max(0, 1 - (clientY - r.top) / r.height)))
-  }
-  return (
-    <div
-      ref={ref}
-      className="lz-vslider"
-      title={title}
-      onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId)
-        set(e.clientY)
-      }}
-      onPointerMove={(e) => e.buttons && set(e.clientY)}
-    >
-      <div className="lz-vslider-fill" style={{ height: `${value * 100}%` }} />
-      <div className="lz-vslider-knob" style={{ bottom: `calc(${value * 100}% - 7px)` }} />
-    </div>
-  )
-}
 
 /** Biblioteca de pinceles por grupos, cada uno con su muestra de trazo. */
 function BrushLibrary({ brushes, current, onPick, color }: { brushes: BrushPreset[]; current: string; onPick: (id: string) => void; color: string }) {
