@@ -186,7 +186,16 @@ Queda: más tiradores (cordón trenzado con herrete) y cremalleras de colores ya
    - **Logos tipográficos:** 12 estilos de la hoja (contorno, óvalo, script, en círculo, apilado, con flor, estirado, repetido…), **con textos inventados**. En la hoja hay nombres que pueden ser marcas reales (p. ej. «Brainwashed», «Sinner», «Shining»): **no los copio**, hago el estilo con otro texto.
 3. Todo se guarda en «Mis fornituras» o «Mis gráficos» para usarlo en cualquier diseño.
 
-## Fase 6 — Graffiti
+## Fase 6 — Graffiti ✅ hecha (12-11-2026)
+Hecho:
+- **Generador de graffiti** en el creador («Graffiti») y en el lienzo (Biblioteca → Gráficos → «+ Graffiti»).
+- **Seis estilos:** burbuja, wildstyle, blockbuster, 3D, tag y cromado.
+- **Efectos:** colores, degradado, contorno doble, volumen, gotas, brillos, flechas, estrellas, fondo (nube, cuadros o estrellas) e inclinación.
+- **Fuentes de graffiti nuevas:** Rubik Bubbles, Beastly, Puddles y Dirt, Knewave y Titan One.
+- Sale por capas editables y, al guardar, va al lienzo.
+
+Queda: más estilos si me pasas más ejemplos (p. ej. letras entrelazadas de wildstyle hechas a mano).
+
 **Generador de graffiti:** escribes un texto y eliges un estilo.
 - **Estilos:** bubble o throw-up (como «OLOR»), wildstyle (como el rosa), blockbuster, 3D con volumen, tag con rotulador y chrome.
 - **Opciones por capas editables:**

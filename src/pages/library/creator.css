@@ -420,3 +420,52 @@
 .creator > .editor-panel {
   border-left: 1px solid rgb(40 30 20 / 0.07);
 }
+
+/* Generador de graffiti */
+.graffiti-pop {
+  width: min(380px, 90vw);
+  max-height: 70vh;
+  overflow: auto;
+}
+.graffiti-panel {
+  display: grid;
+  gap: 8px;
+}
+.graffiti-field {
+  display: grid;
+  gap: 4px;
+}
+.graffiti-field input[type='text'],
+.graffiti-field input:not([type]) {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+.graffiti-colors {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.graffiti-colors label {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  font-size: 11px;
+  text-align: center;
+}
+.graffiti-colors input {
+  width: 36px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.graffiti-toggles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+  font-size: 13px;
+}

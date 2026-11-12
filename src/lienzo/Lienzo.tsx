@@ -1750,7 +1750,7 @@ export function Lienzo(props: Props) {
   const cursor = tool === 'move' ? 'move' : tool === 'text' ? 'text' : tool === 'select' ? 'crosshair' : tool === 'picker' || tool === 'fill' ? 'crosshair' : 'none'
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
   /** Creador de gráficos abierto encima del lienzo (nuevo, con una plantilla de logo o editando uno). */
-  const [creator, setCreator] = useState<{ id?: string; template?: string } | null>(null)
+  const [creator, setCreator] = useState<{ id?: string; template?: string; graffiti?: boolean } | null>(null)
   creatorOpen.current = !!creator
   const [quick, setQuick] = useState<{ x: number; y: number } | null>(null)
   const QUICK: { label: string; run: () => void }[] = [
@@ -2170,7 +2170,7 @@ export function Lienzo(props: Props) {
           <Library
             onCreateArtwork={(template) => {
               setPanel(null)
-              setCreator({ template })
+              setCreator(template === 'graffiti' ? { graffiti: true } : { template })
             }}
             onEditArtwork={(a) => {
               setPanel(null)
@@ -3072,6 +3072,9 @@ function Library({
           <div className="lz-chips">
             <button className="lz-chip on" onClick={() => onCreateArtwork()}>
               + Crear un gráfico o logo
+            </button>
+            <button className="lz-chip on" onClick={() => onCreateArtwork('graffiti')} title="Escribe un texto y elige el estilo: burbuja, wildstyle, 3D, tag…">
+              + Graffiti
             </button>
           </div>
           <p className="lz-label">Empezar con un logo</p>

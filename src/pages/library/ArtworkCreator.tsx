@@ -16,6 +16,7 @@ import { COLOR_CHART } from '../../designer/colors'
 import { ProductionPanel } from './ProductionPanel'
 import { removeBackground } from './artProduction'
 import { buildTemplate, LOGO_TEMPLATES, templatePalette, type LogoTemplate } from './artTemplates'
+import { GraffitiPanel } from './GraffitiPanel'
 import './creator.css'
 
 const SWATCHES = ['#1d1d1f', '#ffffff', '#f2efe8', '#b3261e', '#c4643a', '#e3b341', '#2f4a3a', '#1f2a44', '#3b5b8c', '#a99bc9']
@@ -53,6 +54,8 @@ export interface EmbeddedCreator {
   id?: string
   /** Plantilla de logo con la que empezar. */
   template?: string
+  /** Empezar con el generador de graffiti abierto. */
+  graffiti?: boolean
   onSaved: (a: Artwork) => void
   onClose: () => void
 }
@@ -88,6 +91,7 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
   const drawing = useRef<{ down: boolean; start: [number, number] } | null>(null)
   const [shapeMenu, setShapeMenu] = useState(false)
   const [templateMenu, setTemplateMenu] = useState(false)
+  const [graffitiMenu, setGraffitiMenu] = useState(!!embedded?.graffiti)
   const brand = useAuth().user?.brandColors ?? []
   const exportRef = useRef<SVGGElement>(null)
   const imageInput = useRef<HTMLInputElement>(null)
@@ -543,6 +547,31 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
               <div className="shape-menu-panel template-panel" role="menu">
                 <TemplateGallery brand={brand} onPick={applyTemplate} />
                 <p className="muted small">Sustituye lo que hay en el lienzo (Ctrl+Z para volver).</p>
+              </div>
+            )}
+          </div>
+          <div className="shape-menu">
+            <button
+              className={graffitiMenu ? 'button active' : 'button'}
+              onClick={() => {
+                setGraffitiMenu((v) => !v)
+                setTemplateMenu(false)
+                setShapeMenu(false)
+              }}
+              aria-expanded={graffitiMenu}
+            >
+              Graffiti ▾
+            </button>
+            {graffitiMenu && (
+              <div className="shape-menu-panel graffiti-pop" role="dialog">
+                <GraffitiPanel
+                  onGenerate={(next, label) => {
+                    setLayers(next)
+                    setSelection([])
+                    setGraffitiMenu(false)
+                    if (name === 'Logo sin título' || name.startsWith('Graffiti')) setName(label)
+                  }}
+                />
               </div>
             )}
           </div>
