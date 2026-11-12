@@ -1283,3 +1283,53 @@
   gap: 4px;
   flex-shrink: 0;
 }
+
+/* Salir del lienzo (arriba a la izquierda) */
+.lz-exit {
+  gap: 4px;
+  padding-left: 8px;
+}
+
+/* «Mis diseños»: miniatura del lienzo y botón de eliminar en la esquina */
+.lz-design-wrap {
+  position: relative;
+}
+.lz-design-wrap .lz-lib-item {
+  width: 100%;
+}
+.lz-design-delete {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: rgb(20 20 22 / 0.75);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.lz-design-wrap:hover .lz-design-delete,
+.lz-design-delete:focus-visible {
+  opacity: 1;
+}
+.lz-design-delete:hover {
+  background: #e5484d;
+}
+@media (hover: none) {
+  .lz-design-delete {
+    opacity: 1;
+  }
+}
+.lz-lib-thumb .design-thumb-img,
+.lz-lib-thumb .design-thumb-paper {
+  max-width: 100%;
+  max-height: 100%;
+}

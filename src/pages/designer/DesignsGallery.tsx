@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { api, useApi } from '../../api/client'
 import { PageHeader, Status } from '../../components/ui'
-import { FlatView } from '../../designer/FlatView'
-import { getTemplate } from '../../designer/templates'
+import { deleteWithUndo } from '../../components/undo'
+import { DesignThumb } from './DesignThumb'
 import './designer.css'
 
 /** «Diseños»: todos los diseños de la cuenta con su dibujo, para abrir uno o empezar otro en el lienzo. */
@@ -77,11 +77,11 @@ export function DesignsGallery() {
 
       <div className="design-grid">
         {list.map((d) => {
-          const t = getTemplate(d.template)
           return (
-            <Link key={d.id} to={`/disenador/${d.id}`} className="card design-card">
+            <div key={d.id} className="design-card-wrap">
+            <Link to={`/disenador/${d.id}`} className="card design-card">
               <div className="design-thumb">
-                {t ? <FlatView template={t} data={d.data} view="front" /> : <span className="design-thumb-blank">Lienzo</span>}
+                <DesignThumb design={d} />
               </div>
               <div className="design-body">
                 <strong>{d.name}</strong>
@@ -89,6 +89,12 @@ export function DesignsGallery() {
                 <span className="design-date">{new Date(d.updatedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
               </div>
             </Link>
+              <button type="button" className="design-card-delete" onClick={() => deleteWithUndo(`/designs/${d.id}`, d.name)} title="Eliminar diseño" aria-label={`Eliminar ${d.name}`}>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
+                </svg>
+              </button>
+            </div>
           )
         })}
       </div>

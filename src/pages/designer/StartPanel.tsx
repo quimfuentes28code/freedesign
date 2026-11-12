@@ -1,3 +1,5 @@
+import { deleteWithUndo } from '../../components/undo'
+import { DesignThumb } from './DesignThumb'
 import { useState } from 'react'
 import { api, useApi } from '../../api/client'
 import { FlatView } from '../../designer/FlatView'
@@ -17,6 +19,8 @@ interface Props {
   onOpen: (id: string) => void
   onNew: () => void
   onLeave: (to: string) => void
+  /** Se ha eliminado el diseño abierto: el editor pasa a un lienzo en blanco */
+  onDeletedCurrent: () => void
 }
 
 /**
@@ -126,19 +130,31 @@ export function StartPanel(props: Props) {
                 Nuevo diseño
               </button>
             )}
-            {all.map((d) => {
-              const t = getTemplate(d.template)
-              return (
-                <button key={d.id} className={d.id === props.current ? 'lz-lib-item on' : 'lz-lib-item'} onClick={() => (d.id === props.current ? props.onClose() : props.onOpen(d.id))} title={d.name}>
-                  <div className="lz-lib-thumb">{t && <FlatView template={t} data={d.data} view="front" />}</div>
+            {all.map((d) => (
+              <div key={d.id} className="lz-design-wrap">
+                <button className={d.id === props.current ? 'lz-lib-item on' : 'lz-lib-item'} onClick={() => (d.id === props.current ? props.onClose() : props.onOpen(d.id))} title={d.name}>
+                  <div className="lz-lib-thumb">
+                    <DesignThumb design={d} />
+                  </div>
                   <span>
                     {d.name}
                     <br />
                     {d.clientName ?? 'Marca propia'} · {new Date(d.updatedAt).toLocaleDateString('es-ES')}
                   </span>
                 </button>
-              )
-            })}
+                <button
+                  className="lz-design-delete"
+                  title="Eliminar diseño"
+                  aria-label={`Eliminar ${d.name}`}
+                  onClick={() => {
+                    deleteWithUndo(`/designs/${d.id}`, d.name)
+                    if (d.id === props.current) props.onDeletedCurrent()
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
           </div>
         </>
       )}

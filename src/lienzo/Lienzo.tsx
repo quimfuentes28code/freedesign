@@ -129,6 +129,8 @@ interface Props {
   dirty: boolean
   /** Abre «Diseños» (empezar uno nuevo, abrir otro) y «Prenda» (modelo, medidas, datos). */
   onMenu: () => void
+  /** Salir del lienzo a la app (el editor guarda antes lo pendiente) */
+  onExit: () => void
   onGarment: () => void
   /** Vista 3D: sin, al lado del lienzo o a pantalla completa. */
   mode3d: Mode3D
@@ -1772,6 +1774,10 @@ export function Lienzo(props: Props) {
     <div className={`lienzo v3d-${props.mode3d}`}>
       <header className="lz-top">
         <div className="lz-left">
+          <button className="lz-btn lz-exit" onClick={props.onExit} title="Salir del lienzo a tus diseños (se guarda antes)" aria-label="Salir del lienzo">
+            <Icon d="M12.5 4.5 7 10l5.5 5.5" />
+            <span>Salir</span>
+          </button>
           <button className="lz-btn" onClick={props.onMenu} title="Empezar un diseño nuevo o abrir otro">
             <Icon d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM11 11h5v5h-5z" /> Diseños
           </button>

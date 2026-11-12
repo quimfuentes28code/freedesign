@@ -508,3 +508,10 @@
   border-color: var(--accent);
   color: var(--text);
 }
+
+/* Miniatura del lienzo de cada diseño, centrada */
+.mini-thumb {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}

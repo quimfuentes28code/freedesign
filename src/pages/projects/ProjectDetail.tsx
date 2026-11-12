@@ -1,10 +1,9 @@
+import { DesignThumb } from '../designer/DesignThumb'
 import { deleteWithUndo } from '../../components/undo'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, useApi } from '../../api/client'
 import { Field, PageHeader, Status } from '../../components/ui'
-import { FlatView } from '../../designer/FlatView'
-import { getTemplate } from '../../designer/templates'
 import { PAYMENT_METHODS, type PaymentMethod } from '../../shared/economy'
 import { fileUrl, MATERIAL_CATEGORIES } from '../../shared/library'
 import {
@@ -268,10 +267,11 @@ function Designs({ project }: { project: Project }) {
       {designs.data && designs.data.length === 0 && <p className="muted small">Este proyecto aún no tiene diseños.</p>}
       <div className="mini-grid">
         {designs.data?.map((d) => {
-          const t = getTemplate(d.template)
           return (
             <Link key={d.id} to={`/disenador/${d.id}`} className="mini-card">
-              <div className="mini-thumb">{t && <FlatView template={t} data={d.data} view="front" />}</div>
+              <div className="mini-thumb">
+                <DesignThumb design={d} />
+              </div>
               <span>{d.name}</span>
             </Link>
           )

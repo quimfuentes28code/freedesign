@@ -779,3 +779,70 @@ button.design-card {
   font-size: 11px;
   color: var(--muted);
 }
+
+/* Miniatura del lienzo (la imagen guardada o, si aún no la hay, el papel en blanco) */
+.design-thumb {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.design-thumb-img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
+}
+.design-thumb-paper {
+  display: block;
+  width: 100%;
+  max-height: 100%;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
+}
+.mini-thumb .design-thumb-img,
+.mini-thumb .design-thumb-paper {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* Botón de eliminar de cada tarjeta de la galería (con «Deshacer») */
+.design-card-wrap {
+  position: relative;
+  display: flex;
+}
+.design-card-wrap .design-card {
+  flex: 1;
+}
+.design-card-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgb(28 28 31 / 0.85);
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.design-card-wrap:hover .design-card-delete,
+.design-card-delete:focus-visible {
+  opacity: 1;
+}
+.design-card-delete:hover {
+  color: #fff;
+  background: #e5484d;
+  border-color: #e5484d;
+}
+@media (hover: none) {
+  .design-card-delete {
+    opacity: 1;
+  }
+}

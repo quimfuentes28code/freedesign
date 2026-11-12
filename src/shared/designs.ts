@@ -589,6 +589,8 @@ export interface DesignData {
   brandTemplate?: boolean
   /** Lienzo creativo (capas de pintura, mockups e imágenes), ver src/lienzo/. */
   canvas?: CanvasDoc
+  /** Miniatura de lo que hay en el lienzo (clave de KV), para las galerías; se rehace al guardar si el lienzo cambia. */
+  thumb?: string
   /** Detalles colocados a mano (botones, cremalleras, parches…). */
   details?: Detail[]
   /** Estilo de los botones y la cremallera que trae la prenda base. */

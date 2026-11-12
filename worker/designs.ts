@@ -157,6 +157,7 @@ async function readDesign(request: Request, env: Env, uid: string): Promise<Desi
       ...(hardware ? { hardware } : {}),
       ...(blocks.length ? { blocks } : {}),
       ...(readCanvas(data.canvas) ? { canvas: readCanvas(data.canvas)! } : {}),
+      ...(isFileKey(text(data.thumb)) ? { thumb: text(data.thumb) } : {}),
     },
   }
 }
