@@ -1447,6 +1447,7 @@
   border-radius: 3px;
   border: 1px solid rgb(0 0 0 / 0.2);
   vertical-align: -1px;
+}
 
 /* Móvil como tableta (tablet.tsx): ventana con el QR y aviso de conectado */
 .lz-tablet {
