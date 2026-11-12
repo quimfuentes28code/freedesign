@@ -227,6 +227,8 @@ export const BUTTON_STYLES = [
   { id: 'cuadrado', label: 'Cuadrado' },
   { id: 'escudo', label: 'Escudo' },
   { id: 'estrella', label: 'Estrella' },
+  { id: 'presion', label: 'De presión (con texto)' },
+  { id: 'pin', label: 'Pin (chapa)' },
   { id: 'logo', label: 'Con logo' },
 ] as const
 export type ButtonStyle = (typeof BUTTON_STYLES)[number]['id']
@@ -238,6 +240,9 @@ export const ZIP_STYLES = [
   { id: 'vislon', label: 'Plástico (Vislon)' },
   { id: 'invisible', label: 'Invisible' },
   { id: 'grueso', label: 'Dientes gruesos' },
+  { id: 'reflectante', label: 'Con banda reflectante' },
+  { id: 'impermeable', label: 'Impermeable (sellada)' },
+  { id: 'doble', label: 'Doble cursor' },
 ] as const
 export type ZipStyle = (typeof ZIP_STYLES)[number]['id']
 
@@ -252,6 +257,9 @@ export const PULLER_STYLES = [
   { id: 'candado', label: 'Candado' },
   { id: 'mosqueton', label: 'Mosquetón' },
   { id: 'cinta', label: 'Cinta larga' },
+  { id: 'caja', label: 'Rayo con caja' },
+  { id: 'anilla', label: 'Anilla' },
+  { id: 'trenzado', label: 'Cordón trenzado con herrete' },
   { id: 'logo', label: 'Con logo' },
 ] as const
 export type PullerStyle = (typeof PULLER_STYLES)[number]['id']
@@ -261,6 +269,7 @@ export const PATCH_SHAPES = [
   { id: 'rect', label: 'Rectangular' },
   { id: 'redondo', label: 'Redondo' },
   { id: 'escudo', label: 'Escudo' },
+  { id: 'libre', label: 'Recortado a la forma (dibujo propio)' },
 ] as const
 export type PatchShape = (typeof PATCH_SHAPES)[number]['id']
 
@@ -299,7 +308,9 @@ export const CORD_STYLES = [
   { id: 'herrete', label: 'Con herretes' },
   { id: 'nudo', label: 'Con nudo' },
   { id: 'plano', label: 'Plano (con texto)' },
-  { id: 'plano-dibujo', label: 'Plano con dibujo' },
+  { id: 'plano-dibujo', label: 'Plano en zigzag' },
+  { id: 'plano-liso', label: 'Plano liso' },
+  { id: 'plano-rayas', label: 'Plano con rayas' },
 ] as const
 
 /** Topes de cordón. */
@@ -307,6 +318,7 @@ export const STOPPER_STYLES = [
   { id: 'barril', label: 'Barril' },
   { id: 'doble', label: 'Doble agujero' },
   { id: 'plano', label: 'Plano' },
+  { id: 'logo', label: 'Con logo' },
 ] as const
 
 /** Rotos: rasgado con los hilos de la trama a la vista, agujero con el borde deshilachado o cortes en escalera. */

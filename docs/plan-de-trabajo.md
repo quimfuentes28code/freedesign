@@ -302,6 +302,7 @@ Hecho (12-11-2026):
 - **Vista previa de bordado** (creador de gráficos → Producción → Bordado o Parche): el gráfico con hilo, puntadas y relieve sobre la tela elegida, también en la prueba en una prenda.
 - **Lienzo: deshacer, goma y asistente de dibujo como Illustrator:** columna de la izquierda con Pincel, Goma, Formas y Curva y Deshacer/Rehacer con su nombre; Shaper (formas perfectas y garabato que borra), guías inteligentes y herramienta de curvatura, más el suavizado del trazo a mano.
 - **Estampados:** 29 nuevos (cuadros, rayas, motivos, animal print, camuflajes y efectos) en las piezas, el bote y como **pinceles de estampado** con sus colores y tamaño. Las fornituras salen de los pinceles (están en la Biblioteca). Menú rápido en un botón flotante que se puede mover.
+- **Fornituras:** las que faltaban de tu hoja (cremallera reflectante, impermeable y de doble cursor; tiradores rayo con caja, anilla y cordón trenzado con herrete; cordón plano liso y con rayas; tope con logo; botón de presión con texto y pin; parche recortado a la forma). Se pueden **dibujar y guardar** como fornitura propia. Los efectos de roto, deshilachado y desgaste quedan solo como pinceles.
 - **Pendiente en producción:** crear la tabla con `npm run db:migrate:remote` (migraciones 0011, 0012 y 0013). Mientras no esté, se guarda igual pero sin versiones.
 
 - **Autoguardado** del lienzo e **historial de versiones** de cada diseño.

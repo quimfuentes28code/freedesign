@@ -861,6 +861,56 @@ export function Lienzo(props: Props) {
     insertAbove({ id, kind: 'paint', name: `${l.name} (${cut ? 'cortado' : 'copia'})`, file: null, visible: true, locked: false, opacity: 1, blend: 'normal' })
     clearSelection()
   }
+  /** Lo seleccionado con el lazo pasa a ser una fornitura propia («Mis fornituras»): su dibujo, recortado. */
+  const [hwSave, setHwSave] = useState<{ kind: 'tirador' | 'boton' | 'tope' | 'parche' | 'etiqueta'; name: string } | null>(null)
+  const saveSelectionAsHardware = async () => {
+    const l = selTarget()
+    if (!l || !selection || !selectionPts || !hwSave) return
+    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity]
+    for (let i = 0; i < selectionPts.length; i += 2) {
+      x0 = Math.min(x0, selectionPts[i])
+      x1 = Math.max(x1, selectionPts[i])
+      y0 = Math.min(y0, selectionPts[i + 1])
+      y1 = Math.max(y1, selectionPts[i + 1])
+    }
+    x0 = Math.max(0, Math.floor(x0))
+    y0 = Math.max(0, Math.floor(y0))
+    const w = Math.min(doc.w, Math.ceil(x1)) - x0
+    const h = Math.min(doc.h, Math.ceil(y1)) - y0
+    if (w < 4 || h < 4) return flash('La selección es muy pequeña')
+    const c = document.createElement('canvas')
+    c.width = w
+    c.height = h
+    const g = c.getContext('2d')!
+    g.translate(-x0, -y0)
+    g.clip(selection)
+    g.drawImage(r.layer(l.id), 0, 0)
+    const blob = await new Promise<Blob | null>((res) => c.toBlob(res, 'image/png'))
+    if (!blob) return flash('No se ha podido recortar')
+    try {
+      const { key } = await api.uploadBlob(blob)
+      const art = { artworkId: null, file: key, aspect: h / w }
+      const k = hwSave.kind
+      const base = (kind: DetailKind) => ({ ...DETAIL_DEFAULTS[kind], id: crypto.randomUUID(), view: 'front' as const, x: 0, y: 0 })
+      const detail: Detail =
+        k === 'tirador'
+          ? { ...base('cremallera'), style: 'metal', puller: 'logo', art }
+          : k === 'boton'
+            ? { ...base('boton'), style: 'logo', art }
+            : k === 'tope'
+              ? { ...base('tope'), style: 'logo', art }
+              : k === 'parche'
+                ? { ...base('parche'), style: 'libre', art }
+                : { ...base('etiqueta'), art }
+      const preset = await api.createHardware(hwSave.name.trim() || 'Mi fornitura', detail)
+      setPresets((list) => [preset, ...list])
+      setHwSave(null)
+      clearSelection()
+      flash(`«${preset.name}» guardada en Mis fornituras (Biblioteca)`)
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'No se ha podido guardar')
+    }
+  }
   /** Levanta lo seleccionado (o la capa entera) para moverlo, escalarlo y girarlo. */
   const startTransform = () => {
     const l = selTarget()
@@ -2372,9 +2422,36 @@ export function Lienzo(props: Props) {
               <button className="lz-chip" onClick={selErase}>
                 Borrar
               </button>
+              <button className={hwSave ? 'lz-chip on' : 'lz-chip'} onClick={() => setHwSave(hwSave ? null : { kind: 'tirador', name: '' })} title="Lo que has dibujado y seleccionado pasa a ser una fornitura tuya">
+                Guardar como fornitura
+              </button>
               <button className="lz-chip" onClick={clearSelection}>
                 Quitar selección
               </button>
+              {hwSave && (
+                <div className="lz-hwsave">
+                  <span>Es un…</span>
+                  <div className="lz-chips">
+                    {(
+                      [
+                        ['tirador', 'Tirador de cremallera'],
+                        ['boton', 'Botón'],
+                        ['tope', 'Tope de cordón'],
+                        ['parche', 'Parche'],
+                        ['etiqueta', 'Etiqueta'],
+                      ] as const
+                    ).map(([id, label]) => (
+                      <button key={id} className={hwSave.kind === id ? 'lz-chip on' : 'lz-chip'} onClick={() => setHwSave({ ...hwSave, kind: id })}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <input value={hwSave.name} onChange={(ev) => setHwSave({ ...hwSave, name: ev.target.value })} placeholder="Nombre (p. ej. Tirador calavera)" maxLength={60} />
+                  <button className="lz-btn primary" onClick={saveSelectionAsHardware}>
+                    Guardar en Mis fornituras
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -3227,7 +3304,8 @@ type LibraryItem =
 const stock = (kind: DetailKind, style: string | null): Detail => ({ ...DETAIL_DEFAULTS[kind], ...(style ? { style } : {}), id: 'stock', view: 'front', x: 0, y: 0 })
 
 /** Fornituras de la biblioteca: cada tipo con sus estilos (cremalleras metálicas, invisibles, botones de 2 o 4 agujeros…). */
-const HARDWARE: { kind: DetailKind; styles: (string | null)[] }[] = DETAIL_KINDS.map((k) => ({
+const EFFECTS: DetailKind[] = ['roto', 'deshilachado', 'desgaste']
+const HARDWARE: { kind: DetailKind; styles: (string | null)[] }[] = DETAIL_KINDS.filter((k) => !EFFECTS.includes(k.id)).map((k) => ({
   kind: k.id,
   styles: DETAIL_STYLES[k.id]?.map((s) => s.id) ?? [null],
 }))
@@ -3499,7 +3577,7 @@ function DetailOptions({
   const styles = DETAIL_STYLES[d.kind]
   const [naming, setNaming] = useState<string | null>(null)
   // Llevan logo: botones, tirador de la cremallera, parches y etiquetas
-  const withArt = d.kind === 'boton' || d.kind === 'parche' || d.kind === 'etiqueta' || (d.kind === 'cremallera' && d.puller === 'logo')
+  const withArt = d.kind === 'boton' || d.kind === 'parche' || d.kind === 'etiqueta' || (d.kind === 'cremallera' && d.puller === 'logo') || (d.kind === 'tope' && d.style === 'logo')
   return (
     <>
       {styles && (

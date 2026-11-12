@@ -150,7 +150,7 @@ export function DetailsPanel({ details, onChange, view, selected, onSelect, artw
           )}
 
           {/* Gráfico: botón o tirador con logo, o parche con dibujo */}
-          {((current.kind === 'boton' && current.style === 'logo') || (current.kind === 'cremallera' && current.puller === 'logo') || current.kind === 'parche') && (
+          {((current.kind === 'boton' && (current.style === 'logo' || current.style === 'pin')) || (current.kind === 'cremallera' && current.puller === 'logo') || current.kind === 'parche' || (current.kind === 'tope' && current.style === 'logo')) && (
             <ArtPicker art={current.art ?? null} artworks={artworks} onChange={(art) => update({ art })} />
           )}
 

@@ -127,6 +127,8 @@ export const BRUSHES: BrushPreset[] = [
   { ...FABRIC, id: 'tej-pana', name: 'Pana', group: 'Tejidos', size: 60, grainTexture: 'pana' },
   { ...STITCH, id: 'puno', name: 'Puño de canalé', group: 'Tejidos', size: 40, spacing: 0.22, shape: 'rib', streamline: 0.4 },
   // Desgaste
+  { id: 'lijado', name: 'Lijado suave', group: 'Desgaste', size: 90, opacity: 0.55, flow: 0.12, spacing: 0.1, hardness: 0.1, grain: 0.85, pressureSize: 0.3, pressureOpacity: 0.9, taper: 0, streamline: 0.1, tip: 'round', scatter: 0.2, grainTexture: 'denim-stone' },
+  { id: 'lejia', name: 'Manchas de lejía', group: 'Desgaste', size: 60, opacity: 0.85, flow: 0.5, spacing: 0.9, hardness: 0.35, grain: 0.3, pressureSize: 0.6, pressureOpacity: 0.3, taper: 0, streamline: 0, tip: 'round', scatter: 1.4 },
   { id: 'desgaste3d', name: 'Desgaste 3D', group: 'Desgaste', size: 70, opacity: 0.8, flow: 0.25, spacing: 0.1, hardness: 0.3, grain: 0.9, pressureSize: 0.3, pressureOpacity: 0.8, taper: 0, streamline: 0.1, tip: 'round', scatter: 0.15, grainTexture: 'denim-stone' },
   { ...STAMP, id: 'rotos', name: 'Rotos (hilos)', group: 'Desgaste', size: 50, spacing: 0.5, shape: 'rip', scatter: 0.15, streamline: 0.1 },
   { ...STAMP, id: 'deshilachado', name: 'Deshilachado', group: 'Desgaste', size: 30, spacing: 0.35, shape: 'fray', streamline: 0.1 },

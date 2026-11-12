@@ -1948,3 +1948,18 @@
 .lz-opts .lz-vbar-field {
   padding: 3px 8px;
 }
+
+/* Guardar lo seleccionado como fornitura propia */
+.lz-hwsave {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding-top: 6px;
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+}
+.lz-hwsave input {
+  flex: 1 1 180px;
+  min-width: 0;
+}
