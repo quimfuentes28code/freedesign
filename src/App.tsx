@@ -18,6 +18,7 @@ import { MaterialsCatalog } from './pages/library/MaterialsCatalog'
 import { SupplierForm, SuppliersList } from './pages/library/Suppliers'
 import { CollectionsPage } from './pages/projects/Collections'
 import { ProjectDetail } from './pages/projects/ProjectDetail'
+import { ProjectPresentation } from './pages/projects/ProjectPresentation'
 import { ProjectsPage } from './pages/projects/ProjectsPage'
 import { ProductionPage } from './pages/production/ProductionPage'
 import { TechPackPage } from './pages/production/TechPack'
@@ -56,6 +57,7 @@ export default function App() {
               <Route path="proyectos/nuevo" element={<ProjectDetail />} />
               <Route path="proyectos/colecciones" element={<CollectionsPage />} />
               <Route path="proyectos/:id" element={<ProjectDetail />} />
+              <Route path="proyectos/:id/presentacion" element={<ProjectPresentation />} />
               <Route path="produccion" element={<ProductionPage />} />
               <Route path="produccion/ficha/:id" element={<TechPackPage />} />
               <Route path="produccion/patron/:id" element={<PatternPage />} />

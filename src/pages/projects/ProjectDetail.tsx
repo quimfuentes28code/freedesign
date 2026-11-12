@@ -115,6 +115,9 @@ export function ProjectDetail() {
                   <Link to={designLink(project)} className="button">
                     Diseñar
                   </Link>
+                  <Link to={`/proyectos/${id}/presentacion`} className="button">
+                    Presentación
+                  </Link>
                   <Link to={`/produccion/ficha/${id}`} className="button">
                     Ficha técnica
                   </Link>

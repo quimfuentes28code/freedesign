@@ -296,6 +296,7 @@ Hecho (12-11-2026):
 - **Versiones:** una automática cada 10 minutos de trabajo y las que guardes con nombre (pestaña «Versiones» de «Prenda»). Puedes volver a cualquiera; antes se guarda cómo estaba.
 - **Variantes de color en el lienzo** (pestaña «Variantes» de «Prenda»): crear, cambiar y renombrar, y «Ver juntas» para verlas una al lado de otra y descargarlas en PNG.
 - **Carta de colores con buscador** por nombre o código y «Tus códigos» (los Pantone o de proveedor que ya has usado). La carta oficial de Pantone no se puede incluir porque tiene licencia.
+- **Presentación del proyecto** (botón «Presentación» en la ficha del proyecto): portada, moodboard (fotos, notas, paleta y tejidos), una hoja por diseño (lienzo, delantero, espalda, colores y variantes) y materiales, en A4 apaisado para imprimir o guardar en PDF.
 - **Pendiente en producción:** crear la tabla con `npm run db:migrate:remote` (migraciones 0011, 0012 y 0013). Mientras no esté, se guarda igual pero sin versiones.
 
 - **Autoguardado** del lienzo e **historial de versiones** de cada diseño.

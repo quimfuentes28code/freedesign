@@ -1,0 +1,564 @@
+/* Presentación de un proyecto: hojas A4 apaisadas (papel blanco) para enseñar al cliente; se imprimen o van a PDF. */
+
+.presentation-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.presentation-controls {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.presentation-controls h2 {
+  margin: 8px 0 0;
+}
+
+.presentation-controls .field {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.presentation-controls .field span {
+  color: var(--muted);
+}
+
+.presentation-controls .check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.presentation-pick {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.presentation-pick button {
+  padding: 0;
+  border: 2px solid var(--accent);
+  border-radius: 6px;
+  overflow: hidden;
+  aspect-ratio: 1;
+  background: var(--soft);
+  cursor: pointer;
+}
+
+.presentation-pick button.off {
+  border-color: transparent;
+  opacity: 0.35;
+}
+
+.presentation-pick img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.presentation-sheets {
+  display: grid;
+  gap: 20px;
+  justify-items: center;
+}
+
+/* --- La hoja: A4 apaisado en mm; en pantalla se reduce para que quepa --- */
+.pres-sheet {
+  position: relative;
+  width: 297mm;
+  height: 210mm;
+  padding: 14mm 16mm 16mm;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8mm;
+  overflow: hidden;
+  background: #ffffff;
+  color: #1d1d1f;
+  font-family: var(--font-ui, system-ui, sans-serif);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.35);
+  zoom: 0.62;
+  page: presentacion;
+}
+
+@media (min-width: 1500px) {
+  .pres-sheet {
+    zoom: 0.8;
+  }
+}
+
+.pres-sheet * {
+  box-sizing: border-box;
+}
+
+.pres-title {
+  margin: 0;
+  font-size: 22pt;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #1d1d1f;
+}
+
+.pres-title::before {
+  content: '';
+  display: inline-block;
+  width: 9pt;
+  height: 9pt;
+  margin: 0 10pt 3pt 0;
+  border-radius: 2pt;
+  background: var(--accent-2, #ff6a2b);
+  vertical-align: middle;
+}
+
+.pres-sheet h3 {
+  margin: 0 0 3mm;
+  font-family: var(--font-tech, ui-monospace, monospace);
+  font-size: 8pt;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #77777d;
+}
+
+.pres-foot {
+  position: absolute;
+  left: 16mm;
+  right: 16mm;
+  bottom: 7mm;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-tech, ui-monospace, monospace);
+  font-size: 7.5pt;
+  letter-spacing: 0.06em;
+  color: #9a9aa0;
+  text-transform: uppercase;
+}
+
+/* Portada */
+.pres-cover {
+  flex-direction: row;
+  align-items: stretch;
+  gap: 12mm;
+}
+
+.pres-cover-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4mm;
+}
+
+.pres-kicker,
+.pres-date {
+  font-family: var(--font-tech, ui-monospace, monospace);
+  font-size: 9pt;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #77777d;
+}
+
+.pres-kicker::before {
+  content: '';
+  display: inline-block;
+  width: 8pt;
+  height: 8pt;
+  margin: 0 8pt 1pt 0;
+  border-radius: 2pt;
+  background: var(--accent-2, #ff6a2b);
+  vertical-align: middle;
+}
+
+.pres-cover h1 {
+  margin: 0;
+  font-size: 40pt;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: #1d1d1f;
+}
+
+.pres-sub {
+  margin: 0;
+  font-size: 15pt;
+  color: #555;
+}
+
+.pres-cover-art {
+  flex: 1.1;
+  display: grid;
+  place-items: center;
+  border-radius: 4mm;
+  background: #f2f1ee;
+  overflow: hidden;
+}
+
+.pres-cover-art > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pres-cover-art .design-thumb-img,
+.pres-cover-art svg {
+  max-width: 90%;
+  max-height: 90%;
+}
+
+/* Moodboard */
+.pres-mood-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1.7fr 1fr;
+  gap: 8mm;
+  padding-bottom: 6mm;
+}
+
+.pres-collage {
+  display: grid;
+  gap: 3mm;
+  min-height: 0;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+.pres-collage img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+  border-radius: 2mm;
+  display: block;
+}
+
+.pres-collage.n1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+.pres-collage.n2 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+.pres-collage.n3 {
+  grid-template-columns: 2fr 1fr;
+}
+.pres-collage.n3 img:first-child {
+  grid-row: span 2;
+}
+.pres-collage.n4 {
+  grid-template-columns: 1fr 1fr;
+}
+.pres-collage.n5 img:first-child {
+  grid-row: span 2;
+}
+
+.pres-empty {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  border: 1px dashed #cfcfd4;
+  border-radius: 2mm;
+  color: #9a9aa0;
+  font-size: 10pt;
+}
+
+.pres-mood-side {
+  display: flex;
+  flex-direction: column;
+  gap: 5mm;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pres-notes {
+  margin: 0;
+  font-size: 11pt;
+  line-height: 1.5;
+  color: #333;
+  white-space: pre-wrap;
+}
+
+.pres-palette {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.5mm 4mm;
+}
+
+.pres-palette li {
+  display: grid;
+  grid-template-columns: 9mm 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 3mm;
+  align-items: center;
+  font-size: 9pt;
+}
+
+.pres-palette span {
+  grid-row: span 2;
+  width: 9mm;
+  height: 9mm;
+  border-radius: 1.5mm;
+  border: 0.2mm solid rgb(0 0 0 / 0.15);
+}
+
+.pres-palette em,
+.pres-colors em {
+  font-style: normal;
+  font-family: var(--font-tech, ui-monospace, monospace);
+  font-size: 7.5pt;
+  color: #77777d;
+}
+
+.pres-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3mm;
+}
+
+.pres-swatches figure {
+  margin: 0;
+}
+
+.pres-swatches img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 1.5mm;
+  display: block;
+}
+
+.pres-swatches figcaption {
+  margin-top: 1mm;
+  font-size: 7.5pt;
+  color: #555;
+}
+
+/* Hoja de un diseño */
+.pres-design-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 8mm;
+  padding-bottom: 4mm;
+}
+
+.pres-canvas {
+  flex: 1.2;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 3mm;
+  background: #f2f1ee;
+  overflow: hidden;
+}
+
+.pres-canvas img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.pres-flats {
+  flex: 1.4;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4mm;
+}
+
+.pres-flats svg {
+  width: 100%;
+  height: 100%;
+}
+
+.pres-colors {
+  flex: 0 0 52mm;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5mm;
+  font-size: 9pt;
+}
+
+.pres-colors li {
+  display: grid;
+  grid-template-columns: 7mm 1fr;
+  column-gap: 3mm;
+  align-items: center;
+}
+
+.pres-colors span {
+  grid-row: span 2;
+  width: 7mm;
+  height: 7mm;
+  border-radius: 1.2mm;
+  border: 0.2mm solid rgb(0 0 0 / 0.15);
+}
+
+.pres-ways {
+  display: flex;
+  gap: 4mm;
+  height: 38mm;
+  margin-bottom: 5mm;
+}
+
+.pres-ways figure {
+  margin: 0;
+  flex: 1;
+  max-width: 40mm;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pres-ways svg {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+.pres-ways figcaption {
+  font-family: var(--font-tech, ui-monospace, monospace);
+  font-size: 7.5pt;
+  color: #555;
+}
+
+/* Materiales */
+.pres-material-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6mm;
+  align-content: start;
+}
+
+.pres-material-grid figure {
+  margin: 0;
+}
+
+.pres-material-img {
+  aspect-ratio: 1;
+  border-radius: 2mm;
+  background: #f2f1ee;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  font-size: 24pt;
+  color: #b9b9be;
+}
+
+.pres-material-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pres-material-grid figcaption {
+  display: grid;
+  gap: 1mm;
+  margin-top: 2mm;
+  font-size: 9pt;
+}
+
+.pres-material-grid figcaption span {
+  color: #77777d;
+  font-size: 8pt;
+}
+
+@media (max-width: 900px) {
+  .presentation-layout {
+    grid-template-columns: 1fr;
+  }
+  .presentation-controls {
+    position: static;
+    max-height: none;
+  }
+  .pres-sheet {
+    zoom: 0.3;
+  }
+}
+
+/* --- Impresión: solo las hojas, una por página, A4 apaisado --- */
+@page presentacion {
+  size: A4 landscape;
+  margin: 0;
+}
+
+@media print {
+  .presentation-page {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  .presentation-layout {
+    display: block;
+  }
+  .presentation-sheets {
+    display: block;
+  }
+  .pres-sheet {
+    zoom: 1;
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .pres-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
+
+/* Las casillas no ocupan todo el ancho (los campos de la app sí) */
+.presentation-controls .check input {
+  width: auto;
+  flex: none;
+  margin: 0;
+}
+
+/* Los títulos de las hojas no cogen el estilo de los títulos sueltos de las páginas (theme.css): son papel */
+html body .presentation-page .pres-sheet h2.pres-title {
+  padding: 0;
+  background: none;
+  border: none;
+  font-family: var(--font-ui, system-ui, sans-serif);
+  font-size: 22pt;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: #1d1d1f;
+}
+html body .presentation-page .pres-sheet.pres-sheet h1 {
+  color: #1d1d1f;
+}
+html body .presentation-page .pres-sheet.pres-sheet h3 {
+  padding: 0;
+  background: none;
+  border: none;
+  font-family: var(--font-tech, ui-monospace, monospace);
+  font-size: 8pt;
+  letter-spacing: 0.12em;
+  color: #77777d;
+}
+html body .presentation-page .pres-sheet.pres-sheet p {
+  padding: 0;
+  background: none;
+  border: none;
+}
