@@ -46,7 +46,12 @@ import { FontPicker } from '../components/FontPicker'
 import { MOCKUPS, type MockupAsset } from './mockups'
 import type { Artwork } from '../shared/artworks'
 import { fileUrl as fileOf } from '../shared/library'
+import { TabletPanel, useTabletHost, type TabletApi } from './tablet'
+import type { PadPoint } from '../shared/tablet'
 import './lienzo.css'
+
+/** Puntero de los trazos que llegan del móvil que hace de tableta (no choca con los del navegador). */
+const REMOTE_POINTER = 987654
 
 type Tool = 'brush' | 'eraser' | 'picker' | 'fill' | 'move' | 'text' | 'select'
 type Panel = 'brushes' | 'layers' | 'color' | 'ajustes' | 'acciones' | 'biblioteca' | 'opciones' | 'ia' | 'luces' | null
@@ -1093,8 +1098,11 @@ export function Lienzo(props: Props) {
 
   const onPointerDown = (e: ReactPointerEvent) => {
     if (loading) return
-    setPanel(null)
-    setQuick(null)
+    const remote = e.pointerId === REMOTE_POINTER
+    if (!remote) {
+      setPanel(null)
+      setQuick(null)
+    }
     const el = viewport.current!
     try {
       el.setPointerCapture(e.pointerId)
@@ -1102,7 +1110,7 @@ export function Lienzo(props: Props) {
       // Puntero ya suelto: se sigue sin captura
     }
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType, t: performance.now(), sx: e.clientX, sy: e.clientY })
-    if (e.pointerType === 'pen') penSeen.current = true
+    if (e.pointerType === 'pen' && !remote) penSeen.current = true
     const touches = [...pointers.current.values()].filter((p) => p.type === 'touch')
     if (e.pointerType === 'touch' && touches.length >= 2) {
       // Segundo dedo: si el primero empezó a pintar hace muy poco, se cancela (era un gesto)
@@ -1769,6 +1777,55 @@ export function Lienzo(props: Props) {
     { label: 'Encajar', run: fit },
   ]
 
+  // --- Móvil como tableta (src/lienzo/tablet.tsx): sus trazos entran como un lápiz con presión sobre el papel ---
+  /** Pasa un punto del móvil (0..1 del papel) a un evento de puntero en la pantalla, para los mismos manejadores. */
+  const remoteEvent = (pts: PadPoint[]) => {
+    const rect = viewport.current!.getBoundingClientRect()
+    const c = Math.cos(view.r)
+    const sn = Math.sin(view.r)
+    const one = (p: PadPoint) => {
+      const x = p[0] * doc.w
+      const y = p[1] * doc.h
+      return {
+        pointerId: REMOTE_POINTER,
+        pointerType: 'pen',
+        pressure: Math.min(1, Math.max(0.05, p[2])),
+        button: 0,
+        clientX: rect.left + view.x + (x * c - y * sn) * view.s,
+        clientY: rect.top + view.y + (x * sn + y * c) * view.s,
+      }
+    }
+    const evs = pts.map(one)
+    const last = evs[evs.length - 1]
+    setHover({ x: last.clientX, y: last.clientY })
+    return { ...last, nativeEvent: { ...last, getCoalescedEvents: () => evs } } as unknown as ReactPointerEvent
+  }
+  const tabletApi = useRef<TabletApi | null>(null)
+  tabletApi.current = {
+    down: (p) => onPointerDown(remoteEvent([p])),
+    move: (pts) => pts.length > 0 && onPointerMove(remoteEvent(pts)),
+    up: (p) => onPointerUp(remoteEvent([p])),
+    cancel: () => {
+      pointers.current.delete(REMOTE_POINTER)
+      endStroke(null, true)
+      redraw()
+    },
+    undo,
+    redo,
+    tool: (t) => setTool(t),
+    size: (n) => setSize(Math.max(1, Math.min(500, Math.round(n)))),
+    snapshot: () => compose(r, docRef.current),
+    drawing: () => !!stroke.current,
+    doc: { w: doc.w, h: doc.h, paper: doc.paper, name: props.name },
+    state: { tool, color: settings.color, size: Math.round(size) },
+  }
+  const tablet = useTabletHost(tabletApi)
+  const [tabletOpen, setTabletOpen] = useState(false)
+  const tabletChanged = tablet.changed
+  const tabletDoc = tablet.sendDoc
+  useEffect(() => tabletChanged(), [doc, loading, tool, settings.color, size, tabletChanged])
+  useEffect(() => tabletDoc(), [doc.w, doc.h, doc.paper, props.name, tabletDoc])
+
   // A pantalla completa, fuera del editor (sus paneles tienen transformaciones que encerrarían el lienzo)
   return createPortal(
     <div className={`lienzo v3d-${props.mode3d}`}>
@@ -1833,6 +1890,13 @@ export function Lienzo(props: Props) {
           </button>
           <button className={tool === 'fill' ? 'lz-icon on' : 'lz-icon'} onClick={() => setTool('fill')} title="Bote de pintura: rellena la zona cerrada (G)">
             <Icon d="M4 9.5l5.5-5.5 6 6-5.5 5.5zM16.5 12.5c0 1.5-1 2.5-1 2.5s-1-1-1-2.5" />
+          </button>
+          <button
+            className={tablet.status === 'connected' ? 'lz-icon on' : 'lz-icon'}
+            onClick={() => setTabletOpen(!tabletOpen)}
+            title={tablet.status === 'connected' ? 'Móvil como tableta: conectado' : 'Usar el móvil como tableta (escanea un QR)'}
+          >
+            <Icon d="M7 2.5h6a1 1 0 011 1v13a1 1 0 01-1 1H7a1 1 0 01-1-1v-13a1 1 0 011-1zM9 15h2M8.5 11.5l3-5 1 .6-3 5-1.3.7z" />
           </button>
           <button className={panel === 'layers' ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === 'layers' ? null : 'layers')} title="Capas">
             <Icon d="M10 3l7 3.5-7 3.5-7-3.5zM3 10l7 3.5 7-3.5M3 13.5l7 3.5 7-3.5" />
@@ -2354,6 +2418,12 @@ export function Lienzo(props: Props) {
             <small className="lz-muted">Más alto = líneas más limpias y suaves (va un poco por detrás del lápiz)</small>
           </div>
         </Pop>
+      )}
+      {tabletOpen && <TabletPanel tablet={tablet} onClose={() => setTabletOpen(false)} />}
+      {!tabletOpen && tablet.status === 'connected' && (
+        <button className="lz-tablet-badge" onClick={() => setTabletOpen(true)} title="Móvil como tableta">
+          ● Móvil conectado
+        </button>
       )}
       {panel === 'color' && (
         <Pop className="lz-pop right" title="Color">

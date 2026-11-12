@@ -26,6 +26,7 @@ import { PatternPage } from './pages/production/Pattern'
 import { EconomyPage } from './pages/economy/EconomyPage'
 import { ExpensesPage } from './pages/economy/Expenses'
 import { NotFound } from './pages/Sections'
+import { TabletPad } from './pages/tablet/TabletPad'
 
 /** Rutas de la app. Entrar y crear cuenta son públicas; el resto necesita sesión. */
 export default function App() {
@@ -33,6 +34,8 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          {/* Móvil como tableta: se abre con el QR del lienzo, sin iniciar sesión (el token es la llave) */}
+          <Route path="tableta/:token" element={<TabletPad />} />
           <Route element={<GuestOnly />}>
             <Route path="entrar" element={<LoginPage />} />
             <Route path="registro" element={<RegisterPage />} />

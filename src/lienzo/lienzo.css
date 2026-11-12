@@ -1447,4 +1447,69 @@
   border-radius: 3px;
   border: 1px solid rgb(0 0 0 / 0.2);
   vertical-align: -1px;
+
+/* Móvil como tableta (tablet.tsx): ventana con el QR y aviso de conectado */
+.lz-tablet {
+  position: absolute;
+  top: 60px;
+  right: 12px;
+  z-index: 6;
+  width: 300px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--lz-pop);
+  border: 1px solid var(--lz-line);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(16px);
+  display: grid;
+  gap: 10px;
+}
+.lz-tablet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.lz-tablet-qr {
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px;
+}
+.lz-tablet-qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.lz-tablet-note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  opacity: 0.8;
+}
+.lz-tablet-wait {
+  margin: 0;
+  font-size: 12.5px;
+  opacity: 0.7;
+}
+.lienzo .lz-tablet-ok {
+  margin: 0;
+  color: #4ade80;
+  font-weight: 600;
+}
+.lz-tablet-err {
+  margin: 0;
+  color: #f87171;
+}
+.lienzo .lz-tablet-badge {
+  position: absolute;
+  top: 64px;
+  right: 16px;
+  z-index: 4;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--lz-line);
+  background: var(--lz-pop);
+  color: #4ade80;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
 }

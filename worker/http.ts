@@ -5,6 +5,8 @@ export interface Env {
   /** Almacén de archivos (fotos de materiales, y más adelante bocetos, estampados…). */
   FILES: KVNamespace
   ASSETS: Fetcher
+  /** Salas del «Móvil como tableta» (Durable Object `TabletRoom`, worker/tablet.ts). */
+  TABLET: DurableObjectNamespace<import('./tablet').TabletRoom>
 }
 
 export class HttpError extends Error {

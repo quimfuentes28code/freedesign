@@ -11,12 +11,16 @@ import { versionsRoute } from './versions'
 import { hardwareRoute } from './hardware'
 import { lienzoAssetsRoute } from './lienzo'
 import { filesRoute } from './files'
+import { tabletPadRoute, tabletRoute } from './tablet'
 import { HttpError, json, type Env } from './http'
 import { materialsRoute, suppliersRoute } from './library'
 import { economySummary, expensesRoute } from './economy'
 import { productionRoute, techPacksRoute } from './production'
 import { collectionsRoute, openTasks, projectsRoute } from './projects'
 import { ACTIVE_STATUSES } from '../src/shared/projects'
+
+// Sala en tiempo real del «Móvil como tableta» (Durable Object)
+export { TabletRoom } from './tablet'
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -47,6 +51,8 @@ function checkOrigin(request: Request, url: URL) {
 async function route(request: Request, env: Env, url: URL): Promise<Response> {
   const [, resource, id, ...rest] = url.pathname.split('/').filter(Boolean) // ['api', recurso, id?, …]
   if (resource === 'auth') return authRoute(request, env, id, url)
+  // El móvil que hace de tableta entra con el token del QR, sin sesión
+  if (resource === 'tablet' && id && rest[0] === 'pad' && request.method === 'GET') return tabletPadRoute(request, env, id, url)
 
   const user = await currentUser(request, env)
   if (!user) throw new HttpError(401, 'Inicia sesión para continuar')
@@ -86,6 +92,8 @@ async function route(request: Request, env: Env, url: URL): Promise<Response> {
       return hardwareRoute(request, env, uid, id)
     case 'recursos':
       return lienzoAssetsRoute(request, env, uid, id)
+    case 'tablet':
+      return tabletRoute(request, env, uid, id, rest[0], url)
     case 'stats':
       if (request.method !== 'GET') break
       return json(await stats(env, uid))

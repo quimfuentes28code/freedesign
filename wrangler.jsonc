@@ -29,5 +29,10 @@
       "binding": "FILES",
       "id": "f48e0a146bb4423c98d121f15dd24eee"
     }
-  ]
+  ],
+  // Salas en tiempo real del «Móvil como tableta» (worker/tablet.ts): reenvían los trazos del móvil al lienzo
+  "durable_objects": {
+    "bindings": [{ "name": "TABLET", "class_name": "TabletRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TabletRoom"] }]
 }
