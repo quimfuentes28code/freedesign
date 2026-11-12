@@ -260,3 +260,117 @@ html .lienzo .lz-label {
 .nav-link.active .icon .icon-accent {
   color: inherit;
 }
+
+/*
+ * --- Portada: el plató de fotos 3D sigue de fondo a pantalla completa; el menú y la tarjeta que flotan encima son
+ * los de la app (grafito liso, mismas letras, azul para las acciones y naranja en los detalles), sin el cristal dorado ---
+ */
+html .app.home .sidebar {
+  background: #1c1c1f;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 0.45);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: var(--text);
+}
+html .app.home .brand {
+  font-family: var(--font-ui);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+html .app.home .nav-link {
+  color: var(--muted);
+}
+html .app.home .nav-link:hover {
+  background: var(--soft);
+  color: var(--text);
+}
+html .app.home .nav-link.active {
+  background: var(--accent);
+  color: #ffffff;
+}
+html .app.home .account {
+  border-color: var(--border);
+}
+html .app.home .account-type-label,
+html .app.home .account-logout {
+  color: var(--muted);
+}
+html .app.home .account-link:hover {
+  background: var(--soft);
+}
+html .app.home .avatar {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+html .home-card {
+  gap: 6px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 18px 50px rgb(0 0 0 / 0.45);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html .home-kicker {
+  font-family: var(--font-tech);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+html .home-kicker::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 8px 1px 0;
+  border-radius: 2px;
+  background: var(--accent-2);
+  vertical-align: middle;
+}
+html .home-title {
+  font-family: var(--font-ui);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: var(--text);
+}
+html .home-sub {
+  font-family: var(--font-tech);
+  font-size: 12px;
+  color: var(--muted);
+}
+html .home-button {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--soft);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+}
+html .home-button:hover {
+  background: #2e2e33;
+}
+html .home-button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+html .home-button.primary:hover {
+  background: #2f7cf0;
+}
+html .home-hint {
+  font-family: var(--font-tech);
+  font-size: 11px;
+  color: rgb(255 255 255 / 0.45);
+}
