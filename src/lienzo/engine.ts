@@ -27,6 +27,8 @@ export class Runtime {
   readonly textures = new Map<string, { key: string; canvas: HTMLCanvasElement }>()
   /** De cada mockup: su encuadre en unidades del dibujo y sus piezas (para pintar una pieza con un toque). */
   readonly mockupInfo = new Map<string, { box: { x: number; y: number; w: number; h: number }; shapes: Shape[] }>()
+  /** Mockups propios (imágenes): lo que abarca la vista de la prenda base (unidades del dibujo), para encajarla. */
+  readonly refBoxes = new Map<string, { x: number; y: number; w: number; h: number }>()
   /** Capas de pintura con cambios sin subir. */
   readonly dirty = new Set<string>()
   readonly history = new History()
@@ -375,11 +377,52 @@ export function garmentArt(r: Runtime, doc: CanvasDoc, pieceColor: (piece: strin
     if (out[l.view]) continue
     out[l.view] = { image, x: l.x, y: l.y, w: l.w, box: r.mockupInfo.get(l.id)!.box }
   }
+  // Mockups propios: la vista de la prenda base, encajada de ancho al contorno de la imagen y centrada en alto
+  for (const l of doc.layers) {
+    if (l.kind !== 'image' || !l.mockup || !l.visible || out[l.mockup.view]) continue
+    const img = r.images.get(imageKey(l))
+    const box = r.refBoxes.get(l.id)
+    if (!img || !box) continue
+    const a = alphaBox(img)
+    const h = l.w * l.aspect
+    const ix = l.x + a.x0 * l.w
+    const iw = Math.max(1, (a.x1 - a.x0) * l.w)
+    const cy = l.y + ((a.y0 + a.y1) / 2) * h
+    const s = iw / box.w
+    out[l.mockup.view] = { image, x: ix, y: cy - (box.h * s) / 2, w: iw, box }
+  }
   return out
+}
+
+/** Contorno de lo que no es transparente en una imagen (fracciones 0–1 de su ancho y alto). */
+const alphaBoxes = new WeakMap<HTMLImageElement, { x0: number; y0: number; x1: number; y1: number }>()
+function alphaBox(img: HTMLImageElement) {
+  let b = alphaBoxes.get(img)
+  if (b) return b
+  const W = 256
+  const H = Math.max(1, Math.round((W * img.naturalHeight) / Math.max(1, img.naturalWidth)))
+  const c = document.createElement('canvas')
+  c.width = W
+  c.height = H
+  const g = c.getContext('2d', { willReadFrequently: true })!
+  g.drawImage(img, 0, 0, W, H)
+  const d = g.getImageData(0, 0, W, H).data
+  let [x0, y0, x1, y1] = [W, H, 0, 0]
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++)
+      if (d[(y * W + x) * 4 + 3] > 40) {
+        if (x < x0) x0 = x
+        if (x > x1) x1 = x
+        if (y < y0) y0 = y
+        if (y > y1) y1 = y
+      }
+  b = x1 > x0 && y1 > y0 ? { x0: x0 / W, y0: y0 / H, x1: (x1 + 1) / W, y1: (y1 + 1) / H } : { x0: 0, y0: 0, x1: 1, y1: 1 }
+  alphaBoxes.set(img, b)
+  return b
 }
 /** ¿Faltan por dibujar prendas del diseño en el lienzo? (entonces aún no se sabe dónde va lo pintado) */
 export function garmentArtPending(r: Runtime, doc: CanvasDoc) {
-  return doc.layers.some((l) => l.kind === 'mockup' && !l.template && l.visible && !r.mockupInfo.has(l.id))
+  return doc.layers.some((l) => (l.kind === 'mockup' && !l.template && l.visible && !r.mockupInfo.has(l.id)) || (l.kind === 'image' && l.mockup && l.visible && (!r.refBoxes.has(l.id) || !r.images.has(imageKey(l)))))
 }
 
 /** Pinta el lienzo entero (papel y capas visibles, con su opacidad, fusión y máscaras de recorte) en un canvas. */
@@ -421,7 +464,7 @@ export function garmentMask(r: Runtime, doc: CanvasDoc) {
     if (l.kind === 'mockup') {
       const m = r.mockups.get(l.id)
       if (m) g.drawImage(m, l.x, l.y, l.w, (l.w * m.height) / m.width)
-    } else if (l.kind === 'image' && l.asset) {
+    } else if (l.kind === 'image' && (l.asset || l.mockup)) {
       // Los mockups de la biblioteca (imágenes con el fondo transparente) también son prenda
       const img = r.images.get(imageKey(l))
       if (!img) continue

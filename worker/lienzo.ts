@@ -10,11 +10,11 @@ export async function lienzoAssetsRoute(request: Request, env: Env, uid: string,
   }
   if (!id && request.method === 'POST') {
     const b = await readBody(request)
-    const kind = b.kind === 'pincel' ? 'pincel' : b.kind === 'textura' ? 'textura' : null
+    const kind = b.kind === 'pincel' ? 'pincel' : b.kind === 'textura' ? 'textura' : b.kind === 'mockup' ? 'mockup' : null
     if (!kind) throw new HttpError(400, 'Tipo no válido')
     const file = text(b.file)
     if (file && !isFileKey(file)) throw new HttpError(400, 'Imagen no válida')
-    if (kind === 'textura' && !file) throw new HttpError(400, 'Falta la imagen de la textura')
+    if ((kind === 'textura' || kind === 'mockup') && !file) throw new HttpError(400, 'Falta la imagen')
     const grain = text(b.grain)
     const row: Row = {
       id: crypto.randomUUID(),
@@ -76,7 +76,7 @@ function readSettings(raw: unknown): LienzoAsset['settings'] {
     const range = NUMBERS[k]
     if (range && typeof v === 'number' && Number.isFinite(v)) out[k] = Math.min(range[1], Math.max(range[0], v))
     else if (k === 'orient' && typeof v === 'boolean') out[k] = v
-    else if ((k === 'tip' || k === 'shape' || k === 'grainTexture' || k === 'base' || k === 'blend') && typeof v === 'string' && /^[a-z0-9-]{1,30}$/.test(v)) out[k] = v
+    else if ((k === 'tip' || k === 'shape' || k === 'grainTexture' || k === 'base' || k === 'blend' || k === 'template' || k === 'view') && typeof v === 'string' && /^[a-z0-9-]{1,30}$/.test(v)) out[k] = v
     else if (k === 'rows' && Array.isArray(v)) out[k] = v.filter((x) => typeof x === 'number' && Number.isFinite(x)).slice(0, 4).join(',')
   }
   return out
@@ -84,7 +84,7 @@ function readSettings(raw: unknown): LienzoAsset['settings'] {
 
 interface Row {
   id: string
-  kind: 'textura' | 'pincel'
+  kind: 'textura' | 'pincel' | 'mockup'
   name: string
   file: string
   grain: string | null

@@ -1,3 +1,4 @@
+import { removeBackground } from '../pages/library/artProduction'
 import type { ImageLayer } from '../shared/designs'
 import { detailAspect } from '../designer/details'
 import { SURFACE_KINDS } from '../shared/designs'
@@ -13,7 +14,7 @@ import { FlatView } from '../designer/FlatView'
 import { drawScale } from '../designer/measures'
 import { reshapePockets } from '../designer/pocketShape'
 import { DEFAULT_SIZE, pieceTile } from '../designer/surfaces'
-import { defaultDesign, getTemplate, NEW_DESIGN_CATALOG } from '../designer/templates'
+import { defaultDesign, getTemplate, NEW_DESIGN_CATALOG, TEMPLATES } from '../designer/templates'
 import type { GarmentTemplate, Options } from '../designer/types'
 import { DETAIL_DEFAULTS } from '../pages/designer/DetailsPanel'
 import { standardBody, type Body } from '../production/measurements'
@@ -143,6 +144,10 @@ interface Props {
    */
   onPieceColor: (piece: string, color: string, canvas?: CanvasDoc, surface?: Surface | null) => void
   onOptions: (patch: Options) => void
+  /** Pasar el diseño a otra prenda base (p. ej. al poner un mockup propio en un lienzo en blanco). */
+  onTemplate?: (template: string) => void
+  /** El lienzo aún no tiene prenda elegida. */
+  blank?: boolean
   /** Guardar el diseño (el editor sube antes las capas cambiadas). */
   onSave: () => void
   saving: boolean
@@ -295,7 +300,11 @@ export function Lienzo(props: Props) {
   const mockKey = doc.layers
     .filter((l): l is MockupLayer => l.kind === 'mockup')
     .map((l) => JSON.stringify([l.id, l.view, l.style, l.template, l.options, l.pieces]))
-    .join('|')
+    .join('|') +
+    doc.layers
+      .filter((l) => l.kind === 'image' && l.mockup)
+      .map((l) => (l.kind === 'image' ? `${l.id}:${l.mockup?.view}` : ''))
+      .join('|')
   useEffect(() => {
     let alive = true
     const t = setTimeout(async () => {
@@ -312,6 +321,16 @@ export function Lienzo(props: Props) {
           r.mockupInfo.set(l.id, { box, shapes: reshapePockets(src.t.draw(l.view, src.data.options, drawScale(src.t, src.data, src.body)), src.data) })
         } catch (e) {
           console.error('No se ha podido pintar el mockup', e)
+        }
+      }
+      for (const l of docRef.current.layers) {
+        if (l.kind !== 'image' || !l.mockup) continue
+        try {
+          const { box } = await mockupCanvas(template, data, materials, body, l.mockup.view, 'linea', 240)
+          if (!alive) return
+          r.refBoxes.set(l.id, box)
+        } catch {
+          // Sin encaje: no pasa al 3D
         }
       }
       if (alive) {
@@ -1644,6 +1663,7 @@ export function Lienzo(props: Props) {
     const p = { x: Math.min(doc.w - 60, Math.max(60, raw.x)), y: Math.min(doc.h - 60, Math.max(60, raw.y)) }
     if (item.kind === 'garment') addGarment(item.id, p.x, p.y)
     else if (item.kind === 'mockup') addMockupAsset(item.asset, p.x, p.y)
+    else if (item.kind === 'mymockup') addMyMockup(item.asset, p.x, p.y)
     else if (item.kind === 'art') addArtwork(item.artwork, p.x, p.y)
     else if (item.kind === 'option') applyOption(item, raw.x, raw.y)
     else addDetail(item.detail, item.label, p.x, p.y)
@@ -1780,6 +1800,44 @@ export function Lienzo(props: Props) {
     } catch (err) {
       flash(err instanceof Error ? err.message : 'No se ha podido subir la textura')
     }
+  }
+  /** Mis mockups: se sube el dibujo de la prenda (sin el fondo, si se pide) con qué prenda es y qué vista. */
+  const uploadMockup = async (f: { file: File; name: string; template: string; view: 'front' | 'back' | 'side'; removeBg: boolean }) => {
+    flash('Subiendo mockup…')
+    try {
+      let blob: Blob = f.file
+      if (f.removeBg) {
+        const url = URL.createObjectURL(f.file)
+        try {
+          blob = await removeBackground(url, 30, false)
+        } finally {
+          URL.revokeObjectURL(url)
+        }
+      }
+      const { key } = await api.uploadImage(new File([blob], 'mockup.png', { type: blob.type || 'image/png' }))
+      const a = await api.createLienzoAsset({ kind: 'mockup', name: f.name.slice(0, 60) || 'Mi mockup', file: key, grain: null, settings: { template: f.template, view: f.view } })
+      setAssets((list) => [a, ...list])
+      await addMyMockup(a, doc.w / 2, doc.h / 2)
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'No se ha podido subir el mockup')
+    }
+  }
+  /** Mockup propio en el lienzo, debajo de lo pintado. En un lienzo sin prenda, el diseño pasa a ser esa prenda. */
+  const addMyMockup = async (a: LienzoAsset, x: number, y: number) => {
+    const img = await loadImage(fileOf(a.file))
+    if (!img) return flash('No se ha podido cargar el mockup')
+    r.images.set(a.file, img)
+    const aspect = img.naturalHeight / Math.max(1, img.naturalWidth)
+    const w = aspect > 1 ? 700 / aspect : 760
+    const view = (a.settings.view === 'back' || a.settings.view === 'side' ? a.settings.view : 'front') as 'front' | 'back' | 'side'
+    insertBase({ id: uid(), kind: 'image', name: a.name, file: a.file, aspect, mockup: { view }, x: x - w / 2, y: y - (w * aspect) / 2, w, rotation: 0, visible: true, locked: false, opacity: 1, blend: 'normal' })
+    const t = typeof a.settings.template === 'string' ? a.settings.template : ''
+    if (t && props.blank && props.onTemplate) {
+      props.onTemplate(t)
+      flash(`Este diseño es ahora ${getTemplate(t)?.name.toLowerCase() ?? 'esa prenda'}: lo que pintes encima del mockup irá al 3D`)
+    } else if (t && t !== template.id) flash(`Tu mockup es de ${getTemplate(t)?.name.toLowerCase() ?? 'otra prenda'} y este diseño es ${template.name.toLowerCase()}: en 3D se usa la prenda del diseño`)
+    else flash('Mockup puesto: lo que pintes encima irá a la prenda 3D')
+    setTool('brush')
   }
   const deleteAsset = (a: LienzoAsset) => {
     setAssets((list) => list.filter((x) => x.id !== a.id))
@@ -2563,6 +2621,11 @@ export function Lienzo(props: Props) {
               setCreator({ id: a.id })
             }}
             textures={assets.filter((a) => a.kind === 'textura')}
+            myMockups={assets.filter((a) => a.kind === 'mockup')}
+            onUploadMockup={(f) => {
+              setPanel(null)
+              uploadMockup(f)
+            }}
             onTexture={addTexture}
             onUploadTexture={uploadTexture}
             onDeleteTexture={deleteAsset}
@@ -3361,7 +3424,7 @@ void union
 type LibraryItem =
   | { kind: 'garment'; id: string; label: string }
   | { kind: 'option'; option: string; value: string | boolean; label: string }
-  | { kind: 'art'; artwork: Artwork; label: string } | { kind: 'mockup'; asset: MockupAsset; label: string } | { kind: 'detail'; detail: Detail; label: string }
+  | { kind: 'art'; artwork: Artwork; label: string } | { kind: 'mockup'; asset: MockupAsset; label: string } | { kind: 'detail'; detail: Detail; label: string } | { kind: 'mymockup'; asset: LienzoAsset; label: string }
 
 /** Fornitura de la biblioteca: la de serie de su tipo, con un estilo. */
 const stock = (kind: DetailKind, style: string | null): Detail => ({ ...DETAIL_DEFAULTS[kind], ...(style ? { style } : {}), id: 'stock', view: 'front', x: 0, y: 0 })
@@ -3378,6 +3441,8 @@ function Library({
   onCreateArtwork,
   onEditArtwork,
   textures,
+  myMockups,
+  onUploadMockup,
   onTexture,
   onUploadTexture,
   onDeleteTexture,
@@ -3390,6 +3455,8 @@ function Library({
   onCreateArtwork: (template?: string) => void
   onEditArtwork: (a: Artwork) => void
   textures: LienzoAsset[]
+  myMockups: LienzoAsset[]
+  onUploadMockup: (f: { file: File; name: string; template: string; view: 'front' | 'back' | 'side'; removeBg: boolean }) => void
   onTexture: (t: TextureDef | LienzoAsset) => void
   onUploadTexture: (f: File) => void
   onDeleteTexture: (t: LienzoAsset) => void
@@ -3514,6 +3581,9 @@ function Library({
           )}
         </>
       ) : tab === 'mockups' ? (
+        <>
+        <MyMockups items={myMockups} onUpload={onUploadMockup} onDelete={onDeleteTexture} onStart={onStart} />
+        <p className="lz-label">Mockups de la app</p>
         <div className="lz-grid-items">
           {MOCKUPS.map((m) => (
             <button key={m.id} className="lz-lib-item" onPointerDown={(ev) => onStart({ kind: 'mockup', asset: m, label: m.name }, ev)} title={m.name}>
@@ -3524,6 +3594,7 @@ function Library({
             </button>
           ))}
         </div>
+        </>
       ) : tab === 'mias' ? (
         presets.length ? (
           <div className="lz-grid-items">
@@ -4483,5 +4554,104 @@ function QuickButton({ at, open, onMove, onToggle }: { at: [number, number]; ope
     >
       <Icon d="M10 3a7 7 0 100 14 7 7 0 000-14zM10 7.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5z" />
     </button>
+  )
+}
+
+/** «Mis mockups»: tus dibujos de prendas, cada uno con qué prenda es y qué vista (así pasan al 3D sin elegir nada más). */
+function MyMockups({
+  items,
+  onUpload,
+  onDelete,
+  onStart,
+}: {
+  items: LienzoAsset[]
+  onUpload: (f: { file: File; name: string; template: string; view: 'front' | 'back' | 'side'; removeBg: boolean }) => void
+  onDelete: (a: LienzoAsset) => void
+  onStart: (item: LibraryItem, e: React.PointerEvent) => void
+}) {
+  const [form, setForm] = useState<{ file: File; name: string; template: string; view: 'front' | 'back' | 'side'; removeBg: boolean } | null>(null)
+  const garments = TEMPLATES.filter((t) => NEW_DESIGN_CATALOG.some((c) => c.template.id === t.id))
+  return (
+    <>
+      <p className="lz-label">Mis mockups</p>
+      {form ? (
+        <div className="lz-mymockup-form">
+          <label className="lz-field">
+            <span>Nombre</span>
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={60} />
+          </label>
+          <label className="lz-field">
+            <span>¿Qué prenda es? (para el 3D)</span>
+            <select value={form.template} onChange={(e) => setForm({ ...form, template: e.target.value })}>
+              {garments.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="lz-chips">
+            {(
+              [
+                ['front', 'Delante'],
+                ['back', 'Detrás'],
+                ['side', 'De lado'],
+              ] as const
+            ).map(([id, label]) => (
+              <button key={id} className={form.view === id ? 'lz-chip on' : 'lz-chip'} onClick={() => setForm({ ...form, view: id })}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <label className="lz-toggle">
+            <input type="checkbox" checked={form.removeBg} onChange={(e) => setForm({ ...form, removeBg: e.target.checked })} />
+            <span>Quitar el fondo (blanco o liso)</span>
+          </label>
+          <div className="lz-chips">
+            <button className="lz-btn primary" onClick={() => (onUpload(form), setForm(null))}>
+              Guardar y poner
+            </button>
+            <button className="lz-btn" onClick={() => setForm(null)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <label className="lz-chip" title="Sube el dibujo de una prenda tuya (PNG o JPG): dices qué prenda es y qué vista, y pasa al 3D">
+          + Subir mi mockup
+          <input
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (file) setForm({ file, name: file.name.replace(/\.[^.]+$/, '').slice(0, 60), template: garments[0]?.id ?? 'sudadera', view: 'front', removeBg: true })
+            }}
+          />
+        </label>
+      )}
+      {items.length > 0 && (
+        <div className="lz-grid-items">
+          {items.map((a) => (
+            <div key={a.id} className="lz-lib-wrap">
+              <button className="lz-lib-item" onPointerDown={(ev) => onStart({ kind: 'mymockup', asset: a, label: a.name }, ev)} title={a.name}>
+                <div className="lz-lib-thumb">
+                  <img src={fileOf(a.file)} alt={a.name} draggable={false} />
+                </div>
+                <span>
+                  {a.name}
+                  <br />
+                  {getTemplate(String(a.settings.template))?.name ?? ''} · {a.settings.view === 'back' ? 'detrás' : a.settings.view === 'side' ? 'de lado' : 'delante'}
+                </span>
+              </button>
+              <button className="lz-lib-del" onClick={() => onDelete(a)} title="Quitar de Mis mockups" aria-label={`Quitar ${a.name}`}>
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   )
 }

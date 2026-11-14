@@ -407,7 +407,7 @@ export interface Detail {
 /** Textura o pincel propio del lienzo (guardado en la cuenta). */
 export interface LienzoAsset {
   id: string
-  kind: 'textura' | 'pincel'
+  kind: 'textura' | 'pincel' | 'mockup'
   name: string
   /** Imagen de la textura o de la punta del pincel (vacía si el pincel usa una punta de la app). */
   file: string
@@ -554,6 +554,11 @@ export interface ImageLayer extends CanvasLayerBase {
   /** Volteada en horizontal o en vertical. */
   flipX?: boolean
   flipY?: boolean
+  /**
+   * Mockup propio («Mis mockups»): es la prenda del diseño vista de delante, detrás o de lado. Lo pintado encima va a la
+   * prenda 3D, con la vista de la prenda base encajada al contorno de esta imagen.
+   */
+  mockup?: { view: 'front' | 'back' | 'side' }
   x: number
   y: number
   w: number

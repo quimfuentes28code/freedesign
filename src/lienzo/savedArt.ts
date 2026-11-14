@@ -39,6 +39,11 @@ async function build(t: GarmentTemplate, data: DesignData, materials: Map<string
     const { box } = await mockupCanvas(t, data, materials, body, l.view, 'linea', 240)
     r.mockupInfo.set(l.id, { box, shapes: reshapePockets(t.draw(l.view, data.options, drawScale(t, data, body)), data) })
   }
+  for (const l of doc.layers) {
+    if (l.kind !== 'image' || !l.mockup || !l.visible) continue
+    const { box } = await mockupCanvas(t, data, materials, body, l.mockup.view, 'linea', 240)
+    r.refBoxes.set(l.id, box)
+  }
   const color = (piece: string) => data.pieces[piece]?.color ?? t.pieces.find((p) => p.id === piece)?.defaultColor ?? '#cccccc'
   return garmentArt(r, doc, color)
 }

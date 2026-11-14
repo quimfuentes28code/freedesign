@@ -1963,3 +1963,13 @@
   flex: 1 1 180px;
   min-width: 0;
 }
+
+/* Mis mockups: subir uno con su prenda y vista */
+.lz-mymockup-form {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.04);
+}

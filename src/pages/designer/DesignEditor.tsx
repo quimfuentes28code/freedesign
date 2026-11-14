@@ -296,6 +296,20 @@ export function DesignEditor() {
           })
         }
         onOptions={(patch) => history.set({ ...design, data: { ...design.data, options: { ...design.data.options, ...patch } } })}
+        blank={!!design.data.blank}
+        onTemplate={(id) => {
+          const t = getTemplate(id)
+          if (!t) return
+          // Con el estado de este momento (el lienzo acaba de añadir el mockup y aún no se ha repintado)
+          const cur = history.get() ?? design
+          const genero = typeof cur.data.options.genero === 'string' ? cur.data.options.genero : 'hombre'
+          history.set({
+            ...cur,
+            template: t.id,
+            name: cur.name === 'Diseño sin título' ? `${t.name} sin título` : cur.name,
+            data: { ...defaultDesign(t, { genero }), canvas: cur.data.canvas },
+          })
+        }}
         onSave={save}
         saving={saving}
         dirty={dirty}

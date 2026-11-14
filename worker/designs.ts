@@ -238,7 +238,7 @@ function readCanvas(raw: unknown): CanvasDoc | null {
       })
     else if (l.kind === 'vector') layers.push({ ...base, kind: 'vector', paths: readPaths(l.paths) })
     else if (l.kind === 'image' && (isFileKey(file) || /^\/mockups\/[a-z0-9-]+\.png$/.test(text(l.asset))))
-      layers.push({ ...base, kind: 'image', file: isFileKey(file) ? file : '', ...(isFileKey(file) ? {} : { asset: text(l.asset) }), aspect: Math.max(0.05, finite(l.aspect, 1)), x: finite(l.x, 0), y: finite(l.y, 0), w: Math.max(4, finite(l.w, 400)), rotation: finite(l.rotation, 0), ...(l.flipX === true ? { flipX: true } : {}), ...(l.flipY === true ? { flipY: true } : {}) })
+      layers.push({ ...base, kind: 'image', file: isFileKey(file) ? file : '', ...(isFileKey(file) ? {} : { asset: text(l.asset) }), aspect: Math.max(0.05, finite(l.aspect, 1)), x: finite(l.x, 0), y: finite(l.y, 0), w: Math.max(4, finite(l.w, 400)), rotation: finite(l.rotation, 0), ...(l.flipX === true ? { flipX: true } : {}), ...(l.flipY === true ? { flipY: true } : {}), ...(readMockupRef(l.mockup) ? { mockup: readMockupRef(l.mockup)! } : {}) })
   }
   return { w, h, paper: hex(c.paper, '#ffffff'), layers }
 }
@@ -516,4 +516,10 @@ function readPrint(raw: unknown): Print | null {
     ...(kind === 'text' && /^#[0-9a-f]{6}$/i.test(text(p.stroke)) ? { stroke: text(p.stroke), strokeWidth: Math.max(0.2, Math.min(12, n(p.strokeWidth, 1))) } : {}),
     ...(kind === 'text' && /^#[0-9a-f]{6}$/i.test(text(p.shadow)) ? { shadow: text(p.shadow), shadowOffset: Math.max(0.2, Math.min(12, n(p.shadowOffset, 1.5))) } : {}),
   }
+}
+
+/** Mockup propio en el lienzo: qué vista de la prenda es. */
+function readMockupRef(raw: unknown): { view: 'front' | 'back' | 'side' } | null {
+  const v = raw && typeof raw === 'object' ? (raw as { view?: unknown }).view : null
+  return v === 'front' || v === 'back' || v === 'side' ? { view: v } : null
 }
