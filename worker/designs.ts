@@ -153,6 +153,7 @@ async function readDesign(request: Request, env: Env, uid: string): Promise<Desi
       ...(drawings.length ? { drawings } : {}),
       ...(tracings.length ? { tracings } : {}),
       ...(data.brandTemplate === true ? { brandTemplate: true } : {}),
+      ...(data.blank === true ? { blank: true } : {}),
       ...(details.length ? { details } : {}),
       ...(hardware ? { hardware } : {}),
       ...(blocks.length ? { blocks } : {}),

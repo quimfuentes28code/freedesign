@@ -146,12 +146,15 @@ export function Design3D({ template, data, materials, client, designId, runtimeI
   // Lo pintado en el lienzo (colores, texturas, logos…) va encima de la prenda; si el lienzo aún está dibujando sus
   // prendas, se vuelve a mirar en un momento
   const [tick, setTick] = useState(0)
+  // Mientras se pinta no se rehace: se espera a que pase un momento sin cambios (en tableta, rehacerlo a cada trazo
+  // hacía ir lento todo el programa)
+  const canvas = useLate(data.canvas, COARSE ? 1500 : 700)
   const art = useMemo(() => {
     const r = runtimeId ? peekRuntime(runtimeId) : null
-    if (!r || !data.canvas) return undefined
+    if (!r || !canvas) return undefined
     const color = (piece: string) => data.pieces[piece]?.color ?? template.pieces.find((p) => p.id === piece)?.defaultColor ?? '#cccccc'
-    return { views: garmentArt(r, data.canvas, color), key: `${tick}|${JSON.stringify(data.canvas)}`, pending: garmentArtPending(r, data.canvas) }
-  }, [runtimeId, data.canvas, data.pieces, template, tick])
+    return { views: garmentArt(r, canvas, color), key: `${tick}|${JSON.stringify(canvas)}`, pending: garmentArtPending(r, canvas) }
+  }, [runtimeId, canvas, data.pieces, template, tick])
   useEffect(() => {
     if (!art?.pending) return
     const t = setTimeout(() => setTick((n) => n + 1), 700)
@@ -255,4 +258,17 @@ export function Design3D({ template, data, materials, client, designId, runtimeI
       </div>
     </div>
   )
+}
+
+/** Tableta o móvil (pantalla táctil sin ratón). */
+const COARSE = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
+
+/** El valor, pero solo cuando lleva `ms` sin cambiar. */
+function useLate<T>(value: T, ms: number) {
+  const [late, setLate] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setLate(value), ms)
+    return () => clearTimeout(t)
+  }, [value, ms])
+  return late
 }

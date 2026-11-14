@@ -658,6 +658,8 @@ export interface DesignData {
   tracings?: Tracing[]
   /** Plantilla de la marca: aparece al crear un diseño nuevo, como punto de partida. */
   brandTemplate?: boolean
+  /** Lienzo en blanco: aún no se ha elegido qué prenda es (el 3D no enseña ninguna hasta elegirla). */
+  blank?: boolean
   /** Lienzo creativo (capas de pintura, mockups e imágenes), ver src/lienzo/. */
   canvas?: CanvasDoc
   /** Miniatura de lo que hay en el lienzo (clave de KV), para las galerías; se rehace al guardar si el lienzo cambia. */

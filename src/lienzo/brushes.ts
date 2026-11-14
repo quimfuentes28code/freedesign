@@ -279,6 +279,11 @@ export interface StrokeOptions {
   size: number
   opacity: number
   streamline: number
+  /**
+   * Largo del «hilo» del suavizado, en px del papel: el trazo solo avanza cuando el puntero se aleja más que esto
+   * (como StreamLine de Procreate). No depende de cuántos puntos por segundo mande la tableta.
+   */
+  lazy?: number
   symmetry: Symmetry
   /** Copias en la simetría radial y giratoria. */
   symmetryCount?: number
@@ -322,10 +327,19 @@ export class Stroke {
 
   /** Añade un punto del puntero (x, y en px del lienzo; presión 0–1). */
   add(x: number, y: number, pressure: number) {
-    // Estabilizador: el punto pintado persigue al puntero con algo de retraso (quita el temblor)
-    const k = 1 - Math.min(0.92, this.o.streamline * 0.92)
+    // Estabilizador: con hilo (`lazy`), el punto pintado solo avanza lo que el puntero se aleja más allá del hilo, y
+    // además sigue al puntero con un poco de retraso; sin hilo, solo el retraso
     if (!this.smooth) this.smooth = { x, y }
-    else {
+    else if (this.o.lazy && this.o.lazy > 0) {
+      const dx = x - this.smooth.x
+      const dy = y - this.smooth.y
+      const d = Math.hypot(dx, dy)
+      if (d <= this.o.lazy) return
+      const f = ((d - this.o.lazy) / d) * (1 - Math.min(0.5, this.o.streamline * 0.5))
+      this.smooth.x += dx * f
+      this.smooth.y += dy * f
+    } else {
+      const k = 1 - Math.min(0.92, this.o.streamline * 0.92)
       this.smooth.x += (x - this.smooth.x) * k
       this.smooth.y += (y - this.smooth.y) * k
     }

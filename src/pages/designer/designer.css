@@ -885,3 +885,21 @@ button.design-card {
   border-radius: 3px;
   border: 1px solid rgb(0 0 0 / 0.25);
 }
+
+/* 3D de un lienzo sin prenda elegida */
+.design-3d-blank {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  color: #d4d4d8;
+  background: #1c1c1f;
+}
+.design-3d-blank p {
+  margin: 0;
+}
+.design-3d-blank button {
+  justify-self: center;
+}

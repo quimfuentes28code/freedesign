@@ -1,3 +1,5 @@
+import type { ImageLayer } from '../shared/designs'
+import { detailAspect } from '../designer/details'
 import { SURFACE_KINDS } from '../shared/designs'
 import { PATTERN_GROUPS, patternDefaults } from '../designer/morePatterns'
 import { curvePath, curveThrough, hull, isScribble, recognize, snapPoint, type Guide, type P as ShaperPoint } from './shaper'
@@ -83,6 +85,8 @@ interface Settings {
   /** Pincel de estampado: segundo y tercer color y tamaño del dibujo (cm; 0 = el de siempre). */
   patternColors?: [string, string]
   patternSize?: number
+  /** Con lápiz, el dedo solo mueve el lienzo (si no, un dedo pinta y dos acercan y mueven). */
+  penOnly?: boolean
   /** Botón flotante del menú rápido: dónde está (fracción del ancho y alto del lienzo). */
   fab?: [number, number]
   /** Guía de perspectiva: sin, de 1 o de 2 puntos de fuga (en fracción del lienzo). */
@@ -538,6 +542,7 @@ export function Lienzo(props: Props) {
       size,
       opacity,
       streamline,
+      lazy: (streamline * 34) / view.s,
       symmetry: settings.symmetry,
       symmetryCount: settings.symmetryCount,
       axis: { x: settings.axis[0] * doc.w, y: settings.axis[1] * doc.h },
@@ -651,7 +656,7 @@ export function Lienzo(props: Props) {
   const applyShape = (st: NonNullable<typeof stroke.current>, shape: number[]) => {
     const target = raw.current!
     target.getContext('2d')!.clearRect(0, 0, doc.w, doc.h)
-    const s = new Stroke(target, { ...st.opts, streamline: 0 })
+    const s = new Stroke(target, { ...st.opts, streamline: 0, lazy: 0 })
     for (let i = 0; i < shape.length; i += 2) s.add(shape[i], shape[i + 1], st.pressure || 0.6)
     st.s = s
     st.shaped = true
@@ -1211,7 +1216,33 @@ export function Lienzo(props: Props) {
 
   // --- Gestos: dedos para mover, girar y acercar; dos dedos tocan = deshacer, tres = rehacer ---
   const pointers = useRef(new Map<number, { x: number; y: number; type: string; t: number; sx: number; sy: number }>())
-  const gesture = useRef<{ view: typeof view; mid: { x: number; y: number }; dist: number; ang: number; moved: boolean; count: number; t: number } | null>(null)
+  const gesture = useRef<{
+    view: typeof view
+    mid: { x: number; y: number }
+    dist: number
+    ang: number
+    moved: boolean
+    count: number
+    t: number
+    /** Pellizco sobre la fornitura, imagen o texto elegido: se escala y gira eso en vez del lienzo. */
+    obj?: { layer: DetailLayer | ImageLayer | TextLayer; doc: CanvasDoc } | null
+  } | null>(null)
+  /** La capa elegida, si es una fornitura, imagen o texto y el punto (de la pantalla) cae encima o cerca. */
+  const objectUnder = (cx: number, cy: number) => {
+    const l = layer
+    if (!l || l.locked || !l.visible || (l.kind !== 'detail' && l.kind !== 'image' && l.kind !== 'text')) return null
+    const q = toDoc(cx, cy)
+    const m = 60 / view.s
+    if (l.kind === 'detail') {
+      const h = l.w * detailAspect(l.detail)
+      return Math.abs(q.x - l.x) < Math.max(l.w, h) / 2 + m && Math.abs(q.y - l.y) < Math.max(l.w, h) / 2 + m ? l : null
+    }
+    if (l.kind === 'image') {
+      const h = l.w * l.aspect
+      return q.x > l.x - m && q.x < l.x + l.w + m && q.y > l.y - m && q.y < l.y + h + m ? l : null
+    }
+    return Math.abs(q.x - l.x) < l.size * Math.max(2, l.text.length * 0.35) + m && Math.abs(q.y - l.y) < l.size + m ? l : null
+  }
   const penSeen = useRef(false)
   const panning = useRef<{ x: number; y: number; view: typeof view } | null>(null)
   const space = useRef(false)
@@ -1236,6 +1267,12 @@ export function Lienzo(props: Props) {
     } catch {
       // Puntero ya suelto: se sigue sin captura
     }
+    // Primer dedo que toca (no hay otro en la pantalla): se olvidan dedos que se quedaran colgados de antes (un dedo
+    // que se levantó sin avisar hacía que el siguiente toque se tomara por dos dedos y moviera el lienzo)
+    if (e.pointerType === 'touch' && e.isPrimary) {
+      for (const [id, p] of pointers.current) if (p.type === 'touch') pointers.current.delete(id)
+      gesture.current = null
+    }
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType, t: performance.now(), sx: e.clientX, sy: e.clientY })
     if (e.pointerType === 'pen' && !remote) penSeen.current = true
     const touches = [...pointers.current.values()].filter((p) => p.type === 'touch')
@@ -1244,11 +1281,12 @@ export function Lienzo(props: Props) {
       if (stroke.current && stroke.current.touchStart && performance.now() - stroke.current.touchStart < 300) endStroke(null, true)
       if (vec.dragging()) vec.cancel()
       const g = gestureState()
-      gesture.current = { view, mid: g.mid, dist: g.dist, ang: g.ang, moved: false, count: touches.length, t: performance.now() }
+      const obj = objectUnder(g.mid.x, g.mid.y)
+      gesture.current = { view, mid: g.mid, dist: g.dist, ang: g.ang, moved: false, count: touches.length, t: performance.now(), obj: obj ? { layer: obj, doc: docRef.current } : null }
       return
     }
     // Mover el lienzo: botón central, espacio + arrastrar, o el dedo cuando se dibuja con lápiz
-    if (e.button === 1 || space.current || (e.pointerType === 'touch' && penSeen.current)) {
+    if (e.button === 1 || space.current || (e.pointerType === 'touch' && penSeen.current && settings.penOnly)) {
       panning.current = { x: e.clientX, y: e.clientY, view }
       return
     }
@@ -1284,6 +1322,25 @@ export function Lienzo(props: Props) {
       const k = now.dist / Math.max(1, g.dist)
       const rot = now.ang - g.ang
       if (Math.abs(k - 1) > 0.02 || Math.abs(rot) > 0.03 || Math.hypot(now.mid.x - g.mid.x, now.mid.y - g.mid.y) > 6) g.moved = true
+      if (g.obj) {
+        // Pellizco sobre la fornitura, imagen o texto: se escala, gira y mueve eso (el lienzo se queda quieto)
+        const o = g.obj.layer
+        const a = toDoc(g.mid.x, g.mid.y)
+        const b = toDoc(now.mid.x, now.mid.y)
+        const dx = b.x - a.x
+        const dy = b.y - a.y
+        const deg = (rot * 180) / Math.PI
+        let next: CanvasLayer
+        if (o.kind === 'text') next = { ...o, size: Math.max(4, o.size * k), rotation: o.rotation + deg, x: o.x + dx, y: o.y + dy }
+        else if (o.kind === 'image') {
+          const w = Math.max(8, o.w * k)
+          const cx = o.x + o.w / 2 + dx
+          const cy = o.y + (o.w * o.aspect) / 2 + dy
+          next = { ...o, w, rotation: o.rotation + deg, x: cx - w / 2, y: cy - (w * o.aspect) / 2 }
+        } else next = { ...o, w: Math.max(4, o.w * k), rotation: o.rotation + deg, x: o.x + dx, y: o.y + dy }
+        change({ ...docRef.current, layers: docRef.current.layers.map((l) => (l.id === o.id ? next : l)) }, false)
+        return
+      }
       // Se acerca y gira alrededor del punto medio de los dedos, y se mueve con él
       const rect = viewport.current!.getBoundingClientRect()
       const mx = g.mid.x - rect.left
@@ -1333,6 +1390,8 @@ export function Lienzo(props: Props) {
     pointers.current.delete(e.pointerId)
     if (g) {
       if (pointers.current.size === 0) {
+        // Pellizco sobre un objeto: un solo paso de deshacer con todo el cambio
+        if (g.obj && g.moved) r.history.push({ kind: 'doc', before: g.obj.doc, after: docRef.current })
         // Toque rápido con varios dedos sin moverlos: deshacer (2) o rehacer (3)
         if (!g.moved && performance.now() - g.t < 350) {
           if (g.count === 2) undo()
@@ -2783,6 +2842,10 @@ export function Lienzo(props: Props) {
       )}
       {panel === 'ajustes' && (
         <Pop className="lz-pop left" title="Guía de dibujo">
+          <label className="lz-toggle" title="Para dibujar con el Apple Pencil u otro lápiz y apoyar la mano sin pintar">
+            <input type="checkbox" checked={!!settings.penOnly} onChange={(ev) => setSettings({ penOnly: ev.target.checked })} />
+            <span>Con lápiz, el dedo solo mueve el lienzo (apagado: un dedo pinta, dos acercan)</span>
+          </label>
           <p className="lz-label">Simetría</p>
           <div className="lz-chips">
             {(

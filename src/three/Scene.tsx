@@ -253,7 +253,7 @@ function SceneInner({ measurements, design, outfit, autoRotate, animate, showBod
     <>
       {design && active && <span className="loading">Cargando maniquí…</span>}
       {design && !active && dressing && <span className="busy">Ajustando prenda…</span>}
-      <Canvas frameloop={frameloop} shadows="soft" dpr={[1, 2]} camera={{ position: studio ? [-0.35, 1.38, 4.1] : showBody ? [0, 1.2, 3.6] : design?.hat ? [0.35, H * focus + 0.08, 0.95] : [0, H * focus + 0.1, 3.2], fov: studio ? 38 : 36 }}>
+      <Canvas frameloop={frameloop} shadows="soft" dpr={COARSE ? [1, 1.25] : [1, 2]} camera={{ position: studio ? [-0.35, 1.38, 4.1] : showBody ? [0, 1.2, 3.6] : design?.hat ? [0.35, H * focus + 0.08, 0.95] : [0, H * focus + 0.1, 3.2], fov: studio ? 38 : 36 }}>
         {studio ? (
           <>
             <color attach="background" args={['#0b0907']} />
@@ -325,3 +325,6 @@ function SceneInner({ measurements, design, outfit, autoRotate, animate, showBod
     </>
   )
 }
+
+/** Tableta o móvil: el 3D se pinta a menos resolución (va mucho más fluido y apenas se nota). */
+const COARSE = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches

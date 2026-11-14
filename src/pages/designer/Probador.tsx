@@ -43,7 +43,8 @@ export function Probador() {
   const [shoeColor, setShoeColor] = useState('#1f5f8b')
   const [autoRotate, setAutoRotate] = useState(false)
   // Calidad alta: malla fina y pliegues finos (tarda unos segundos más)
-  const [hq, setHq] = useState(true)
+  // En tableta o móvil empieza en calidad normal (la alta va lenta en ellas); se puede encender
+  const [hq, setHq] = useState(() => !(typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches))
   // Pose del maniquí: la ropa se calcula en ella
   const [pose, setPose] = useState<PoseId>('reposo')
 

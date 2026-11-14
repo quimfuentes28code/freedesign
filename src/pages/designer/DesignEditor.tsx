@@ -71,7 +71,8 @@ function newDraft(params: URLSearchParams): DesignInput {
     template: e.template.id,
     clientId: params.get('cliente'),
     projectId: params.get('proyecto'),
-    data: { ...defaultDesign(e.template, { ...e.options, genero }), canvas: blankDoc() },
+    // Sin prenda elegida: el 3D no enseña ninguna (antes salía siempre la sudadera) hasta elegir qué prenda es
+    data: { ...defaultDesign(e.template, { ...e.options, genero }), canvas: blankDoc(), blank: true },
   }
 }
 
@@ -303,7 +304,19 @@ export function DesignEditor() {
         onGarment={() => setSheet(sheet === 'garment' ? null : 'garment')}
         mode3d={mode3d}
         onMode3d={setMode3d}
-        view3d={<Design3D template={template} data={design.data} materials={materials} client={client} designId={id} runtimeId={runtimeId} />}
+        view3d={
+          design.data.blank ? (
+            <div className="design-3d-blank">
+              <p>Este lienzo aún no tiene prenda.</p>
+              <p className="muted small">Para verlo en 3D, elige qué prenda es: sus vistas se ponen en línea en el lienzo y lo que pintes encima pasa a la prenda 3D.</p>
+              <button className="lz-btn primary" onClick={() => setSheet('start')}>
+                Elegir la prenda
+              </button>
+            </div>
+          ) : (
+            <Design3D template={template} data={design.data} materials={materials} client={client} designId={id} runtimeId={runtimeId} />
+          )
+        }
         pendingImage={pendingImage}
         onPendingImage={() => setPendingImage(null)}
       >
