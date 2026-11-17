@@ -156,7 +156,8 @@ interface Props {
   onMenu: () => void
   /** Salir del lienzo a la app (el editor guarda antes lo pendiente) */
   onExit: () => void
-  onGarment: () => void
+  /** Sin argumento: abre o cierra «Prenda»; con una pieza la abre en esa pieza (null: la lista de piezas). */
+  onGarment: (piece?: string | null) => void
   /** Vista 3D: sin, al lado del lienzo o a pantalla completa. */
   mode3d: Mode3D
   onMode3d: (m: Mode3D) => void
@@ -1313,7 +1314,15 @@ export function Lienzo(props: Props) {
     const p = toDoc(e.clientX, e.clientY)
     if (tool === 'brush' || tool === 'eraser' || tool === 'shaper') startStroke(e, tool === 'eraser')
     else if (tool === 'curve') curveClick(p)
-    else if (isVectorTool(tool)) vec.down([p.x, p.y], e, e.timeStamp)
+    else if (isVectorTool(tool)) {
+      const hit = vec.down([p.x, p.y], e, e.timeStamp)
+      // Selección directa sobre una pieza de la prenda del diseño (no sobre un trazado): su color, textura y material
+      if (!hit && tool === 'direct') {
+        const pc = pieceAt(r, doc, p.x, p.y)
+        if (pc && !pc.layer.template) props.onGarment(pc.piece)
+        else if (pc) flash('Esa prenda es un mockup de otra prenda: su color se cambia con el bote (Pieza de la prenda)')
+      }
+    }
     else if (tool === 'picker') pick(p.x, p.y)
     else if (tool === 'fill') fill(p.x, p.y)
     else if (tool === 'select') {
@@ -2129,7 +2138,7 @@ export function Lienzo(props: Props) {
           <button className="lz-btn" onClick={props.onMenu} title="Empezar un diseño nuevo o abrir otro">
             <Icon d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM11 11h5v5h-5z" /> <span>Diseños</span>
           </button>
-          <button className="lz-btn" onClick={props.onGarment} title="La prenda: modelo, piezas, medidas y datos del diseño">
+          <button className="lz-btn" onClick={() => props.onGarment()} title="La prenda: modelo, piezas, medidas y datos del diseño">
             <span>Prenda</span>
           </button>
           <span className="lz-title">{props.name}</span>
@@ -2206,6 +2215,7 @@ export function Lienzo(props: Props) {
         {(
           [
             ['layers', 'Capas', 'M10 3l7 3.5-7 3.5-7-3.5zM3 10l7 3.5 7-3.5M3 13.5l7 3.5 7-3.5'],
+            ['piezas', 'Piezas y materiales: color, textura y tejido de cada parte de la prenda', 'M3.5 6.5l3-3h7l3 3-2.5 2.5-1.5-1.5V16.5h-5V7.5L6 9z'],
             ['biblioteca', 'Biblioteca: prendas, fornituras, gráficos y texturas', 'M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM13.5 11v5M11 13.5h5'],
             ['ajustes', 'Guías: simetría, cuadrícula, perspectiva', 'M10 2.5v15M2.5 10h15M5 5l10 10'],
             ['luces', 'Luces y sombras: automáticas o a mano', 'M10 3.5a6.5 6.5 0 100 13zM10 3.5a6.5 6.5 0 010 13'],
@@ -2213,7 +2223,13 @@ export function Lienzo(props: Props) {
             ['acciones', 'Acciones: añadir, exportar, historial', 'M10 3.5l1.6 3.8 4 .4-3 2.7.9 4-3.5-2.1-3.5 2.1.9-4-3-2.7 4-.4z'],
           ] as const
         ).map(([id, title, d]) => (
-          <button key={id} className={panel === id ? 'lz-icon on' : 'lz-icon'} onClick={() => setPanel(panel === id ? null : id)} title={title} aria-label={title.split(':')[0]}>
+          <button
+            key={id}
+            className={panel === id ? 'lz-icon on' : 'lz-icon'}
+            onClick={() => (id === 'piezas' ? props.onGarment(null) : setPanel(panel === id ? null : id))}
+            title={title}
+            aria-label={title.split(':')[0]}
+          >
             <Icon d={d} />
           </button>
         ))}

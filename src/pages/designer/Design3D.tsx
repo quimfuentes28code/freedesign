@@ -3,7 +3,7 @@ import { api, useApi } from '../../api/client'
 import { printLayer } from '../../designer/printLayers'
 import { defaultDesign, getTemplate } from '../../designer/templates'
 import { clientBody, type Body, type BodyKind } from '../../production/measurements'
-import { designTo3D, hasOwn3D, mannequinMeasurements } from '../../designer/to3d'
+import { designTo3D, hasOwn3D, mannequinMeasurements, pieceForSlot } from '../../designer/to3d'
 import { isPants } from '../../designer/types'
 import { isPatternDesign, type Design } from '../../types'
 import type { GarmentTemplate } from '../../designer/types'
@@ -127,6 +127,8 @@ interface Props {
   designId?: string
   /** Lienzo abierto del diseño: lo pintado encima de la prenda se lleva al 3D. */
   runtimeId?: string
+  /** Al tocar una parte de la prenda en 3D: su pieza (para abrir su color, textura y material). */
+  onPickPiece?: (piece: string) => void
 }
 
 const stored = (key: string) => {
@@ -138,7 +140,7 @@ const stored = (key: string) => {
 }
 
 /** Vista 3D del diseño que se está editando: el maniquí con la prenda, sus colores y materiales, al momento. */
-export function Design3D({ template, data, materials, client, designId, runtimeId }: Props) {
+export function Design3D({ template, data, materials, client, designId, runtimeId, onPickPiece }: Props) {
   // Sin maniquí, la capucha se ve mejor bajada
   const [hoodUp, setHoodUp] = useState(false)
   const kind = bodyKind(data)
@@ -203,7 +205,14 @@ export function Design3D({ template, data, materials, client, designId, runtimeI
     <div className="design-3d studio">
       <div className="viewport">
         {/* En el editor se ve solo la ropa, quieta en la postura de reposo (el maniquí y la animación salen en el Probador) */}
-        <Scene measurements={measurements} design={shown} outfit={ghostOutfit} autoRotate={autoRotate} animate={false} showBody={false} pose="fantasma" stage="product" focus={template.family === 'head' ? 0.92 : outfit.length ? 0.5 : pants ? 0.3 : 0.66} />
+        <Scene measurements={measurements} design={shown} outfit={ghostOutfit} autoRotate={autoRotate} animate={false} showBody={false} pose="fantasma" stage="product" focus={template.family === 'head' ? 0.92 : outfit.length ? 0.5 : pants ? 0.3 : 0.66} onPickSlot={
+            onPickPiece
+              ? (slot) => {
+                  const piece = pieceForSlot(template, data, slot)
+                  if (piece) onPickPiece(piece)
+                }
+              : undefined
+          } />
         <div className="design-3d-bar">
           {/* Un gorro o una gorra se ve solo (en el Probador, con la ropa) */}
           {template.family !== 'head' && (

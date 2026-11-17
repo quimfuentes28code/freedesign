@@ -2,7 +2,7 @@ import { ContactShadows, Environment, Lightformer, OrbitControls, useProgress } 
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Component, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import * as THREE from 'three'
-import type { Design, Measurements, ShoeStyle } from '../types'
+import type { Design, GarmentSlot, Measurements, ShoeStyle } from '../types'
 import { Mannequin } from './Avatar'
 import type { PoseId } from './pose'
 import { useDressing } from './cloth/dressClient'
@@ -37,6 +37,8 @@ interface Props {
   interactive?: boolean
   /** Pose del maniquí. */
   pose?: PoseId
+  /** Al tocar la prenda en 3D: la zona tocada (para abrir esa pieza en el editor). */
+  onPickSlot?: (slot: GarmentSlot) => void
   /** Color de la zapatilla de modelo real que se puede teñir (las que llevan `tint`). */
   shoeColor?: string
 }
@@ -241,7 +243,7 @@ export function Scene(props: Props) {
   )
 }
 
-function SceneInner({ measurements, design, outfit, autoRotate, animate, showBody = true, focus = 0.53, stage = 'neutral', shoes, frameloop = 'always', interactive = true, hat, pose, shoeColor }: Props) {
+function SceneInner({ measurements, design, outfit, autoRotate, animate, showBody = true, focus = 0.53, stage = 'neutral', shoes, frameloop = 'always', interactive = true, hat, pose, shoeColor, onPickSlot }: Props) {
   const studio = stage === 'studio'
   const product = stage === 'product'
   const H = measurements.height / 100
@@ -301,7 +303,7 @@ function SceneInner({ measurements, design, outfit, autoRotate, animate, showBod
         )}
 
         <Suspense fallback={null}>
-          {design && <Mannequin measurements={measurements} design={design} outfit={outfit} animate={animate} showBody={showBody} shoes={shoes} hat={hat} pose={pose} shoeColor={shoeColor} />}
+          {design && <Mannequin measurements={measurements} design={design} outfit={outfit} animate={animate} showBody={showBody} shoes={shoes} hat={hat} pose={pose} shoeColor={shoeColor} onPickSlot={onPickSlot} />}
         </Suspense>
 
         {product ? <FrameGarment /> : <ContactShadows position={[0, 0.002, 0]} opacity={studio ? 0.65 : 0.5} scale={4} blur={2.2} far={2} resolution={512} />}

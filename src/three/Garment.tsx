@@ -499,6 +499,8 @@ interface Props {
   pose?: PoseId
   /** Calzado puesto: con la zapatilla de modelo real, el pantalón cae sobre su forma. */
   shoes?: ShoeStyle | null
+  /** Se puede tocar para elegir una de sus piezas (la prenda principal del editor). */
+  pick?: boolean
 }
 
 /**
@@ -512,7 +514,7 @@ const isPattern = isPatternDesign
  * - Sudadera: patrón de costura real (ver cloth/).
  * - Resto: tubos de tela que envuelven torso, mangas y perneras (versión sencilla, pendiente de pasar a patrón).
  */
-export function Garment({ model, fit, cloud, measurements, design, pose: poseId = 'reposo', shoes }: Props) {
+export function Garment({ model, fit, cloud, measurements, design, pose: poseId = 'reposo', shoes, pick = false }: Props) {
   const materials = useSlotMaterials(design)
   // La caída depende solo de la tela del cuerpo: cambiar otros materiales o colores no recalcula la prenda
   const bodyLook = slotStyle(design, 'cuerpo').look
@@ -714,11 +716,14 @@ export function Garment({ model, fit, cloud, measurements, design, pose: poseId 
       mesh.receiveShadow = !pattern
       mesh.frustumCulled = false
       mesh.bind(model.body.skeleton, model.body.bindMatrix)
+      // Para tocar una pieza en 3D: la zona de la malla (o, con varios materiales, la del grupo de caras tocado)
+      mesh.userData.pick = pick
+      mesh.userData.slot = slot
       model.root.add(mesh)
       return mesh
     })
     return () => meshes.forEach((m) => model.root.remove(m))
-  }, [patternGeom, wrapGeoms, materials, model, pattern, pose, fit])
+  }, [patternGeom, wrapGeoms, materials, model, pattern, pose, fit, pick])
 
   return null
 }

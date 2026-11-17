@@ -1,5 +1,5 @@
 import { deleteWithUndo } from '../../components/undo'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { api, useApi } from '../../api/client'
 import { Field } from '../../components/ui'
@@ -20,6 +20,8 @@ interface Props {
   id: string | null
   design: DesignInput
   template: GarmentTemplate
+  /** Pieza que abrir (o null: la lista de piezas); `n` cambia en cada petición. */
+  focus?: { piece: string | null; n: number }
   materials: Map<string, Material>
   library: Material[]
   clients: Client[]
@@ -44,7 +46,14 @@ export function GarmentPanel(props: Props) {
   const projects = useApi(() => api.listProjects(), [])
   const artworks = useApi(() => api.listArtworks(), [])
   const [section, setSection] = useState<'piezas' | 'variantes' | 'modelo' | 'medidas' | 'datos' | 'versiones'>('piezas')
-  const [piece, setPiece] = useState<string | null>(null)
+  const [piece, setPiece] = useState<string | null>(props.focus?.piece ?? null)
+  // Al tocar una pieza en el lienzo (o «Piezas y materiales»), se abre esa pieza o la lista de piezas
+  useEffect(() => {
+    if (!props.focus) return
+    setSection('piezas')
+    setPiece(props.focus.piece)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.focus?.n])
 
   const setData = (patch: Partial<DesignData>) => onChange({ ...design, data: { ...design.data, ...patch } })
   const setOption = (key: string, value: string | boolean) => setData({ options: { ...design.data.options, [key]: value } })

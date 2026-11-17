@@ -400,7 +400,7 @@ function buildCap(h: HeadFrame, hat: HatShape) {
 }
 
 /** Gorro o gorra puesto en la cabeza del maniquí, con los materiales de cada zona. */
-export function Headwear({ model, cloud, design, height }: { model: Model; cloud: Cloud; design: Design; height: number }) {
+export function Headwear({ model, cloud, design, height, pick = false }: { model: Model; cloud: Cloud; design: Design; height: number; pick?: boolean }) {
   const materials = useSlotMaterials(design)
   const hat = design.hat
   const key = JSON.stringify(hat)
@@ -420,11 +420,12 @@ export function Headwear({ model, cloud, design, height }: { model: Model; cloud
     mesh.receiveShadow = true
     mesh.frustumCulled = false
     mesh.bind(model.body.skeleton, model.body.bindMatrix)
+    mesh.userData.pick = pick
     model.root.add(mesh)
     return () => {
       model.root.remove(mesh)
     }
-  }, [geometry, materials, model])
+  }, [geometry, materials, model, pick])
   useEffect(() => () => geometry?.dispose(), [geometry])
   return null
 }

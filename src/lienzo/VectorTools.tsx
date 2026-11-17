@@ -215,7 +215,8 @@ export function useVector(o: Options) {
   }, [o.doc])
 
   // --- Puntero ---
-  const down = (p: Pt, _e?: { altKey?: boolean }, tMs?: number) => {
+  /** Devuelve si ha hecho algo (con la Selección directa, false si no ha tocado ningún trazado). */
+  const down = (p: Pt, _e?: { altKey?: boolean }, tMs?: number): boolean => {
     const [x, y] = p
     if (o.tool === 'vpencil') {
       const t = target()
@@ -230,7 +231,7 @@ export function useVector(o: Options) {
       paintLive()
       drag.current = { kind: 'pencil', layer: t.layer, isNew: t.isNew, path: uid(), start: p, moved: false }
       setSel(null)
-      return
+      return true
     }
     if (o.tool === 'pen') {
       const l = pen ? layerById(pen.layer) : null
@@ -241,12 +242,12 @@ export function useVector(o: Options) {
           save(withPath(l, { ...cur, closed: true, fill: style.fill }))
           setSel({ layer: l.id, path: cur.id, node: null })
           setPen(null)
-          return
+          return true
         }
         const next = withPath(l, { ...cur, nodes: [...cur.nodes, { x, y }] })
         setDraft(next)
         drag.current = { kind: 'pen', layer: next, isNew: false, path: cur.id, idx: cur.nodes.length, start: p, moved: false }
-        return
+        return true
       }
       const t = target()
       const np = newPath([{ x, y }], false)
@@ -255,17 +256,17 @@ export function useVector(o: Options) {
       setPen({ layer: next.id, path: np.id })
       setSel(null)
       drag.current = { kind: 'pen', layer: next, isNew: t.isNew, path: np.id, idx: 0, start: p, moved: false }
-      return
+      return true
     }
 
     if (o.tool === 'vshape') {
       const t = target()
       drag.current = { kind: 'shape', layer: t.layer, isNew: t.isNew, path: uid(), start: p, moved: false }
       setSel(null)
-      return
+      return true
     }
 
-    if (o.tool !== 'direct') return
+    if (o.tool !== 'direct') return false
     // 0. Trazado entero elegido: esquinas del recuadro (escalar) y asa de arriba (girar)
     if (sel && sel.node === null) {
       const l = layerById(sel.layer)
@@ -275,11 +276,11 @@ export function useVector(o: Options) {
         const ci = cornersOf(b).findIndex((c) => near(c, x, y, tol))
         if (ci >= 0) {
           drag.current = { kind: 'scale', layer: l, path: sp.id, start: p, moved: false, corner: ci, box: b }
-          return
+          return true
         }
         if (near([(b.x0 + b.x1) / 2, b.y0 - ROTATE_GAP / o.scale], x, y, tol * 1.3)) {
           drag.current = { kind: 'rotate', layer: l, path: sp.id, start: p, moved: false, center: [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2] }
-          return
+          return true
         }
       }
     }
@@ -297,7 +298,7 @@ export function useVector(o: Options) {
             const h = node[which]
             if (h && near(h, x, y, tol)) {
               drag.current = { kind: 'handle', layer: l, path: sp.id, idx, which, start: p, moved: false }
-              return
+              return true
             }
           }
         }
@@ -316,13 +317,13 @@ export function useVector(o: Options) {
             lastTap.current = null
             save(withPath(l, toggleSmooth(sp, idx)))
             setSel({ layer: l.id, path: sp.id, node: idx })
-            return
+            return true
           }
           lastTap.current = { key, t: now }
           setSel({ layer: l.id, path: sp.id, node: idx })
           if (o.active !== l.id) o.setActive(l.id)
           drag.current = { kind: 'anchor', layer: l, path: sp.id, idx, start: p, moved: false }
-          return
+          return true
         }
       }
     for (const l of layers)
@@ -331,9 +332,10 @@ export function useVector(o: Options) {
           setSel({ layer: l.id, path: sp.id, node: null })
           if (o.active !== l.id) o.setActive(l.id)
           drag.current = { kind: 'path', layer: l, path: sp.id, start: p, moved: false }
-          return
+          return true
         }
     setSel(null)
+    return false
   }
 
   const move = (p: Pt, e: { altKey?: boolean; shiftKey?: boolean }, tMs?: number) => {
@@ -673,7 +675,7 @@ export function VectorOverlay({ vec, w, h, scale }: { vec: VectorApi; w: number;
 
 const HINTS: Record<VectorToolId, string> = {
   pen: 'Clic: punto · Arrastra: curva · Clic en el primero: cerrar · Intro: terminar · Retroceso: quitar punto',
-  direct: 'Arrastra puntos, manejadores (Alt: por separado) o el trazado; con el trazado elegido, esquinas = escalar y asa = girar (Mayús: proporción, 15°) · Doble toque: esquina/curva · Supr: borrar',
+  direct: 'Toca una pieza de la prenda para cambiar su color, textura o material · Arrastra puntos, manejadores (Alt: por separado) o el trazado; con el trazado elegido, esquinas = escalar y asa = girar (Mayús: proporción, 15°) · Doble toque: esquina/curva · Supr: borrar',
   vshape: 'Arrastra para dibujar la forma · Mayús: proporcionada',
   vpencil: 'Dibuja a mano alzada: el trazo se convierte en curvas limpias y editables · Si acabas cerca del principio, se cierra',
 }

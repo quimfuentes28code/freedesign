@@ -223,6 +223,17 @@ const SLOT_OF: Record<string, GarmentSlot> = {
   botones: 'botones',
 }
 
+/**
+ * Pieza del diseño que se ve en una zona 3D (al tocar la prenda en 3D se abre esa pieza). Si la zona no tiene pieza
+ * propia, la que la viste: puños sin canalé = mangas; bajo y cuello = cuerpo.
+ */
+export function pieceForSlot(t: GarmentTemplate, data: DesignData, slot: GarmentSlot): string | null {
+  const active = t.activePieces(data.options)
+  const map = t.family === 'head' ? HEAD_SLOT_OF : SLOT_OF
+  const find = (z: GarmentSlot) => t.pieces.find((p) => map[p.id] === z && (active.includes(p.id) || z === 'ojales'))?.id
+  return find(slot) ?? (slot === 'punos' ? (find('mangas') ?? find('cuerpo')) : slot === 'bajo' || slot === 'cuello' ? find('cuerpo') : undefined) ?? null
+}
+
 export function designTo3D(t: GarmentTemplate, data: DesignData, library?: Map<string, Material>, body?: Body): Design {
   // Medidas propias del diseño: estiran largo, mangas y ancho igual que en el dibujo
   const s = drawScale(t, data, body)

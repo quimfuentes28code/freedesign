@@ -1973,3 +1973,8 @@
   border-radius: 10px;
   background: rgb(255 255 255 / 0.04);
 }
+
+/* «Usar este color y tejido en todas las piezas de tela» (PieceInspector) dentro del panel claro: se leía blanco sobre blanco */
+.lz-light .link-button {
+  color: #2f6fd6;
+}

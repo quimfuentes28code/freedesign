@@ -21,7 +21,7 @@ export const TOOL_GROUPS: { id: string; tools: ToolDef[] }[] = [
     id: 'select',
     tools: [
       { id: 'select', label: 'Selección a mano (lazo)', key: 'S', d: 'M10 3.5c4 0 6.5 1.8 6.5 4.2S14 12 10 12 3.5 10.1 3.5 7.7 6 3.5 10 3.5zM6 11.5l-1.5 5 2-1 1 1.5' },
-      { id: 'direct', label: 'Selección directa (vectores)', key: 'A', d: 'M5 3l10 6.5-4.5 1.2 2.6 4.8-1.8 1-2.6-4.8L5 15z' },
+      { id: 'direct', label: 'Selección directa (piezas y vectores)', key: 'A', d: 'M5 3l10 6.5-4.5 1.2 2.6 4.8-1.8 1-2.6-4.8L5 15z' },
     ],
   },
   {

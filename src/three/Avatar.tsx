@@ -1,8 +1,8 @@
-import { useFrame, useLoader } from '@react-three/fiber'
+import { useFrame, useLoader, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import type { Design, Measurements, ShoeStyle } from '../types'
+import { GARMENT_SLOTS, type Design, type GarmentSlot, type Measurements, type ShoeStyle } from '../types'
 import { boneName, feminize, fitBody, measureModel, morphPositions, smoothNormals, type ModelInfo } from './body'
 import { Garment } from './Garment'
 import { setPose, type PoseId } from './pose'
@@ -89,10 +89,12 @@ interface Props {
   pose?: PoseId
   /** Color de la zapatilla de modelo real que se puede teñir (sin él, el suyo). */
   shoeColor?: string
+  /** Al tocar la prenda principal: la zona tocada (manga, capucha, puños…). */
+  onPickSlot?: (slot: GarmentSlot) => void
 }
 
 /** Maniquí animado, ajustado a las medidas, con la prenda puesta. */
-export function Mannequin({ measurements, design, outfit = [], animate, showBody = true, shoes, hat, pose = 'reposo', shoeColor }: Props) {
+export function Mannequin({ measurements, design, outfit = [], animate, showBody = true, shoes, hat, pose = 'reposo', shoeColor, onPickSlot }: Props) {
   const gltf = useLoader(GLTFLoader, MODEL_URL)
   const base = useMemo(() => prepare(gltf.scene, gltf.animations), [gltf])
   const female = !!measurements.female
@@ -154,15 +156,35 @@ export function Mannequin({ measurements, design, outfit = [], animate, showBody
 
   return (
     <group scale={fit.scale}>
-      <primitive object={model.root} />
+      <primitive
+        object={model.root}
+        {...(onPickSlot
+          ? {
+              // Tocar (sin arrastrar para girar) una zona de la prenda principal
+              onClick: (e: ThreeEvent<MouseEvent>) => {
+                if (e.delta > 6 || !e.object.userData.pick) return
+                const slot = (e.object.userData.slot as GarmentSlot | null) ?? GARMENT_SLOTS[e.face?.materialIndex ?? 0]
+                if (!slot) return
+                e.stopPropagation()
+                onPickSlot(slot)
+              },
+              onPointerMove: (e: ThreeEvent<PointerEvent>) => {
+                document.body.style.cursor = e.object.userData.pick ? 'pointer' : ''
+              },
+              onPointerOut: () => {
+                document.body.style.cursor = ''
+              },
+            }
+          : {})}
+      />
       {outfit.map((d, i) => (
         <Garment key={d.layer ?? i} model={model} fit={fit} cloud={cloud} measurements={measurements} design={d} pose={pose} shoes={showBody ? shoes : null} />
       ))}
       {/* Un gorro o una gorra va en la cabeza; el resto, en el cuerpo */}
       {design.hat ? (
-        <Headwear model={model} cloud={cloud} design={design} height={measurements.height} />
+        <Headwear model={model} cloud={cloud} design={design} height={measurements.height} pick={!!onPickSlot} />
       ) : (
-        <Garment model={model} fit={fit} cloud={cloud} measurements={measurements} design={design} pose={pose} shoes={showBody ? shoes : null} />
+        <Garment model={model} fit={fit} cloud={cloud} measurements={measurements} design={design} pose={pose} shoes={showBody ? shoes : null} pick={!!onPickSlot} />
       )}
       {hat?.hat && <Headwear model={model} cloud={cloud} design={hat} height={measurements.height} />}
       <HideFeet on={!!showBody && isRealShoe(shoes)} />

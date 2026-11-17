@@ -106,6 +106,8 @@ export function DesignEditor() {
   const [saving, setSaving] = useState(false)
   const [mode3d, setMode3dState] = useState<Mode3D>(storedMode)
   const [sheet, setSheet] = useState<'start' | 'garment' | null>(id ? null : 'start')
+  /** Pieza que abrir en «Prenda» al tocarla en el lienzo. */
+  const [garmentFocus, setGarmentFocus] = useState<{ piece: string | null; n: number } | null>(null)
   const [pendingImage, setPendingImage] = useState<File | null>(null)
   const runtimeId = id ?? DRAFT
   // Guardado en marcha (también para el autoguardado, que no espera a que React repinte)
@@ -315,7 +317,12 @@ export function DesignEditor() {
         dirty={dirty}
         onMenu={() => setSheet(sheet === 'start' ? null : 'start')}
         onExit={() => go('/disenos')}
-        onGarment={() => setSheet(sheet === 'garment' ? null : 'garment')}
+        onGarment={(piece) => {
+          // Sin pieza: abre o cierra «Prenda»; con pieza (o null, la lista): la abre ahí
+          if (piece === undefined) return setSheet(sheet === 'garment' ? null : 'garment')
+          setGarmentFocus({ piece, n: Date.now() })
+          setSheet('garment')
+        }}
         mode3d={mode3d}
         onMode3d={setMode3d}
         view3d={
@@ -328,7 +335,18 @@ export function DesignEditor() {
               </button>
             </div>
           ) : (
-            <Design3D template={template} data={design.data} materials={materials} client={client} designId={id} runtimeId={runtimeId} />
+            <Design3D
+              template={template}
+              data={design.data}
+              materials={materials}
+              client={client}
+              designId={id}
+              runtimeId={runtimeId}
+              onPickPiece={(piece) => {
+                setGarmentFocus({ piece, n: Date.now() })
+                setSheet('garment')
+              }}
+            />
           )
         }
         pendingImage={pendingImage}
@@ -375,6 +393,7 @@ export function DesignEditor() {
         {sheet === 'garment' && (
           <GarmentPanel
             id={id ?? null}
+            focus={garmentFocus ?? undefined}
             design={design}
             template={template}
             materials={materials}
