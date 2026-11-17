@@ -1,3 +1,4 @@
+import { MOCKUP_VIEWS } from './mockupViews'
 import { maskToPath } from './maskPath'
 import { removeBackground } from '../pages/library/artProduction'
 import type { ImageLayer } from '../shared/designs'
@@ -1361,6 +1362,44 @@ export function Lienzo(props: Props) {
       return { cx: l.x + l.w / 2, cy: l.y + h / 2, w: l.w, h, rot: 0 }
     }
     return null
+  }
+  /** Dibujos de la hoja de mockups de la prenda del diseño (la entrada del catálogo que mejor encaja con sus opciones). */
+  const sheetViews = useMemo(() => {
+    const opts = props.data.options
+    const cands = NEW_DESIGN_CATALOG.filter((c) => c.template.id === template.id && MOCKUP_VIEWS[c.id])
+    const keys = (c: (typeof cands)[number]) => Object.keys(c.options ?? {}).filter((k) => k !== 'genero')
+    const best =
+      cands.find((c) => keys(c).length > 0 && keys(c).every((k) => opts[k] === c.options![k])) ?? cands.find((c) => keys(c).length === 0) ?? cands[0]
+    return best ? MOCKUP_VIEWS[best.id] : null
+  }, [template.id, props.data.options])
+  /** ¿Es la prenda del propio diseño? (sus dibujos van al 3D y a la ficha) */
+  const isOwnGarment = (l: CanvasLayer) => (l.kind === 'mockup' && !l.template) || (l.kind === 'image' && !!l.mockup)
+  /**
+   * Dibujo de la prenda: «En línea» y «A color» son el dibujo técnico que sigue al diseño (cuello, capucha, colores…);
+   * «De la hoja», el de la hoja de mockups. Se cambia en el mismo sitio y al mismo alto.
+   */
+  const setGarmentDrawing = (l: CanvasLayer, kind: 'linea' | 'color' | 'hoja') => {
+    const b = boxOf(l)
+    if (!b) return
+    const base = { name: l.name, visible: l.visible, locked: l.locked, opacity: l.opacity, blend: l.blend }
+    let next: CanvasLayer | null = null
+    if (kind === 'hoja') {
+      if (l.kind !== 'mockup') return
+      const v = l.view === 'back' ? sheetViews?.back : sheetViews?.front
+      if (!v) return flash('Esta prenda no tiene dibujo en la hoja de mockups para esa vista')
+      const w = b.h / v.aspect
+      next = { ...base, id: uid(), kind: 'image', file: '', asset: v.file, aspect: v.aspect, mockup: { view: l.view }, x: b.cx - w / 2, y: b.cy - b.h / 2, w, rotation: 0 }
+    } else if (l.kind === 'mockup') {
+      if (l.style !== kind) next = { ...l, style: kind }
+    } else if (l.kind === 'image' && l.mockup) {
+      const w = b.h / 1.2
+      next = { ...base, id: uid(), kind: 'mockup', view: l.mockup.view, style: kind, x: b.cx - w / 2, y: b.cy - b.h / 2, w }
+    }
+    if (!next) return
+    const n = next
+    change({ ...doc, layers: doc.layers.map((x) => (x.id === l.id ? n : x)) })
+    if (active === l.id) setActive(n.id)
+    maskCache.current = null
   }
   /** El objeto de más arriba bajo el punto (con Mover, tocar un objeto lo elige, como en Photoshop o Illustrator). */
   const hitObject = (x: number, y: number) => {
@@ -3205,6 +3244,8 @@ export function Lienzo(props: Props) {
                 onDown={() => reorder(l.id, -1)}
                 onMerge={() => mergeDown(l)}
                 onAsGarment={(l.kind === 'paint' || (l.kind === 'image' && !l.asset)) ? (view, entry) => asGarment(l, view, entry) : undefined}
+                onDrawing={isOwnGarment(l) && !(l.kind === 'image' && !l.asset) ? (k) => setGarmentDrawing(l, k) : undefined}
+                hasSheet={!!sheetViews}
                 blank={!!props.blank}
                 templateName={template.name}
                 onClear={l.kind === 'paint' ? () => clearLayer(l) : undefined}
@@ -3632,6 +3673,9 @@ function LayerRow(props: {
   clipped: boolean
   /** «Es la prenda»: el dibujo a mano pasa a ser la prenda del diseño en esa vista (y, en blanco, qué prenda es). */
   onAsGarment?: (view: 'front' | 'back' | 'side' | null, entryId?: string) => void
+  /** Prenda del diseño: cambiar su dibujo (en línea, a color o el de la hoja de mockups). */
+  onDrawing?: (k: 'linea' | 'color' | 'hoja') => void
+  hasSheet?: boolean
   blank?: boolean
   templateName?: string
 }) {
@@ -3647,7 +3691,7 @@ function LayerRow(props: {
   })
   const [editing, setEditing] = useState(false)
   const [menu, setMenu] = useState(false)
-  const kind = l.kind === 'paint' ? 'Pintura' : l.kind === 'mockup' ? 'Prenda' : l.kind === 'detail' ? 'Fornitura' : l.kind === 'text' ? 'Texto' : l.kind === 'texture' ? 'Textura' : l.kind === 'vector' ? 'Trazados' : 'Imagen'
+  const kind = l.kind === 'paint' ? 'Pintura' : l.kind === 'mockup' || (l.kind === 'image' && (l.mockup || l.asset)) ? 'Prenda' : l.kind === 'detail' ? 'Fornitura' : l.kind === 'text' ? 'Texto' : l.kind === 'texture' ? 'Textura' : l.kind === 'vector' ? 'Trazados' : 'Imagen'
   return (
     <div className={`lz-layer-row${active ? ' on' : ''}${props.clipped ? ' clipped' : ''}`}>
       <div className="lz-layer-main" onClick={props.onSelect}>
@@ -3711,15 +3755,35 @@ function LayerRow(props: {
                   </button>
                 ))}
               </div>
+              {!props.onDrawing && (
+                <div className="lz-chips">
+                  <button className={l.style === 'linea' ? 'lz-chip on' : 'lz-chip'} onClick={() => props.onPatch({ style: 'linea' })} title="Gris claro con contorno, para pintar encima">
+                    En línea
+                  </button>
+                  <button className={l.style === 'color' ? 'lz-chip on' : 'lz-chip'} onClick={() => props.onPatch({ style: 'color' })} title="Con los colores y tejidos del diseño">
+                    A color
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+          {props.onDrawing && (
+            <div className="lz-field">
+              <span>Dibujo de la prenda</span>
               <div className="lz-chips">
-                <button className={l.style === 'linea' ? 'lz-chip on' : 'lz-chip'} onClick={() => props.onPatch({ style: 'linea' })} title="Gris claro con contorno, para pintar encima">
+                <button className={l.kind === 'mockup' && l.style === 'linea' ? 'lz-chip on' : 'lz-chip'} onClick={() => props.onDrawing!('linea')} title="Dibujo técnico en gris claro, para pintar encima; cambia con el cuello, la capucha, las medidas…">
                   En línea
                 </button>
-                <button className={l.style === 'color' ? 'lz-chip on' : 'lz-chip'} onClick={() => props.onPatch({ style: 'color' })} title="Con los colores y tejidos del diseño">
+                <button className={l.kind === 'mockup' && l.style === 'color' ? 'lz-chip on' : 'lz-chip'} onClick={() => props.onDrawing!('color')} title="Dibujo técnico con los colores y tejidos de cada pieza">
                   A color
                 </button>
+                {props.hasSheet && (
+                  <button className={l.kind === 'image' ? 'lz-chip on' : 'lz-chip'} onClick={() => props.onDrawing!('hoja')} title="El dibujo de la hoja de mockups (fijo: no cambia con las opciones)">
+                    De la hoja
+                  </button>
+                )}
               </div>
-            </>
+            </div>
           )}
           {l.kind === 'mockup' && (
             <button className="lz-btn" onClick={props.onOptions} title="Cuello, capucha, bolsillos, mangas… viendo cómo queda cada uno">
