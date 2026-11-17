@@ -262,6 +262,16 @@ html .lienzo .lz-label {
 }
 
 /*
+ * --- Texto de las tarjetas: un solo tamaño (14 px) para párrafos y listas, como las etiquetas y notas de al lado (antes
+ * unos salían a 16 px y otros a 13). Sin especificidad (:where), así .small y los estilos propios siguen mandando;
+ * las hojas de papel (ficha, presentación) no se tocan ---
+ */
+:where(.card:not(.sheet, .pres-sheet)) :where(p, li) {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/*
  * --- Portada: el plató de fotos 3D sigue de fondo a pantalla completa; el menú y la tarjeta que flotan encima son
  * los de la app (grafito liso, mismas letras, azul para las acciones y naranja en los detalles), sin el cristal dorado ---
  */
