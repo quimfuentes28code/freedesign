@@ -3408,6 +3408,58 @@ function BrushPreview({ brush, color }: { brush: BrushPreset; color: string }) {
 }
 
 /** Una fila del panel de capas: miniatura, nombre, visibilidad y, si está activa, sus ajustes. */
+/** Menú «⋯» de una capa: lo que se hace de vez en cuando, agrupado (como el menú de capa de Procreate). */
+function LayerMenu(props: Parameters<typeof LayerRow>[0] & { close: () => void }) {
+  const { layer: l, close } = props
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const out = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node) && !(e.target as HTMLElement).closest?.('.lz-mini')) close()
+    }
+    document.addEventListener('pointerdown', out)
+    return () => document.removeEventListener('pointerdown', out)
+  }, [close])
+  const act = (f: () => void) => () => {
+    f()
+    close()
+  }
+  const item = (label: string, f: () => void, opts: { on?: boolean; title?: string; danger?: boolean } = {}) => (
+    <button key={label} className={`lz-menu-item${opts.on ? ' on' : ''}${opts.danger ? ' danger' : ''}`} onClick={act(f)} title={opts.title}>
+      <span>{label}</span>
+      {opts.on !== undefined && <i>{opts.on ? '✓' : ''}</i>}
+    </button>
+  )
+  return (
+    <div className="lz-layer-menu" ref={ref} onClick={(e) => e.stopPropagation()}>
+      <div className="lz-menu-group">
+        {item('Duplicar', props.onDuplicate)}
+        {item('Combinar abajo', props.onMerge, { title: 'Textos, fornituras e imágenes se convierten en pintura' })}
+        {item('Subir', props.onUp)}
+        {item('Bajar', props.onDown)}
+      </div>
+      <div className="lz-menu-group">
+        {item('Máscara de recorte', () => props.onPatch({ clip: !l.clip || undefined }), { on: !!l.clip, title: 'Solo se ve donde hay algo en la capa de debajo' })}
+        {item('Referencia para el bote', () => props.onPatch({ reference: !l.reference || undefined }), { on: !!l.reference, title: 'El bote rellena en otra capa parándose en las líneas de esta' })}
+        {item('Bloquear', () => props.onPatch({ locked: !l.locked }), { on: l.locked })}
+        {l.kind === 'paint' && item('Bloquear transparencia', () => props.onPatch({ alphaLock: !l.alphaLock } as Partial<PaintLayer>), { on: !!l.alphaLock, title: 'Solo se pinta donde ya hay algo' })}
+      </div>
+      <div className="lz-menu-group">
+        {item('Es sombra', () => props.onPatch({ role: l.role === 'sombra' ? undefined : 'sombra' }), { on: l.role === 'sombra', title: 'Se ve en el dibujo; en 3D la pone la escena' })}
+        {item('Es luz', () => props.onPatch({ role: l.role === 'luz' ? undefined : 'luz' }), { on: l.role === 'luz', title: 'Se ve en el dibujo; en 3D la pone la escena' })}
+      </div>
+      {(props.onFlip || props.onInvert || props.onClear) && (
+        <div className="lz-menu-group">
+          {props.onFlip && item('Voltear en horizontal', () => props.onFlip!('x'))}
+          {props.onFlip && item('Voltear en vertical', () => props.onFlip!('y'))}
+          {props.onInvert && item('Invertir colores', props.onInvert)}
+          {props.onClear && item('Vaciar', props.onClear)}
+        </div>
+      )}
+      <div className="lz-menu-group">{item('Borrar capa', props.onRemove, { danger: true })}</div>
+    </div>
+  )
+}
+
 /** «Es la prenda»: para dibujar primero y decidir la prenda después. */
 function AsGarment({ layer: l, blank, templateName, onPick }: { layer: CanvasLayer; blank: boolean; templateName: string; onPick: (view: 'front' | 'back' | 'side' | null, entryId?: string) => void }) {
   const current = l.kind === 'image' ? (l.mockup?.view ?? null) : null
@@ -3484,6 +3536,7 @@ function LayerRow(props: {
     g.drawImage(props.thumb, (c.width - props.thumb.width * k) / 2, (c.height - props.thumb.height * k) / 2, props.thumb.width * k, props.thumb.height * k)
   })
   const [editing, setEditing] = useState(false)
+  const [menu, setMenu] = useState(false)
   const kind = l.kind === 'paint' ? 'Pintura' : l.kind === 'mockup' ? 'Prenda' : l.kind === 'detail' ? 'Fornitura' : l.kind === 'text' ? 'Texto' : l.kind === 'texture' ? 'Textura' : l.kind === 'vector' ? 'Trazados' : 'Imagen'
   return (
     <div className={`lz-layer-row${active ? ' on' : ''}${props.clipped ? ' clipped' : ''}`}>
@@ -3506,12 +3559,22 @@ function LayerRow(props: {
             {l.role ? ` · ${l.role}` : ''}
           </small>
         </div>
+        {l.locked && (
+          <button className="lz-mini" onClick={(e) => (e.stopPropagation(), props.onPatch({ locked: false }))} title="Bloqueada: toca para desbloquear">
+            🔒
+          </button>
+        )}
         <button className="lz-mini" onClick={(e) => (e.stopPropagation(), props.onPatch({ visible: !l.visible }))} title={l.visible ? 'Ocultar' : 'Mostrar'}>
           {l.visible ? '◉' : '○'}
         </button>
+        <button className={menu ? 'lz-mini on' : 'lz-mini'} onClick={(e) => (e.stopPropagation(), setMenu(!menu))} title="Más: duplicar, combinar, voltear, máscara…">
+          ⋯
+        </button>
       </div>
+      {menu && <LayerMenu {...props} close={() => setMenu(false)} />}
       {active && (
         <div className="lz-layer-opts">
+          <div className="lz-layer-pair">
           <div className="lz-field">
             <span>
               Opacidad <strong>{Math.round(l.opacity * 100)} %</strong>
@@ -3527,6 +3590,7 @@ function LayerRow(props: {
                 </option>
               ))}
             </select>
+          </div>
           </div>
           {l.kind === 'mockup' && (
             <>
@@ -3588,76 +3652,7 @@ function LayerRow(props: {
               <input type="range" min={-180} max={180} step={1} value={l.rotation} onChange={(e) => props.onPatch({ rotation: Number(e.target.value) })} />
             </div>
           )}
-          <div className="lz-chips">
-            <button className={l.clip ? 'lz-chip on' : 'lz-chip'} onClick={() => props.onPatch({ clip: !l.clip || undefined })} title="Solo se ve donde hay algo en la capa de debajo (texturas, sombras, estampados sin salirse)">
-              Máscara de recorte
-            </button>
-            <button className={l.reference ? 'lz-chip on' : 'lz-chip'} onClick={() => props.onPatch({ reference: !l.reference || undefined })} title="El bote rellena en otra capa parándose en lo que hay en esta (las líneas)">
-              Referencia
-            </button>
-          </div>
-          <div className="lz-chips">
-            <span className="lz-muted">Es de</span>
-            {(
-              [
-                [undefined, 'Dibujo'],
-                ['sombra', 'Sombra'],
-                ['luz', 'Luz'],
-              ] as [LayerRole | undefined, string][]
-            ).map(([role, label]) => (
-              <button key={label} className={l.role === role ? 'lz-chip on' : 'lz-chip'} onClick={() => props.onPatch({ role })} title={role ? 'Se ve en el dibujo; en 3D la luz y las sombras las pone la escena' : 'Parte del diseño (también en 3D)'}>
-                {label}
-              </button>
-            ))}
-          </div>
-          {props.onFlip && (
-            <div className="lz-chips">
-              <button className="lz-chip" onClick={() => props.onFlip!('x')}>
-                ↔ Voltear
-              </button>
-              <button className="lz-chip" onClick={() => props.onFlip!('y')}>
-                ↕ Voltear
-              </button>
-              {props.onInvert && (
-                <button className="lz-chip" onClick={props.onInvert}>
-                  Invertir colores
-                </button>
-              )}
-            </div>
-          )}
-          <div className="lz-chips">
-            <button className={l.locked ? 'lz-chip on' : 'lz-chip'} onClick={() => props.onPatch({ locked: !l.locked })}>
-              Bloquear
-            </button>
-            {l.kind === 'paint' && (
-              <button className={l.alphaLock ? 'lz-chip on' : 'lz-chip'} onClick={() => props.onPatch({ alphaLock: !l.alphaLock } as Partial<PaintLayer>)} title="Solo se pinta donde ya hay algo pintado en esta capa">
-                Bloquear transparencia
-              </button>
-            )}
-          </div>
-          <div className="lz-chips">
-            <button className="lz-chip" onClick={props.onUp} title="Subir">
-              ↑ Subir
-            </button>
-            <button className="lz-chip" onClick={props.onDown} title="Bajar">
-              ↓ Bajar
-            </button>
-            <button className="lz-chip" onClick={props.onDuplicate}>
-              Duplicar
-            </button>
-            <button className="lz-chip" onClick={props.onMerge} title="Juntar con la capa de debajo (textos, fornituras e imágenes se convierten en pintura)">
-              Combinar abajo
-            </button>
-            {props.onClear && (
-              <button className="lz-chip" onClick={props.onClear}>
-                Vaciar
-              </button>
-            )}
-            <button className="lz-chip danger" onClick={props.onRemove}>
-              Borrar
-            </button>
-          </div>
-        </div>
+                  </div>
       )}
     </div>
   )

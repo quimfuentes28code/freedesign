@@ -487,6 +487,56 @@
   cursor: pointer;
   font-size: 16px;
 }
+/* Opacidad y fusión en una fila */
+.lz-layer-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.lz-mini.on {
+  background: var(--lz-accent);
+  color: #fff;
+}
+/* Menú «⋯» de la capa */
+.lz-layer-menu {
+  margin: 4px 6px 8px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #2a2a2e;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.lz-menu-group + .lz-menu-group {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 4px;
+  padding-top: 4px;
+}
+.lz-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.lz-menu-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.lz-menu-item i {
+  font-style: normal;
+  color: var(--lz-accent);
+}
+.lz-menu-item.danger {
+  color: #ff6b6b;
+}
 .lz-layer-opts {
   padding: 0 10px 10px;
 }
