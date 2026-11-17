@@ -94,6 +94,8 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
   const [draft, setDraft] = useState<PathNode[]>([])
   const drawing = useRef<{ down: boolean; start: [number, number] } | null>(null)
   const [shapeMenu, setShapeMenu] = useState(false)
+  /** Panel de producción (el botón «Preparar para producción» lleva a él). */
+  const prodRef = useRef<HTMLDivElement>(null)
   const [templateMenu, setTemplateMenu] = useState(false)
   const [graffitiMenu, setGraffitiMenu] = useState(!!embedded?.graffiti)
   const brand = useAuth().user?.brandColors ?? []
@@ -177,8 +179,11 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
 
   /** Empieza desde una plantilla: sustituye lo que hay en el lienzo (se puede deshacer). */
   const applyTemplate = (t: LogoTemplate) => {
-    setLayers(buildTemplate(t, templatePalette(brand)))
-    setSelection([])
+    const built = buildTemplate(t, templatePalette(brand))
+    setLayers(built)
+    // El primer texto queda elegido: lo primero que se hace con una plantilla es cambiar su texto
+    const firstText = built.find((l) => l.type === 'text')
+    setSelection(firstText ? [firstText.id] : [])
     setTemplateMenu(false)
     if (name === 'Logo sin título') setName(t.label)
   }
@@ -409,7 +414,7 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
       } else if (mod && k === 'y') {
         e.preventDefault()
         history.redo()
-      } else if (mod && k === 'd') {
+      } else if (mod && (k === 'd' || k === 'j')) {
         e.preventDefault()
         duplicateSelected()
       } else if (mod && k === 'a') {
@@ -428,6 +433,18 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
         e.preventDefault()
         const step = e.shiftKey ? 10 : 1
         nudge(e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0, e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0)
+      } else if (!mod && !e.altKey && k === 'v') {
+        // Las mismas letras que en el lienzo: V mover/elegir, T texto, M formas, P pluma, L lápiz
+        setDraft([])
+        setTool(null)
+      } else if (!mod && !e.altKey && k === 't') {
+        setTool(null)
+        addText()
+      } else if (!mod && !e.altKey && k === 'm') {
+        setShapeMenu((v) => !v)
+      } else if (!mod && !e.altKey && (k === 'p' || k === 'l')) {
+        setDraft([])
+        setTool(k === 'p' ? 'pluma' : 'lapiz')
       } else if (e.key === 'Enter' && tool === 'pluma') {
         finishPath(draft, false)
       } else if (e.key === 'Escape') {
@@ -539,6 +556,21 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
           </div>
           <div className="editor-actions">
             {savedAt && <span className="save-state">Guardado a las {savedAt}</span>}
+            <button
+              className="button"
+              disabled={layers.length === 0}
+              onClick={() => {
+                const el = prodRef.current
+                if (!el) return
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                el.classList.remove('flash')
+                void el.offsetWidth
+                el.classList.add('flash')
+              }}
+              title="Tamaño real, tintas o hilos, separación de colores, bordado y exportar para el taller"
+            >
+              Preparar para producción
+            </button>
             <button className="button primary" onClick={save} disabled={saving || layers.length === 0} title="Guardar (Ctrl+S)">
               {saving ? 'Guardando…' : embedded ? 'Guardar y poner en el lienzo' : 'Guardar en la Biblioteca'}
             </button>
@@ -742,7 +774,7 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
             <div className="artboard-empty">
               <div className="artboard-empty-head">
                 <p>Empieza con una plantilla o en blanco:</p>
-                <button type="button" className="primary" onClick={() => setBlankStart(true)}>
+                <button type="button" className="button primary" onClick={() => setBlankStart(true)}>
                   Empezar en blanco
                 </button>
               </div>
@@ -759,7 +791,7 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
           )}
         </div>
         <p className="creator-hint muted small">
-          Mayús + clic: varias capas · Ctrl+G agrupar · Flechas: mover (Mayús, de 10 en 10) · Ctrl+D duplicar · Supr quitar · Ctrl+Z deshacer · Ctrl + rueda: zoom
+          Como en el lienzo: V elegir · T texto · M formas · P pluma · L lápiz · Ctrl+Z / Ctrl+Mayús+Z · Ctrl+J o Ctrl+D duplicar · Supr quitar · Mayús + clic: varias · Ctrl+G agrupar · Flechas: mover · Ctrl + rueda: zoom
         </p>
         {/* Copia sin marcos de selección, para exportar el SVG */}
         <svg className="export-stage" viewBox={`0 0 ${ART_SIZE} ${ART_SIZE}`} aria-hidden="true">
@@ -1024,7 +1056,9 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
           </section>
         )}
 
-        <ProductionPanel layers={layers} exportRef={exportRef} brand={brand} name={name} />
+        <div ref={prodRef} className="creator-prod">
+          <ProductionPanel layers={layers} exportRef={exportRef} brand={brand} name={name} />
+        </div>
 
         {!isNew && (
           <section>

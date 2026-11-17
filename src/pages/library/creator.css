@@ -534,3 +534,20 @@
   border-radius: 8px;
   border: 1px solid var(--border);
 }
+
+/* «Preparar para producción»: el panel se ilumina un momento al llegar */
+.creator-prod {
+  scroll-margin-top: 12px;
+  border-radius: var(--radius);
+}
+.creator-prod.flash {
+  animation: creator-flash 1.4s ease-out;
+}
+@keyframes creator-flash {
+  0% {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
