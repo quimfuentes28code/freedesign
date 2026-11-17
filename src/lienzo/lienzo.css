@@ -217,9 +217,9 @@
   touch-action: none;
   transform-origin: 50% 50%;
 }
+/* Lo elegido lo marca el recuadro de transformar (esquinas y asa), no un contorno */
 .lz-item.selected {
-  outline: 3px dashed var(--lz-accent);
-  outline-offset: 6px;
+  outline: none;
 }
 .lz-grid {
   position: absolute;

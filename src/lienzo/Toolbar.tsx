@@ -16,13 +16,13 @@ export interface ToolDef {
 
 /** Grupos en el orden de Photoshop: mover y seleccionar, pintar y borrar, rellenar, vectores, texto. */
 export const TOOL_GROUPS: { id: string; tools: ToolDef[] }[] = [
-  { id: 'move', tools: [{ id: 'move', label: 'Mover la capa', key: 'V', d: 'M10 2.5v15M2.5 10h15M10 2.5l-2.5 2.5M10 2.5l2.5 2.5M10 17.5l-2.5-2.5M10 17.5l2.5-2.5M2.5 10l2.5-2.5M2.5 10l2.5 2.5M17.5 10l-2.5-2.5M17.5 10l-2.5 2.5' }] },
+  { id: 'move', tools: [{ id: 'move', label: 'Mover y transformar', key: 'V', d: 'M10 2.5v15M2.5 10h15M10 2.5l-2.5 2.5M10 2.5l2.5 2.5M10 17.5l-2.5-2.5M10 17.5l2.5-2.5M2.5 10l2.5-2.5M2.5 10l2.5 2.5M17.5 10l-2.5-2.5M17.5 10l-2.5 2.5' }] },
   {
     id: 'select',
     tools: [
-      { id: 'select', label: 'Selección a mano (lazo)', key: 'S', d: 'M10 3.5c4 0 6.5 1.8 6.5 4.2S14 12 10 12 3.5 10.1 3.5 7.7 6 3.5 10 3.5zM6 11.5l-1.5 5 2-1 1 1.5' },
-      { id: 'wand', label: 'Varita: selecciona una zona de un toque (p. ej. el interior de la capucha)', key: 'W', d: 'M3.5 16.5l9-9M12.5 7.5l1.5-1.5M14.5 2.5v2M17.5 5.5h-2M16.6 3.4l-1.4 1.4M10.5 3.5l.8 1.2M17 9.5l-1.3-.6' },
-      { id: 'direct', label: 'Selección directa (piezas y vectores)', key: 'A', d: 'M5 3l10 6.5-4.5 1.2 2.6 4.8-1.8 1-2.6-4.8L5 15z' },
+      { id: 'select', label: 'Lazo', key: 'S', d: 'M10 3.5c4 0 6.5 1.8 6.5 4.2S14 12 10 12 3.5 10.1 3.5 7.7 6 3.5 10 3.5zM6 11.5l-1.5 5 2-1 1 1.5' },
+      { id: 'wand', label: 'Varita', key: 'W', d: 'M3.5 16.5l9-9M12.5 7.5l1.5-1.5M14.5 2.5v2M17.5 5.5h-2M16.6 3.4l-1.4 1.4M10.5 3.5l.8 1.2M17 9.5l-1.3-.6' },
+      { id: 'direct', label: 'Selección directa', key: 'A', d: 'M5 3l10 6.5-4.5 1.2 2.6 4.8-1.8 1-2.6-4.8L5 15z' },
     ],
   },
   {

@@ -1344,6 +1344,78 @@ export function Lienzo(props: Props) {
     }
     return Math.abs(q.x - l.x) < l.size * Math.max(2, l.text.length * 0.35) + m && Math.abs(q.y - l.y) < l.size + m ? l : null
   }
+  /** Caja de un objeto del lienzo (imagen, fornitura, texto o prenda): centro, tamaño en el papel y giro. */
+  const boxOf = (l: CanvasLayer): { cx: number; cy: number; w: number; h: number; rot: number } | null => {
+    if (l.kind === 'image') {
+      const h = l.w * l.aspect
+      return { cx: l.x + l.w / 2, cy: l.y + h / 2, w: l.w, h, rot: l.rotation }
+    }
+    if (l.kind === 'detail') return { cx: l.x, cy: l.y, w: l.w, h: l.w * detailAspect(l.detail), rot: l.rotation }
+    if (l.kind === 'text') {
+      const c = textCanvas(r, l)
+      return { cx: l.x, cy: l.y, w: c.width / 2, h: c.height / 2, rot: l.rotation }
+    }
+    if (l.kind === 'mockup') {
+      const m = r.mockups.get(l.id)
+      const h = m ? (l.w * m.height) / m.width : l.w * 1.2
+      return { cx: l.x + l.w / 2, cy: l.y + h / 2, w: l.w, h, rot: 0 }
+    }
+    return null
+  }
+  /** El objeto de más arriba bajo el punto (con Mover, tocar un objeto lo elige, como en Photoshop o Illustrator). */
+  const hitObject = (x: number, y: number) => {
+    for (const l of [...doc.layers].reverse()) {
+      if (!l.visible || l.locked) continue
+      const b = boxOf(l)
+      if (!b) continue
+      const a = (-b.rot * Math.PI) / 180
+      const dx = x - b.cx
+      const dy = y - b.cy
+      const u = dx * Math.cos(a) - dy * Math.sin(a)
+      const v = dx * Math.sin(a) + dy * Math.cos(a)
+      if (Math.abs(u) <= b.w / 2 && Math.abs(v) <= b.h / 2) return l
+    }
+    return null
+  }
+  /** Escala (esquinas, proporcional desde el centro) o gira (asa de arriba; Mayús: de 15 en 15°) el objeto elegido. */
+  const transformObject = (ev: ReactPointerEvent, l: CanvasLayer, mode: 'scale' | 'rotate') => {
+    ev.stopPropagation()
+    ev.preventDefault()
+    const b = boxOf(l)
+    if (!b) return
+    const before = docRef.current
+    const p0 = toDoc(ev.clientX, ev.clientY)
+    const d0 = Math.max(1, Math.hypot(p0.x - b.cx, p0.y - b.cy))
+    const move = (e: PointerEvent) => {
+      const p = toDoc(e.clientX, e.clientY)
+      let next: CanvasLayer = l
+      if (mode === 'rotate') {
+        let deg = (Math.atan2(p.y - b.cy, p.x - b.cx) * 180) / Math.PI + 90
+        if (e.shiftKey) deg = Math.round(deg / 15) * 15
+        deg = ((deg + 540) % 360) - 180
+        if (l.kind === 'image' || l.kind === 'detail' || l.kind === 'text') next = { ...l, rotation: Math.round(deg * 10) / 10 }
+      } else {
+        const k = Math.max(0.05, Math.hypot(p.x - b.cx, p.y - b.cy) / d0)
+        if (l.kind === 'image') {
+          const w = Math.max(20, b.w * k)
+          next = { ...l, w, x: b.cx - w / 2, y: b.cy - (w * l.aspect) / 2 }
+        } else if (l.kind === 'mockup') {
+          const w = Math.max(40, b.w * k)
+          next = { ...l, w, x: b.cx - w / 2, y: b.cy - (b.h * (w / b.w)) / 2 }
+        } else if (l.kind === 'detail') next = { ...l, w: Math.max(6, b.w * k) }
+        else if (l.kind === 'text') next = { ...l, size: Math.max(6, Math.round(l.size * k)) }
+      }
+      change({ ...docRef.current, layers: docRef.current.layers.map((x) => (x.id === l.id ? next : x)) }, false)
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      maskCache.current = null
+      if (docRef.current !== before) r.history.push({ kind: 'doc', before, after: docRef.current })
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
   const penSeen = useRef(false)
   const panning = useRef<{ x: number; y: number; view: typeof view } | null>(null)
   const space = useRef(false)
@@ -1418,7 +1490,12 @@ export function Lienzo(props: Props) {
       else addText(p.x, p.y)
       setPanel('layers')
     }
-    else if (tool === 'move' && layer && !layer.locked) moving.current = { x: p.x, y: p.y, layer, dx: 0, dy: 0, pointer: e.pointerId }
+    else if (tool === 'move') {
+      const hit = hitObject(p.x, p.y)
+      if (hit && hit.id !== active) setActive(hit.id)
+      const target = hit ?? layer
+      if (target && !target.locked) moving.current = { x: p.x, y: p.y, layer: target, dx: 0, dy: 0, pointer: e.pointerId }
+    }
   }
   const onPointerMove = (e: ReactPointerEvent) => {
     const pt = pointers.current.get(e.pointerId)
@@ -2374,8 +2451,9 @@ export function Lienzo(props: Props) {
           </>
         )}
         {tool === 'text' && <span className="lz-opts-hint">Toca el lienzo para escribir; el texto elegido se edita en Capas</span>}
-        {tool === 'move' && <span className="lz-opts-hint">Arrastra para mover la capa elegida</span>}
-        {tool === 'select' && <span className="lz-opts-hint">Rodea una zona para moverla, escalarla, girarla, copiarla o borrarla</span>}
+        {tool === 'move' && <span className="lz-opts-hint">Toca un objeto para elegirlo · arrastra para moverlo · esquinas: escalar · punto de arriba: girar</span>}
+        {tool === 'select' && <span className="lz-opts-hint">Rodea una zona: lo que pintes se queda dentro, o muévela, cópiala o bórrala · un toque la quita</span>}
+        {tool === 'wand' && <span className="lz-opts-hint">Toca una zona cerrada (p. ej. el interior de la capucha): lo que pintes se queda dentro</span>}
         {tool === 'picker' && <span className="lz-opts-hint">Toca un color del lienzo para cogerlo</span>}
         {isVectorTool(tool) && <VectorPanel vec={vec} tool={tool} color={settings.color} />}
       </div>
@@ -2535,6 +2613,38 @@ export function Lienzo(props: Props) {
             )
           })}
           {isVectorTool(tool) && <VectorOverlay vec={vec} w={doc.w} h={doc.h} scale={view.s} />}
+          {(tool === 'move' || (tool === 'text' && layer?.kind === 'text')) && layer && !layer.locked && !moveOffset && (() => {
+            const b = boxOf(layer)
+            if (!b) return null
+            const s = 1 / view.s
+            const hw = b.w / 2
+            const hh = b.h / 2
+            const k = 10 * s
+            const rotates = layer.kind !== 'mockup'
+            return (
+              <svg className="lz-overlay" viewBox={`0 0 ${doc.w} ${doc.h}`} width={doc.w} height={doc.h} style={{ overflow: 'visible' }}>
+                <g transform={`translate(${b.cx} ${b.cy}) rotate(${b.rot})`}>
+                  <rect x={-hw} y={-hh} width={b.w} height={b.h} fill="none" stroke="#3d8bfd" strokeWidth={1.5 * s} strokeDasharray={`${5 * s} ${4 * s}`} />
+                  {rotates && <line x1={0} y1={-hh} x2={0} y2={-hh - 28 * s} stroke="#3d8bfd" strokeWidth={1.5 * s} />}
+                  {rotates && (
+                    <circle cx={0} cy={-hh - 28 * s} r={7 * s} fill="#fff" stroke="#3d8bfd" strokeWidth={2 * s} style={{ pointerEvents: 'auto', cursor: 'grab' }} onPointerDown={(ev) => transformObject(ev, layer, 'rotate')}>
+                      <title>Girar (Mayús: de 15 en 15°)</title>
+                    </circle>
+                  )}
+                  {[
+                    [-hw, -hh, 'nwse-resize'],
+                    [hw, -hh, 'nesw-resize'],
+                    [hw, hh, 'nwse-resize'],
+                    [-hw, hh, 'nesw-resize'],
+                  ].map(([x, y, c]) => (
+                    <rect key={`${x}${y}`} x={(x as number) - k / 2} y={(y as number) - k / 2} width={k} height={k} fill="#fff" stroke="#3d8bfd" strokeWidth={2 * s} style={{ pointerEvents: 'auto', cursor: c as string }} onPointerDown={(ev) => transformObject(ev, layer, 'scale')}>
+                      <title>Escalar</title>
+                    </rect>
+                  ))}
+                </g>
+              </svg>
+            )
+          })()}
           {(lasso || selectionPts) && (
             <svg className="lz-overlay" viewBox={`0 0 ${doc.w} ${doc.h}`} width={doc.w} height={doc.h}>
               <polygon points={(lasso ?? selectionPts)!.join(' ')} className="lz-ants" style={{ strokeWidth: 2 / view.s }} />
