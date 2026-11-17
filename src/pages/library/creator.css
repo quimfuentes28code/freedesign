@@ -47,12 +47,34 @@
   touch-action: none;
 }
 
+/* Tablero vacío: todas las plantillas, con scroll, y «Empezar en blanco» */
 .artboard-empty {
   position: absolute;
+  inset: 0;
   margin: 0;
+  padding: 16px;
+  overflow: auto;
   color: var(--muted);
   font-size: 14px;
-  pointer-events: none;
+  background: var(--panel);
+  z-index: 2;
+}
+.artboard-empty-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  max-width: 720px;
+  margin: 0 auto 12px;
+}
+.artboard-blank-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
 }
 
 /* Copia invisible para exportar (tiene que estar en la página para poder medirla) */
@@ -325,14 +347,12 @@
 }
 
 .artboard-empty .template-gallery {
-  pointer-events: auto;
-  max-width: 460px;
+  max-width: 720px;
   margin: 0 auto;
 }
 
 .artboard-empty p {
-  margin: 0 0 10px;
-  text-align: center;
+  margin: 0;
 }
 
 /* Producción */

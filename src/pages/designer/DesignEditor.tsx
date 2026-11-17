@@ -3,7 +3,8 @@ import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, useApi } from '../../api/client'
 import { defaultDesign, getTemplate, NEW_DESIGN_CATALOG } from '../../designer/templates'
 import { clientBody, standardBody } from '../../production/measurements'
-import { bodyKind, type CanvasDoc, type DesignInput, type MockupLayer } from '../../shared/designs'
+import { bodyKind, type CanvasDoc, type CanvasLayer, type DesignInput, type ImageLayer, type MockupLayer } from '../../shared/designs'
+import { MOCKUP_VIEWS } from '../../lienzo/mockupViews'
 import { Design3D } from './Design3D'
 import { useHistory } from './useHistory'
 import { Lienzo, type Mode3D } from '../../lienzo/Lienzo'
@@ -60,6 +61,26 @@ export function ownMockups(): MockupLayer[] {
     { ...base, id: crypto.randomUUID(), name: 'Prenda · Delantero', view: 'front', x: 140 },
     { ...base, id: crypto.randomUUID(), name: 'Prenda · Espalda', view: 'back', x: 1040 },
   ]
+}
+
+/**
+ * Dibujos de la prenda al elegirla: los de la hoja de mockups (delante a la izquierda, detrás a la derecha), que
+ * cuentan como la prenda del diseño (lo pintado encima va al 3D); si la prenda no tiene, sus vistas en línea.
+ */
+export function garmentMockups(entryId: string, doc: CanvasDoc): CanvasLayer[] {
+  const v = MOCKUP_VIEWS[entryId]
+  if (!v?.front) return ownMockups()
+  const views = [
+    { view: 'front' as const, m: v.front, name: 'Prenda · Delantero' },
+    ...(v.back ? [{ view: 'back' as const, m: v.back, name: 'Prenda · Espalda' }] : []),
+  ]
+  const slot = doc.w / views.length
+  const maxH = doc.h - 200
+  return views.map(({ view, m, name }, i): ImageLayer => {
+    const w = Math.min(slot - 160, maxH / m.aspect)
+    const h = w * m.aspect
+    return { id: crypto.randomUUID(), kind: 'image', name, file: '', asset: m.file, aspect: m.aspect, mockup: { view }, x: slot * i + (slot - w) / 2, y: (doc.h - h) / 2, w, rotation: 0, visible: true, locked: false, opacity: 1, blend: 'normal' }
+  })
 }
 
 /** Diseño nuevo sin guardar: lienzo en blanco (la prenda base se elige dentro). */
@@ -361,8 +382,8 @@ export function DesignEditor() {
             onBlank={() => setSheet(null)}
             onGarment={(entry, gender) => {
               // Prenda base elegida para el borrador: sus vistas en línea, debajo de lo pintado
-              const hasOwn = canvas.layers.some((l) => l.kind === 'mockup' && !l.template)
-              const layers = hasOwn ? canvas.layers : [...ownMockups(), ...canvas.layers]
+              const hasOwn = canvas.layers.some((l) => (l.kind === 'mockup' && !l.template) || (l.kind === 'image' && !!l.mockup))
+              const layers = hasOwn ? canvas.layers : [...garmentMockups(entry.id, canvas), ...canvas.layers]
               history.set({
                 ...design,
                 name: design.name === 'Diseño sin título' || design.name.endsWith(' sin título') ? `${entry.name}${gender === 'mujer' ? ' de mujer' : ''} sin título` : design.name,

@@ -216,8 +216,47 @@ export function useVector(o: Options) {
 
   // --- Puntero ---
   /** Devuelve si ha hecho algo (con la Selección directa, false si no ha tocado ningún trazado). */
+  /**
+   * Con las herramientas que crean (formas, pluma, lápiz), tocar lo ya hecho lo coge en vez de crear otro: las esquinas
+   * del recuadro escalan, el asa de arriba gira y el trazado (o, si `any`, cualquier trazado tocado) se mueve.
+   */
+  const grabExisting = (p: Pt, any: boolean): boolean => {
+    const [x, y] = p
+    if (sel && sel.node === null) {
+      const l = layerById(sel.layer)
+      const sp = pathIn(l, sel.path)
+      if (l && sp && !l.locked) {
+        const b = curveBounds(sp)
+        const ci = cornersOf(b).findIndex((c) => near(c, x, y, tol))
+        if (ci >= 0) {
+          drag.current = { kind: 'scale', layer: l, path: sp.id, start: p, moved: false, corner: ci, box: b }
+          return true
+        }
+        if (near([(b.x0 + b.x1) / 2, b.y0 - ROTATE_GAP / o.scale], x, y, tol * 1.3)) {
+          drag.current = { kind: 'rotate', layer: l, path: sp.id, start: p, moved: false, center: [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2] }
+          return true
+        }
+        if (any && x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1) {
+          drag.current = { kind: 'path', layer: l, path: sp.id, start: p, moved: false }
+          return true
+        }
+      }
+    }
+    if (!any) return false
+    for (const l of vectorLayers().filter((l) => l.visible && !l.locked).reverse())
+      for (const sp of [...l.paths].reverse())
+        if (hitPath(sp, x, y, tol)) {
+          setSel({ layer: l.id, path: sp.id, node: null })
+          if (o.active !== l.id) o.setActive(l.id)
+          drag.current = { kind: 'path', layer: l, path: sp.id, start: p, moved: false }
+          return true
+        }
+    return false
+  }
+
   const down = (p: Pt, _e?: { altKey?: boolean }, tMs?: number): boolean => {
     const [x, y] = p
+    if ((o.tool === 'vshape' || (o.tool === 'pen' && !pen) || o.tool === 'vpencil') && grabExisting(p, o.tool !== 'vpencil')) return true
     if (o.tool === 'vpencil') {
       const t = target()
       const filter = liveFilter(pencil, o.scale)

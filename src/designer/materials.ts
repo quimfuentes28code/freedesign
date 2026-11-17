@@ -110,6 +110,16 @@ export const CATALOG: CatalogMaterial[] = [
   T('malla', 'Punto', 'Malla deportiva (mesh)', '100% poliéster', '140 g/m²', 'Camisetas de fútbol, forros', 'malla', 0.12, look(0.7, 0.3, 'rejilla', 0.9, 0.7)),
   T('licra', 'Punto', 'Licra (punto elástico)', '80% poliamida · 20% elastano', '190 g/m²', 'Ropa deportiva, mallas', 'liso', 0.45, look(0.45, 0.6, 'liso', 0, 0.5)),
   T('scuba', 'Punto', 'Neopreno / scuba', '95% poliéster · 5% elastano', '320 g/m²', 'Sudaderas estructuradas, faldas', 'liso', 0.15, look(0.7, 0.3, 'liso', 0, 2.4)),
+  T('slub', 'Punto', 'Jersey flameado (slub)', '100% algodón', '170 g/m²', 'Camisetas con textura irregular', 'punto', 0.04, look(0.95, 0.3, 'punto', 0.55, 0.8)),
+  T('jersey-mercerizado', 'Punto', 'Jersey mercerizado', '100% algodón mercerizado', '170 g/m²', 'Camisetas y polos con brillo suave', 'punto', 0.18, look(0.6, 0.55, 'punto', 0.3, 0.8)),
+  T('punto-roma', 'Punto', 'Punto roma (ponte)', '70% viscosa · 25% poliamida · 5% elastano', '320 g/m²', 'Pantalones de vestir de punto, vestidos', 'liso', 0.08, look(0.8, 0.35, 'punto', 0.2, 1.6)),
+  T('velour', 'Punto', 'Velour (terciopelo de punto)', '80% algodón · 20% poliéster', '300 g/m²', 'Chándales retro, sudaderas', 'terciopelo', 0.3, look(0.8, 1, 'liso', 0, 1.2, { sheenRoughness: 0.55 })),
+  T('pointelle', 'Punto', 'Pointelle (calado)', '100% algodón', '150 g/m²', 'Tops, camisetas femeninas', 'malla', 0.04, look(0.9, 0.3, 'rejilla', 0.6, 0.7)),
+  T('rizo', 'Punto', 'Rizo / toalla (terry)', '100% algodón', '350 g/m²', 'Polos y shorts de playa, sudaderas', 'boucle', 0.02, look(1, 0.6, 'rizo', 0.7, 1.4)),
+  T('chenilla', 'Punto', 'Chenilla', '100% poliéster', '320 g/m²', 'Parches varsity, sudaderas', 'terciopelo', 0.15, look(0.95, 1, 'rizo', 0.5, 1.3)),
+  T('ochos', 'Punto', 'Punto de ochos (cable knit)', '100% algodón', '500 g/m²', 'Jerséis, cárdigans', 'trenzado', 0.02, look(1, 0.6, 'sarga', 1, 1.8)),
+  T('felpa-reciclada', 'Punto', 'Felpa reciclada', '50% algodón reciclado · 50% poliéster reciclado', '330 g/m²', 'Sudaderas sostenibles', 'felpa', 0.03, look(0.96, 0.55, 'punto', 0.55, 1.6)),
+  T('spacer', 'Punto', 'Spacer 3D', '100% poliéster', '350 g/m²', 'Sudaderas técnicas, zapatillas', 'malla', 0.1, look(0.75, 0.3, 'rejilla', 0.5, 2.2)),
 
   // --- Tejido plano ---
   T('popelin', 'Tejido plano', 'Popelín', '100% algodón', '110–120 g/m²', 'Camisas', 'liso', 0.12, look(0.75, 0.25, 'liso', 0, 0.8)),
@@ -129,6 +139,24 @@ export const CATALOG: CatalogMaterial[] = [
   T('saten', 'Tejido plano', 'Satén', '100% poliéster', '120 g/m²', 'Forros, chaquetas bomber, vestidos', 'saten', 0.7, look(0.3, 1, 'liso', 0, 0.45, { sheenRoughness: 0.3 })),
   T('gasa', 'Tejido plano', 'Gasa / chiffon', '100% poliéster', '50 g/m²', 'Blusas y vestidos vaporosos', 'liso', 0.2, look(0.6, 0.6, 'liso', 0, 0.2)),
   T('terciopelo', 'Tejido plano', 'Terciopelo', '90% poliéster · 10% elastano', '280 g/m²', 'Chándales, vestidos de fiesta', 'terciopelo', 0.35, look(0.75, 1, 'liso', 0, 1.2, { sheenRoughness: 0.5 })),
+  T('sateen', 'Tejido plano', 'Satén de algodón (sateen)', '97% algodón · 3% elastano', '200 g/m²', 'Pantalones, camisas con caída', 'saten', 0.3, look(0.55, 0.6, 'liso', 0, 1)),
+  T('crepe', 'Tejido plano', 'Crepé', '100% poliéster', '150 g/m²', 'Blusas, vestidos, pantalones fluidos', 'lino', 0.06, look(0.9, 0.3, 'grano', 0.3, 0.5)),
+  T('georgette', 'Tejido plano', 'Georgette', '100% poliéster', '80 g/m²', 'Blusas y vestidos vaporosos', 'lino', 0.08, look(0.8, 0.4, 'grano', 0.2, 0.25)),
+  T('organza', 'Tejido plano', 'Organza', '100% poliéster', '40 g/m²', 'Capas, mangas, detalles', 'liso', 0.5, look(0.4, 0.6, 'liso', 0, 1.4, { clearcoat: 0.2 })),
+  T('tul', 'Tejido plano', 'Tul', '100% poliamida', '30 g/m²', 'Faldas, capas superpuestas', 'malla', 0.15, look(0.7, 0.3, 'rejilla', 0.8, 0.6)),
+  T('muselina', 'Tejido plano', 'Muselina / doble gasa', '100% algodón', '130 g/m²', 'Camisas de verano, pijamas', 'lino', 0.02, look(1, 0.3, 'grano', 0.4, 0.5)),
+  T('seersucker', 'Tejido plano', 'Seersucker (sirsaca)', '100% algodón', '140 g/m²', 'Camisas y shorts de verano', 'lino', 0.04, look(0.95, 0.2, 'gofre', 0.6, 0.8)),
+  T('batista', 'Tejido plano', 'Batista', '100% algodón', '80 g/m²', 'Camisas finas, blusas', 'liso', 0.08, look(0.8, 0.25, 'liso', 0, 0.5)),
+  T('dril', 'Tejido plano', 'Dril (drill)', '100% algodón', '280 g/m²', 'Ropa de trabajo, cargos', 'sarga', 0.05, look(0.9, 0.12, 'sarga', 0.5, 2)),
+  T('moleskin', 'Tejido plano', 'Moleskin', '100% algodón', '320 g/m²', 'Pantalones, chaquetas de invierno', 'ante', 0.02, look(1, 0.7, 'liso', 0, 1.9)),
+  T('selvedge', 'Tejido plano', 'Denim selvedge 13,5 oz', '100% algodón', '460 g/m²', 'Vaqueros premium', 'denim', 0.03, look(1, 0.1, 'sarga', 0.7, 2.3)),
+  T('denim-ligero', 'Tejido plano', 'Denim ligero 8 oz', '100% algodón', '270 g/m²', 'Camisas vaqueras, vestidos', 'denim', 0.04, look(0.98, 0.12, 'sarga', 0.45, 1.2)),
+  T('encerado', 'Tejido plano', 'Algodón encerado', '100% algodón con cera', '300 g/m²', 'Chaquetas de campo, bolsas', 'oxford', 0.35, look(0.55, 0.15, 'gofre', 0.3, 2.6, { clearcoat: 0.3 })),
+  T('jacquard', 'Tejido plano', 'Jacquard', '60% algodón · 40% poliéster', '300 g/m²', 'Chaquetas, camisas con dibujo tejido', 'tweed', 0.12, look(0.8, 0.4, 'gofre', 0.5, 1.8)),
+  T('brocado', 'Tejido plano', 'Brocado', 'Poliéster con hilo metálico', '280 g/m²', 'Chaquetas de fiesta, detalles', 'saten', 0.55, look(0.4, 0.8, 'gofre', 0.4, 2, { clearcoat: 0.3 })),
+  T('lame', 'Tejido plano', 'Lamé (metalizado)', 'Poliéster metalizado', '120 g/m²', 'Prendas de fiesta, escenario', 'saten', 0.95, look(0.2, 0.3, 'liso', 0, 0.6, { clearcoat: 0.9 })),
+  T('lentejuelas', 'Tejido plano', 'Lentejuelas', 'Malla de poliéster con lentejuelas', '350 g/m²', 'Prendas de fiesta', 'metal', 0.95, look(0.15, 0.2, 'grano', 0.8, 1.6, { clearcoat: 1 })),
+  T('tafetan', 'Tejido plano', 'Tafetán', '100% poliéster', '90 g/m²', 'Vestidos, forros, cortavientos', 'saten', 0.6, look(0.35, 0.7, 'liso', 0, 1.6, { clearcoat: 0.3 })),
 
   // --- Lana ---
   T('punto-lana', 'Lana', 'Punto de lana', '100% lana', '350 g/m²', 'Jerséis y cárdigans', 'punto', 0.02, look(1, 0.7, 'punto', 0.9, 1.4)),
@@ -137,6 +165,11 @@ export const CATALOG: CatalogMaterial[] = [
   T('pano-lana', 'Lana', 'Paño de lana', '80% lana · 20% poliamida', '500 g/m²', 'Abrigos, chaquetas varsity', 'franela', 0.02, look(1, 0.6, 'liso', 0, 2.8)),
   T('tweed', 'Lana', 'Tweed', '100% lana', '420 g/m²', 'Americanas, abrigos, gorras', 'tweed', 0.02, look(1, 0.5, 'sarga', 0.5, 2.4)),
   T('boucle', 'Lana', 'Bouclé', '60% lana · 40% poliéster', '400 g/m²', 'Chaquetas, abrigos', 'boucle', 0.02, look(1, 0.6, 'rizo', 0.8, 2)),
+  T('gabardina-lana', 'Lana', 'Gabardina de lana', '100% lana', '280 g/m²', 'Pantalones de traje, americanas', 'sarga', 0.06, look(0.85, 0.4, 'sarga', 0.3, 1.5)),
+  T('melton', 'Lana', 'Melton', '80% lana · 20% poliamida', '650 g/m²', 'Chaquetas varsity, abrigos', 'franela', 0.01, look(1, 0.5, 'liso', 0, 3)),
+  T('franela-lana', 'Lana', 'Franela de lana', '100% lana', '300 g/m²', 'Pantalones, camisas de invierno', 'franela', 0.02, look(1, 0.65, 'liso', 0, 1.3)),
+  T('mohair', 'Lana', 'Mohair', '70% mohair · 30% poliamida', '300 g/m²', 'Jerséis y cárdigans peludos', 'borrego', 0.04, look(1, 1, 'rizo', 0.6, 1)),
+  T('alpaca', 'Lana', 'Alpaca', '100% alpaca', '320 g/m²', 'Jerséis, abrigos', 'punto', 0.05, look(1, 0.9, 'punto', 0.6, 1.2)),
 
   // --- Técnicos ---
   T('ripstop', 'Técnicos', 'Nylon ripstop', '100% poliamida', '70 g/m²', 'Cortavientos, cargos técnicos', 'ripstop', 0.3, look(0.55, 0.2, 'rejilla', 0.15, 0.9, { clearcoat: 0.2 })),
@@ -145,6 +178,12 @@ export const CATALOG: CatalogMaterial[] = [
   T('impermeable', 'Técnicos', 'Nylon impermeable (recubierto)', '100% poliamida con PU', '120 g/m²', 'Chubasqueros, anoraks', 'liso', 0.55, look(0.35, 0.2, 'liso', 0, 1.6, { clearcoat: 0.6 })),
   T('nylon-bomber', 'Técnicos', 'Nylon de bomber (MA-1)', '100% poliamida', '160 g/m²', 'Chaquetas bomber', 'saten', 0.45, look(0.4, 0.5, 'liso', 0, 1.4, { clearcoat: 0.3 })),
   T('acolchado', 'Técnicos', 'Acolchado (puffer)', 'Nylon con relleno de poliéster', '—', 'Plumíferos y chalecos', 'acolchado', 0.4, look(0.45, 0.3, 'acolchado', 1, 2.6, { clearcoat: 0.3 })),
+  T('nylon-crinkle', 'Técnicos', 'Nylon arrugado (crinkle)', '100% poliamida', '80 g/m²', 'Chándales retro, cortavientos', 'ripstop', 0.4, look(0.45, 0.3, 'grano', 0.6, 0.9, { clearcoat: 0.3 })),
+  T('cordura', 'Técnicos', 'Cordura', '100% poliamida de alta tenacidad', '330 g/m²', 'Refuerzos, mochilas, ropa de trabajo', 'oxford', 0.12, look(0.75, 0.2, 'gofre', 0.4, 2.6)),
+  T('tres-capas', 'Técnicos', 'Tejido de 3 capas (membrana)', 'Poliamida + membrana + tricot', '200 g/m²', 'Chaquetas de montaña', 'liso', 0.25, look(0.6, 0.2, 'liso', 0, 2.2, { clearcoat: 0.25 })),
+  T('taslan', 'Técnicos', 'Taslan', '100% poliamida texturizada', '150 g/m²', 'Pantalones y chaquetas outdoor', 'lino', 0.15, look(0.75, 0.25, 'grano', 0.3, 1.4)),
+  T('reflectante', 'Técnicos', 'Tejido reflectante', 'Poliéster con microesferas', '200 g/m²', 'Detalles, chaquetas de noche', 'liso', 0.8, look(0.3, 0.2, 'grano', 0.2, 1.6, { clearcoat: 0.7 })),
+  T('poliester-reciclado', 'Técnicos', 'Poliéster reciclado', '100% poliéster reciclado (rPET)', '150 g/m²', 'Cortavientos, forros sostenibles', 'liso', 0.3, look(0.55, 0.3, 'liso', 0, 1.1, { clearcoat: 0.15 })),
 
   // --- Pieles y pelo ---
   T('cuero', 'Pieles y pelo', 'Piel de vacuno (cuero)', '100% piel bovina', '1,1–1,3 mm', 'Chaquetas, detalles', 'piel', 0.35, look(0.45, 0, 'grano', 0.35, 3, { clearcoat: 0.4 })),
@@ -154,6 +193,10 @@ export const CATALOG: CatalogMaterial[] = [
   T('charol', 'Pieles y pelo', 'Charol', 'PU brillante', '0,8 mm', 'Detalles, prendas de fiesta', 'liso', 0.9, look(0.12, 0, 'liso', 0, 2.4, { clearcoat: 1 })),
   T('borrego', 'Pieles y pelo', 'Borrego / sherpa', '100% poliéster', '400 g/m²', 'Chaquetas, cuellos, forros', 'borrego', 0.02, look(1, 0.9, 'rizo', 1, 1.6)),
   T('pelo-sintetico', 'Pieles y pelo', 'Pelo sintético', '100% acrílico', '600 g/m²', 'Abrigos, cuellos', 'borrego', 0.08, look(1, 1, 'rizo', 1, 1.4)),
+  T('microante', 'Pieles y pelo', 'Microante (ante sintético)', '100% poliéster', '250 g/m²', 'Chaquetas, overshirts', 'ante', 0.03, look(1, 0.75, 'liso', 0, 1.6)),
+  T('piel-vegana', 'Pieles y pelo', 'Piel vegana', 'Base vegetal con PU', '1 mm', 'Chaquetas, detalles', 'piel', 0.3, look(0.5, 0, 'grano', 0.3, 2.4, { clearcoat: 0.35 })),
+  T('piel-serpiente', 'Pieles y pelo', 'Piel grabada (serpiente)', 'Piel con grabado', '1 mm', 'Detalles, chaquetas', 'piel', 0.4, look(0.45, 0, 'grano', 0.7, 2.4, { clearcoat: 0.4 })),
+  T('piel-envejecida', 'Pieles y pelo', 'Piel envejecida (vintage)', '100% piel bovina', '1,2 mm', 'Cazadoras, chaquetas de moto', 'piel', 0.15, look(0.65, 0, 'grano', 0.45, 2.8, { clearcoat: 0.15 })),
 
   // --- Fornituras ---
   F('cordon-algodon', 'Cordones', 'Cordón de algodón trenzado', '100% algodón', 'Capuchas, cinturas', 'trenzado', 0.03, look(0.95, 0.4, 'sarga', 0.9, 1)),

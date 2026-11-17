@@ -473,11 +473,53 @@ export function garmentMask(r: Runtime, doc: CanvasDoc) {
       g.translate(l.x + l.w / 2, l.y + h / 2)
       g.rotate((l.rotation * Math.PI) / 180)
       g.scale(l.flipX ? -1 : 1, l.flipY ? -1 : 1)
-      g.drawImage(img, -l.w / 2, -h / 2, l.w, h)
+      g.drawImage(solidImage(img), -l.w / 2, -h / 2, l.w, h)
       g.restore()
     }
   }
   return out
+}
+
+const solids = new WeakMap<HTMLImageElement, HTMLCanvasElement>()
+/**
+ * La silueta de un dibujo, rellena: lo que no se alcanza desde el borde sin cruzar una línea es de dentro. Así un
+ * mockup o dibujo solo de líneas (interior transparente) también vale para «Pintar solo dentro de la prenda».
+ */
+function solidImage(img: HTMLImageElement) {
+  const hit = solids.get(img)
+  if (hit) return hit
+  const k = Math.min(1, 1200 / Math.max(img.naturalWidth, img.naturalHeight))
+  const w = Math.max(1, Math.round(img.naturalWidth * k))
+  const h = Math.max(1, Math.round(img.naturalHeight * k))
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  const g = c.getContext('2d', { willReadFrequently: true })!
+  g.drawImage(img, 0, 0, w, h)
+  const im = g.getImageData(0, 0, w, h)
+  const d = im.data
+  const outside = new Uint8Array(w * h)
+  const stack: number[] = []
+  const push = (i: number) => {
+    if (!outside[i] && d[i * 4 + 3] < 40) {
+      outside[i] = 1
+      stack.push(i)
+    }
+  }
+  for (let x = 0; x < w; x++) push(x), push((h - 1) * w + x)
+  for (let y = 0; y < h; y++) push(y * w), push(y * w + w - 1)
+  while (stack.length) {
+    const i = stack.pop()!
+    const x = i % w
+    if (x > 0) push(i - 1)
+    if (x < w - 1) push(i + 1)
+    if (i >= w) push(i - w)
+    if (i < w * (h - 1)) push(i + w)
+  }
+  for (let i = 0; i < w * h; i++) if (!outside[i]) d[i * 4 + 3] = 255
+  g.putImageData(im, 0, 0)
+  solids.set(img, c)
+  return c
 }
 
 /** Clave de la imagen de una capa de imagen (archivo subido o imagen de la app). */

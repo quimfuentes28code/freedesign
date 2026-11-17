@@ -81,6 +81,8 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
   const [selection, setSelection] = useState<string[]>([])
   const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] })
   const [zoom, setZoom] = useState(1)
+  /** «Empezar en blanco»: se quita la galería de plantillas del tablero vacío. */
+  const [blankStart, setBlankStart] = useState(false)
   const [loading, setLoading] = useState(!isNew)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -736,11 +738,24 @@ export function ArtworkCreator({ embedded }: { embedded?: EmbeddedCreator } = {}
               ))}
             </g>
           </svg>
-          {layers.length === 0 && (
+          {layers.length === 0 && !blankStart && (
             <div className="artboard-empty">
-              <p>Añade un texto, una imagen o una forma, o empieza con una plantilla:</p>
+              <div className="artboard-empty-head">
+                <p>Empieza con una plantilla o en blanco:</p>
+                <button type="button" className="primary" onClick={() => setBlankStart(true)}>
+                  Empezar en blanco
+                </button>
+              </div>
               <TemplateGallery brand={brand} onPick={applyTemplate} />
             </div>
+          )}
+          {layers.length === 0 && blankStart && (
+            <p className="artboard-blank-hint muted small">
+              Lienzo en blanco: añade un texto, una forma o una imagen desde el panel.{' '}
+              <button type="button" className="link" onClick={() => setBlankStart(false)}>
+                Ver plantillas
+              </button>
+            </p>
           )}
         </div>
         <p className="creator-hint muted small">

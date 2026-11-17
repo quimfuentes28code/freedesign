@@ -197,6 +197,26 @@
   display: block;
   pointer-events: none;
 }
+.lz-detail-wrap {
+  position: absolute;
+  pointer-events: none;
+}
+/* Tirador para alargar cremalleras, cordones y cintas (extremo de abajo) */
+.lz-stretch {
+  position: absolute;
+  left: 50%;
+  bottom: -11px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--lz-accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  cursor: ns-resize;
+  pointer-events: auto;
+  touch-action: none;
+  transform-origin: 50% 50%;
+}
 .lz-item.selected {
   outline: 3px dashed var(--lz-accent);
   outline-offset: 6px;

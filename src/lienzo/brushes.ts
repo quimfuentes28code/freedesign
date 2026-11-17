@@ -335,7 +335,7 @@ export class Stroke {
       const dy = y - this.smooth.y
       const d = Math.hypot(dx, dy)
       if (d <= this.o.lazy) return
-      const f = ((d - this.o.lazy) / d) * (1 - Math.min(0.5, this.o.streamline * 0.5))
+      const f = (d - this.o.lazy) / d
       this.smooth.x += dx * f
       this.smooth.y += dy * f
     } else {

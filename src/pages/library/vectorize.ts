@@ -198,7 +198,7 @@ function cleanMask(mask: Uint8Array, w: number, h: number, minArea: number) {
  * Contornos de una máscara por los bordes de los píxeles. Cada borde va con la forma a su izquierda, así las vueltas
  * de fuera y las de los huecos salen en sentidos contrarios (con relleno par-impar da igual).
  */
-function traceLoops(mask: Uint8Array, w: number, h: number): Pt[][] {
+export function traceLoops(mask: Uint8Array, w: number, h: number): Pt[][] {
   const inside = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && mask[y * w + x] === 1
   const W = w + 1
   const next = new Map<number, number[]>()
@@ -271,7 +271,7 @@ function polyArea(l: Pt[]) {
 }
 
 /** Douglas–Peucker en una vuelta cerrada (se parte por los dos puntos más alejados). */
-function simplifyClosed(l: Pt[], tol: number): Pt[] {
+export function simplifyClosed(l: Pt[], tol: number): Pt[] {
   if (l.length < 5) return l
   // Primero se suaviza la escalera de píxeles: cada punto hacia la media de sus vecinos
   const soft = l.map((p, i) => {

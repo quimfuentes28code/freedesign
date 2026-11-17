@@ -1,3 +1,4 @@
+import { maskToPath } from './maskPath'
 import { removeBackground } from '../pages/library/artProduction'
 import type { ImageLayer } from '../shared/designs'
 import { detailAspect } from '../designer/details'
@@ -47,7 +48,7 @@ import { TEXTURES, textureTile, type TextureDef } from './textures'
 import { autoShade, lightOf, shadeOf, type LightFrom, type ShadeStyle } from './shading'
 import { ArtworkCreator, TemplateGallery } from '../pages/library/ArtworkCreator'
 import { ColorPicker } from './ColorPicker'
-import { afterSave, clipBaseOf, clippedLayer, compose, textureCanvas, detailCanvas, floodMask, garmentMask, grab, imageKey, loadImage, onArtLoaded, pieceAt, refreshClip, registerFlush, runtimeFor, textCanvas, uploadDirty, type Runtime } from './engine'
+import { afterSave, clipBaseOf, clippedLayer, compose, drawLayer, textureCanvas, detailCanvas, floodMask, garmentMask, grab, imageKey, loadImage, onArtLoaded, pieceAt, refreshClip, registerFlush, runtimeFor, textCanvas, uploadDirty, type Runtime } from './engine'
 import { FontPicker } from '../components/FontPicker'
 import { MOCKUPS, type MockupAsset } from './mockups'
 import type { Artwork } from '../shared/artworks'
@@ -62,7 +63,7 @@ import './lienzo.css'
 /** Puntero de los trazos que llegan del móvil que hace de tableta (no choca con los del navegador). */
 const REMOTE_POINTER = 987654
 
-type Tool = 'brush' | 'eraser' | 'picker' | 'fill' | 'move' | 'text' | 'select' | 'shaper' | 'curve' | 'pen' | 'vpencil' | 'direct' | 'vshape'
+type Tool = 'brush' | 'eraser' | 'picker' | 'fill' | 'move' | 'text' | 'select' | 'wand' | 'shaper' | 'curve' | 'pen' | 'vpencil' | 'direct' | 'vshape'
 type Panel = 'brushes' | 'layers' | 'color' | 'ajustes' | 'acciones' | 'biblioteca' | 'opciones' | 'ia' | 'luces' | null
 
 interface Settings {
@@ -295,6 +296,21 @@ export function Lienzo(props: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [r])
+
+  // Imágenes que llegan de fuera del lienzo (p. ej. los mockups al elegir la prenda): se cargan y se repinta
+  const missingImages = doc.layers
+    .filter((l) => l.kind === 'image' && !r.images.has(imageKey(l)))
+    .map((l) => l.id)
+    .join()
+  useEffect(() => {
+    if (!missingImages || loading) return
+    let alive = true
+    r.load(doc).then(() => alive && redraw())
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missingImages, loading])
 
   // Mockups: el dibujo de la prenda de cada vista (se vuelve a pintar al cambiar el diseño)
   const designKey = useMemo(() => JSON.stringify({ ...data, canvas: undefined }), [data])
@@ -556,13 +572,15 @@ export function Lienzo(props: Props) {
     // Capa con máscara de recorte: lo pintado se queda dentro de su base
     const base = clipBaseOf(doc, pl)
     if (base && !erase) masks.push(clippedLayer(r, doc, pl, base).base)
+    // Con una zona elegida (lazo o varita), el trazo se queda dentro
+    if (selMask) masks.push(selMask)
     const opts = {
       brush,
       color: strokeColor,
       size,
       opacity,
       streamline,
-      lazy: (streamline * 34) / view.s,
+      lazy: (streamline * streamline * 30) / view.s,
       symmetry: settings.symmetry,
       symmetryCount: settings.symmetryCount,
       axis: { x: settings.axis[0] * doc.w, y: settings.axis[1] * doc.h },
@@ -841,6 +859,41 @@ export function Lienzo(props: Props) {
     setSelection(null)
     setSelectionPts(null)
   }
+  /** La selección (lazo o varita) como máscara del papel: el pincel, la goma y el bote se quedan dentro. */
+  const selMask = useMemo(() => {
+    if (!selection) return null
+    const c = document.createElement('canvas')
+    c.width = doc.w
+    c.height = doc.h
+    const g = c.getContext('2d')!
+    g.fillStyle = '#000'
+    g.fill(selection)
+    return c
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selection, doc.w, doc.h])
+  /** Varita: la zona cerrada que se toca (entre las líneas del dibujo o las capas de referencia) pasa a ser la selección. */
+  const wandAt = (x: number, y: number) => {
+    const refs = doc.layers.filter((l) => l.reference && l.visible)
+    const mask = floodMask(refs.length ? compose(r, { ...doc, layers: refs }, { paper: false }) : compose(r, doc), x, y)
+    if (!mask) return flash('Toca dentro de una zona cerrada')
+    // Un poco más grande, para tapar el borde suavizado de las líneas
+    const grown = document.createElement('canvas')
+    grown.width = doc.w
+    grown.height = doc.h
+    const gg = grown.getContext('2d')!
+    gg.filter = 'blur(1.5px)'
+    gg.drawImage(mask, 0, 0)
+    const out = maskToPath(grown)
+    if (!out) return
+    setSelection(out.path)
+    setSelectionPts(out.pts)
+    flash('Zona elegida: lo que pintes (pincel, goma, bote, estampados) se queda dentro')
+  }
+  // Al pasar a una herramienta que no pinta, la selección se quita (antes se quedaba aunque ya no se usara)
+  useEffect(() => {
+    if (!['select', 'wand', 'brush', 'eraser', 'fill', 'shaper', 'curve', 'picker'].includes(tool)) clearSelection()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool])
   const selTarget = () => {
     if (!paintLayer) {
       flash('Elige una capa de pintura (en «Capas»)')
@@ -1193,6 +1246,10 @@ export function Lienzo(props: Props) {
       g.globalCompositeOperation = 'destination-in'
       g.drawImage(garmentMask(r, doc), 0, 0)
     }
+    if (selMask) {
+      g.globalCompositeOperation = 'destination-in'
+      g.drawImage(selMask, 0, 0)
+    }
     const lg = lc.getContext('2d')!
     // El bote rellena siempre opaco (como en Procreate), sin la opacidad del pincel
     lg.globalAlpha = 1
@@ -1203,6 +1260,30 @@ export function Lienzo(props: Props) {
     remember(settings.color)
     touch()
     redraw()
+  }
+  /** Alargar una fornitura larga arrastrando su extremo de abajo: cambia su largo, el de arriba no se mueve. */
+  const stretchDetail = (ev: ReactPointerEvent, l: DetailLayer) => {
+    ev.stopPropagation()
+    ev.preventDefault()
+    const before = docRef.current
+    const a = (l.rotation * Math.PI) / 180
+    const u = [-Math.sin(a), Math.cos(a)]
+    const h0 = l.w * detailAspect(l.detail)
+    const top = [l.x - (u[0] * h0) / 2, l.y - (u[1] * h0) / 2]
+    const move = (e: PointerEvent) => {
+      const p = toDoc(e.clientX, e.clientY)
+      const h = Math.max(l.w * 1.5, (p.x - top[0]) * u[0] + (p.y - top[1]) * u[1])
+      const length = Math.round((h * l.detail.w) / l.w)
+      const next = { ...l, x: top[0] + (u[0] * h) / 2, y: top[1] + (u[1] * h) / 2, detail: { ...l.detail, length } }
+      change({ ...docRef.current, layers: docRef.current.layers.map((x) => (x.id === l.id ? next : x)) }, false)
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      if (docRef.current !== before) r.history.push({ kind: 'doc', before, after: docRef.current })
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
   }
   const moving = useRef<{ x: number; y: number; layer: CanvasLayer; dx: number; dy: number; pointer: number } | null>(null)
   const [moveOffset, setMoveOffset] = useState<{ id: string; dx: number; dy: number } | null>(null)
@@ -1325,6 +1406,7 @@ export function Lienzo(props: Props) {
     }
     else if (tool === 'picker') pick(p.x, p.y)
     else if (tool === 'fill') fill(p.x, p.y)
+    else if (tool === 'wand') wandAt(p.x, p.y)
     else if (tool === 'select') {
       if (floating) return
       clearSelection()
@@ -1443,7 +1525,7 @@ export function Lienzo(props: Props) {
         path.closePath()
         setSelection(path)
         setSelectionPts(lasso)
-      }
+      } else clearSelection()
       setLasso(null)
       return
     }
@@ -1525,6 +1607,7 @@ export function Lienzo(props: Props) {
         else if (k === 'v') setTool('move')
         else if (k === 't') setTool('text')
         else if (k === 's') setTool('select')
+        else if (k === 'w') setTool('wand')
         else if (k === 'enter' && floating) endTransform(true)
         else if (k === '0') {
           userMoved.current = false
@@ -1754,10 +1837,46 @@ export function Lienzo(props: Props) {
     ;[layers[i], layers[j]] = [layers[j], layers[i]]
     change({ ...doc, layers })
   }
+  /** Capas que no se pueden juntar con otras: las prendas (su dibujo va al 3D y a la ficha). */
+  const isGarmentLayer = (l: CanvasLayer) => l.kind === 'mockup' || (l.kind === 'image' && (!!l.asset || !!l.mockup))
+  /**
+   * Junta varias capas en una de pintura nueva (en el sitio de la más baja), con su opacidad y fusión. Las capas
+   * originales siguen en memoria: deshacer las devuelve.
+   */
+  const mergeLayers = (list: CanvasLayer[], name: string) => {
+    if (list.length < 2) return flash('Hacen falta al menos dos capas para combinar')
+    const id = uid()
+    const c = r.layer(id)
+    const g = c.getContext('2d')!
+    for (const l of list) {
+      g.save()
+      g.globalAlpha = l.opacity
+      g.globalCompositeOperation = (l.blend === 'normal' ? 'source-over' : l.blend) as GlobalCompositeOperation
+      const base = clipBaseOf(doc, l)
+      if (base && list.includes(base)) g.drawImage(clippedLayer(r, doc, l, base).canvas, 0, 0)
+      else drawLayer(g, r, l)
+      g.restore()
+    }
+    r.dirty.add(id)
+    const ids = new Set(list.map((l) => l.id))
+    const first = doc.layers.findIndex((l) => ids.has(l.id))
+    const merged: PaintLayer = { id, kind: 'paint', name, file: null, visible: true, locked: false, opacity: 1, blend: 'normal' }
+    const layers = doc.layers.flatMap((l, i) => (i === first ? [merged] : ids.has(l.id) ? [] : [l]))
+    change({ ...doc, layers })
+    setActive(id)
+    flash(`${list.length} capas combinadas en «${name}» (Ctrl+Z para separarlas)`)
+  }
+  /** Todas las capas visibles que no son prenda, en una sola (para no tener 20 capas por prenda). */
+  const mergeVisible = () => {
+    const list = doc.layers.filter((l) => l.visible && !l.role && !isGarmentLayer(l))
+    mergeLayers(list, 'Combinada')
+  }
   const mergeDown = (l: CanvasLayer) => {
     const i = doc.layers.findIndex((x) => x.id === l.id)
     const below = doc.layers[i - 1]
-    if (l.kind !== 'paint' || below?.kind !== 'paint') return flash('Solo se combinan dos capas de pintura')
+    if (!below) return flash('No hay ninguna capa debajo')
+    if (isGarmentLayer(l) || isGarmentLayer(below)) return flash('Las prendas no se combinan (su dibujo va al 3D y a la ficha)')
+    if (l.kind !== 'paint' || below.kind !== 'paint') return mergeLayers([below, l], below.name)
     const lc = r.layer(below.id)
     const all = { x0: 0, y0: 0, x1: doc.w, y1: doc.h }
     const before = grab(lc, all)
@@ -1847,6 +1966,55 @@ export function Lienzo(props: Props) {
     } else if (t && t !== template.id) flash(`Tu mockup es de ${getTemplate(t)?.name.toLowerCase() ?? 'otra prenda'} y este diseño es ${template.name.toLowerCase()}: en 3D se usa la prenda del diseño`)
     else flash('Mockup puesto: lo que pintes encima irá a la prenda 3D')
     setTool('brush')
+  }
+  /**
+   * «Es la prenda»: lo dibujado a mano (capa de pintura o imagen subida) pasa a ser la prenda del diseño en esa vista,
+   * como un mockup propio (lo pintado encima va al 3D, encajado a su contorno). Una capa de pintura se recorta a lo
+   * dibujado y se sube como imagen. Con `entryId` (lienzo en blanco) el diseño pasa a ser esa prenda.
+   */
+  const asGarment = async (l: CanvasLayer, view: 'front' | 'back' | 'side' | null, entryId?: string) => {
+    if (l.kind === 'image') {
+      const layers = doc.layers.map((x) => (x.id === l.id ? { ...l, mockup: view ? { view } : undefined } : x))
+      change({ ...doc, layers })
+    } else if (l.kind === 'paint' && view) {
+      const src = r.layer(l.id)
+      const d = src.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, src.width, src.height).data
+      let x0 = src.width
+      let y0 = src.height
+      let x1 = -1
+      let y1 = -1
+      for (let y = 0; y < src.height; y++)
+        for (let x = 0; x < src.width; x++)
+          if (d[(y * src.width + x) * 4 + 3] > 8) {
+            if (x < x0) x0 = x
+            if (x > x1) x1 = x
+            if (y < y0) y0 = y
+            if (y > y1) y1 = y
+          }
+      if (x1 < 0) return flash('La capa está vacía: dibuja antes la prenda')
+      const w = x1 - x0 + 1
+      const h = y1 - y0 + 1
+      const c = document.createElement('canvas')
+      c.width = w
+      c.height = h
+      c.getContext('2d')!.drawImage(src, x0, y0, w, h, 0, 0, w, h)
+      flash('Guardando el dibujo como prenda…')
+      try {
+        const { key } = await api.uploadBlob(await pngOf(c))
+        const img = await loadImage(fileOf(key))
+        if (img) r.images.set(key, img)
+        const next: ImageLayer = { id: l.id, kind: 'image', name: l.name, file: key, aspect: h / w, mockup: { view }, x: x0, y: y0, w, rotation: 0, visible: l.visible, locked: false, opacity: l.opacity, blend: l.blend }
+        const cur = docRef.current
+        change({ ...cur, layers: cur.layers.map((x) => (x.id === l.id ? next : x)) })
+      } catch {
+        return flash('No se ha podido guardar el dibujo')
+      }
+    } else return
+    const entry = entryId ? NEW_DESIGN_CATALOG.find((c) => c.id === entryId) : null
+    if (entry && props.blank && props.onTemplate) {
+      props.onTemplate(entry.template.id)
+      flash(`Este diseño es ahora ${entry.name.toLowerCase()}: lo que pintes encima del dibujo irá al 3D`)
+    } else if (view) flash('Tu dibujo es ahora la prenda: lo que pintes encima irá al 3D')
   }
   const deleteAsset = (a: LienzoAsset) => {
     setAssets((list) => list.filter((x) => x.id !== a.id))
@@ -2040,7 +2208,7 @@ export function Lienzo(props: Props) {
 
   const brand = (user?.brandColors ?? []).map((c) => c.hex)
   const transform = `translate(${view.x}px, ${view.y}px) rotate(${view.r}rad) scale(${view.s})`
-  const cursor = tool === 'pen' || tool === 'vpencil' || tool === 'vshape' ? 'crosshair' : tool === 'direct' ? 'default' : tool === 'move' ? 'move' : tool === 'text' ? 'text' : tool === 'select' || tool === 'curve' ? 'crosshair' : tool === 'picker' || tool === 'fill' ? 'crosshair' : 'none'
+  const cursor = tool === 'pen' || tool === 'vpencil' || tool === 'vshape' || tool === 'wand' ? 'crosshair' : tool === 'direct' ? 'default' : tool === 'move' ? 'move' : tool === 'text' ? 'text' : tool === 'select' || tool === 'curve' ? 'crosshair' : tool === 'picker' || tool === 'fill' ? 'crosshair' : 'none'
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
   /** Creador de gráficos abierto encima del lienzo (nuevo, con una plantilla de logo o editando uno). */
   const [creator, setCreator] = useState<{ id?: string; template?: string; graffiti?: boolean } | null>(null)
@@ -2196,6 +2364,13 @@ export function Lienzo(props: Props) {
                 <b>{Math.round(streamline * 100)} %</b>
               </label>
             )}
+            <button
+              className={settings.inside ? 'lz-chip on' : 'lz-chip'}
+              onClick={() => setSettings({ inside: !settings.inside })}
+              title="Lo que pintes se queda dentro de las prendas del lienzo (sus mockups o dibujos marcados como prenda)"
+            >
+              Solo dentro de la prenda
+            </button>
           </>
         )}
         {tool === 'text' && <span className="lz-opts-hint">Toca el lienzo para escribir; el texto elegido se edita en Capas</span>}
@@ -2320,13 +2495,19 @@ export function Lienzo(props: Props) {
             if (l.kind === 'detail') {
               const c = detailCanvas(r, l)
               const h = (l.w * c.height) / c.width
+              const long = LONG_DETAILS.includes(l.detail.kind) && l.id === active && !l.locked
               return (
-                <div
-                  key={l.id + c.width + c.height}
-                  className={l.id === active && tool === 'move' ? 'lz-item selected' : 'lz-item'}
-                  style={{ ...style, left: l.x - l.w / 2 + (off?.dx ?? 0), top: l.y - h / 2 + (off?.dy ?? 0), width: l.w, height: h, transform: `rotate(${l.rotation}deg)` }}
-                  ref={(el) => mount(el, c)}
-                />
+                <div key={l.id + c.width + c.height} className="lz-detail-wrap" style={{ ...style, left: l.x - l.w / 2 + (off?.dx ?? 0), top: l.y - h / 2 + (off?.dy ?? 0), width: l.w, height: h, transform: `rotate(${l.rotation}deg)` }}>
+                  <div className={l.id === active && tool === 'move' ? 'lz-item selected' : 'lz-item'} style={{ position: 'absolute', inset: 0 }} ref={(el) => mount(el, c)} />
+                  {long && (
+                    <span
+                      className="lz-stretch"
+                      style={{ transform: `translateX(-50%) scale(${1 / view.s})` }}
+                      onPointerDown={(ev) => stretchDetail(ev, l)}
+                      title="Arrastra para alargar o acortar"
+                    />
+                  )}
+                </div>
               )
             }
             if (l.kind === 'vector')
@@ -2878,6 +3059,9 @@ export function Lienzo(props: Props) {
               <button className="lz-btn" onClick={() => addShade('luz')} title="Capa de luz recortada a la capa elegida (Trama)">
                 + Luz
               </button>
+              <button className="lz-btn" onClick={mergeVisible} title="Junta todas las capas visibles (menos las prendas y las luces y sombras) en una">
+                Combinar visibles
+              </button>
             </span>
           }
         >
@@ -2910,6 +3094,9 @@ export function Lienzo(props: Props) {
                 onUp={() => reorder(l.id, 1)}
                 onDown={() => reorder(l.id, -1)}
                 onMerge={() => mergeDown(l)}
+                onAsGarment={(l.kind === 'paint' || (l.kind === 'image' && !l.asset)) ? (view, entry) => asGarment(l, view, entry) : undefined}
+                blank={!!props.blank}
+                templateName={template.name}
                 onClear={l.kind === 'paint' ? () => clearLayer(l) : undefined}
                 onFlip={l.kind === 'paint' || l.kind === 'image' ? (axis) => flipLayer(l, axis) : undefined}
                 onInvert={l.kind === 'paint' ? () => invertLayer(l) : undefined}
@@ -3221,6 +3408,46 @@ function BrushPreview({ brush, color }: { brush: BrushPreset; color: string }) {
 }
 
 /** Una fila del panel de capas: miniatura, nombre, visibilidad y, si está activa, sus ajustes. */
+/** «Es la prenda»: para dibujar primero y decidir la prenda después. */
+function AsGarment({ layer: l, blank, templateName, onPick }: { layer: CanvasLayer; blank: boolean; templateName: string; onPick: (view: 'front' | 'back' | 'side' | null, entryId?: string) => void }) {
+  const current = l.kind === 'image' ? (l.mockup?.view ?? null) : null
+  const [entry, setEntry] = useState('')
+  const views = [
+    ['front', 'Delantero'],
+    ['back', 'Espalda'],
+    ['side', 'Lateral'],
+  ] as const
+  return (
+    <div className="lz-field">
+      <span title="Lo pintado encima de este dibujo irá a la prenda 3D, encajado a su contorno">Es la prenda</span>
+      {blank && (
+        <select value={entry} onChange={(e) => setEntry(e.target.value)} title="Qué prenda es (para el 3D, la ficha y el patrón)">
+          <option value="">¿Qué prenda es?</option>
+          {NEW_DESIGN_CATALOG.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      )}
+      {!blank && <small className="lz-muted">Prenda del diseño: {templateName.toLowerCase()}</small>}
+      <div className="lz-chips">
+        {current && (
+          <button className="lz-chip" onClick={() => onPick(null)}>
+            No
+          </button>
+        )}
+        {views.map(([v, label]) => (
+          <button key={v} className={current === v ? 'lz-chip on' : 'lz-chip'} disabled={blank && !entry} onClick={() => onPick(v, entry || undefined)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {blank && !entry && <small className="lz-muted">Elige la prenda y después qué vista es este dibujo.</small>}
+    </div>
+  )
+}
+
 function LayerRow(props: {
   layer: CanvasLayer
   active: boolean
@@ -3241,6 +3468,10 @@ function LayerRow(props: {
   onInvert?: () => void
   /** Recortada a la capa de debajo (se ve sangrada en la lista). */
   clipped: boolean
+  /** «Es la prenda»: el dibujo a mano pasa a ser la prenda del diseño en esa vista (y, en blanco, qué prenda es). */
+  onAsGarment?: (view: 'front' | 'back' | 'side' | null, entryId?: string) => void
+  blank?: boolean
+  templateName?: string
 }) {
   const { layer: l, active } = props
   const thumbRef = useRef<HTMLCanvasElement>(null)
@@ -3321,6 +3552,7 @@ function LayerRow(props: {
               Cambiar cuello, capucha, bolsillos…
             </button>
           )}
+          {props.onAsGarment && <AsGarment layer={l} blank={!!props.blank} templateName={props.templateName ?? ''} onPick={props.onAsGarment} />}
           {l.kind === 'text' && <TextOptions layer={l} onPatch={props.onPatch} />}
           {l.kind === 'detail' && <DetailOptions layer={l} onPatch={props.onPatch} artworks={props.artworks} onSavePreset={props.onSavePreset} />}
           {l.kind === 'texture' && (
@@ -3413,11 +3645,9 @@ function LayerRow(props: {
             <button className="lz-chip" onClick={props.onDuplicate}>
               Duplicar
             </button>
-            {l.kind === 'paint' && (
-              <button className="lz-chip" onClick={props.onMerge} title="Juntar con la capa de pintura de debajo">
-                Combinar abajo
-              </button>
-            )}
+            <button className="lz-chip" onClick={props.onMerge} title="Juntar con la capa de debajo (textos, fornituras e imágenes se convierten en pintura)">
+              Combinar abajo
+            </button>
             {props.onClear && (
               <button className="lz-chip" onClick={props.onClear}>
                 Vaciar
