@@ -1,11 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, useApi } from '../../api/client'
 import { defaultDesign, getTemplate, NEW_DESIGN_CATALOG } from '../../designer/templates'
 import { clientBody, standardBody } from '../../production/measurements'
 import { bodyKind, type CanvasDoc, type CanvasLayer, type DesignInput, type ImageLayer, type MockupLayer } from '../../shared/designs'
 import { MOCKUP_VIEWS } from '../../lienzo/mockupViews'
-import { Design3D } from './Design3D'
+/**
+ * El 3D (three.js, más de 1 MB) se descarga solo al abrir la vista 3D: el lienzo en 2D abre antes, sobre todo en
+ * tableta. Si falla la descarga (p. ej. tras publicar una versión nueva) se avisa en su sitio, sin recargar la página
+ * (se perdería lo pintado sin guardar).
+ */
+const Design3D = lazy(() =>
+  import('./Design3D')
+    .then((m) => ({ default: m.Design3D }))
+    .catch(() => ({ default: () => <p className="design-3d-blank">No se ha podido cargar la vista 3D. Guarda y recarga la página.</p> })),
+)
 import { useHistory } from './useHistory'
 import { Lienzo, type Mode3D } from '../../lienzo/Lienzo'
 import { afterSave, compose, dropRuntime, flushCanvas, moveRuntime, peekRuntime } from '../../lienzo/engine'
@@ -356,6 +365,7 @@ export function DesignEditor() {
               </button>
             </div>
           ) : (
+            <Suspense fallback={<p className="design-3d-blank">Cargando la vista 3D…</p>}>
             <Design3D
               template={template}
               data={design.data}
@@ -368,6 +378,7 @@ export function DesignEditor() {
                 setSheet('garment')
               }}
             />
+            </Suspense>
           )
         }
         pendingImage={pendingImage}

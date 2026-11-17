@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router'
 
 /** Cabecera de una página: título, subtítulo opcional y acciones a la derecha. */
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
@@ -10,6 +11,29 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
       </div>
       {actions && <div className="page-actions">{actions}</div>}
     </header>
+  )
+}
+
+/**
+ * Lista vacía: qué es este apartado, para qué sirve y el botón para empezar (el mismo aspecto en toda la app).
+ * `action` puede ser un enlace (`to`) o un botón (`onClick`).
+ */
+export function EmptyState({ title, text, action }: { title: string; text: string; action?: { label: string; to?: string; onClick?: () => void } }) {
+  return (
+    <div className="card empty empty-state">
+      <strong className="empty-title">{title}</strong>
+      <p>{text}</p>
+      {action?.to && (
+        <Link to={action.to} className="button primary">
+          {action.label}
+        </Link>
+      )}
+      {action?.onClick && (
+        <button className="button primary" onClick={action.onClick}>
+          {action.label}
+        </button>
+      )}
+    </div>
   )
 }
 

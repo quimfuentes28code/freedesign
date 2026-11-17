@@ -2,7 +2,7 @@ import { deleteWithUndo } from '../../components/undo'
 import { useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { api, useApi } from '../../api/client'
-import { Field, PageHeader, Status } from '../../components/ui'
+import { Field, PageHeader, Status, EmptyState } from '../../components/ui'
 import type { Supplier } from '../../shared/library'
 import {
   defaultSteps,
@@ -91,8 +91,12 @@ export function ProductionPage() {
       <section className="production-section">
         <h2 className="section-title">En fabricación</h2>
         <Status loading={orders.loading} error={orders.error} />
-        {orders.data && open.length === 0 && (
-          <p className="muted small">No hay ninguna orden en curso. Crea una para seguir una muestra o una tanda de producción paso a paso.</p>
+        {orders.data && open.length === 0 && editing === null && (
+          <EmptyState
+            title="Ninguna orden en curso"
+            text="Una orden sigue una muestra o una tanda en el taller: unidades por talla y los pasos que vas marcando al terminarlos."
+            action={{ label: 'Nueva orden', onClick: () => setEditing('new') }}
+          />
         )}
         <div className="order-grid">
           {open.map((o) => (

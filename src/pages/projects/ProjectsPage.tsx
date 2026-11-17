@@ -1,7 +1,7 @@
 import { useState, type DragEvent } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { api, useApi } from '../../api/client'
-import { PageHeader, Status } from '../../components/ui'
+import { PageHeader, Status, EmptyState } from '../../components/ui'
 import { fileUrl } from '../../shared/library'
 import { PROJECT_STATUSES, type ProjectStatus, type ProjectSummary } from '../../shared/projects'
 import { designLink, euro, isOverdue, margin, ProjectsTabs, shortDate } from './common'
@@ -88,12 +88,11 @@ export function ProjectsPage() {
 
       <Status loading={projects.loading && !projects.data} error={projects.error} />
       {projects.data && projects.data.length === 0 && !q && !filters.client && !filters.collection ? (
-        <div className="card empty">
-          <p>Todavía no hay proyectos. Cada prenda que diseñes o fabriques puede ser un proyecto con su fase, archivos, materiales y costes.</p>
-          <Link to="/proyectos/nuevo" className="button primary">
-            Crear el primero
-          </Link>
-        </div>
+        <EmptyState
+          title="Todavía no hay proyectos"
+          text="Cada encargo o prenda que fabriques puede ser un proyecto: su fase, el cliente, los diseños, archivos, materiales, costes y cobros."
+          action={{ label: 'Crear el primero', to: '/proyectos/nuevo' }}
+        />
       ) : mode === 'tablero' ? (
         <Board projects={list} onMove={setStatus} />
       ) : (

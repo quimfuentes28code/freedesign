@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { api, useApi } from '../../api/client'
-import { PageHeader, Status } from '../../components/ui'
+import { PageHeader, Status, EmptyState } from '../../components/ui'
 import { deleteWithUndo } from '../../components/undo'
 import { DesignThumb } from './DesignThumb'
 import './designer.css'
@@ -66,12 +66,11 @@ export function DesignsGallery() {
       <Status loading={designs.loading && !designs.data} error={designs.error} />
 
       {designs.data && all.length === 0 && (
-        <div className="card empty">
-          <p>Aún no tienes diseños.</p>
-          <Link to="/disenador" className="button primary">
-            Empezar el primero
-          </Link>
-        </div>
+        <EmptyState
+          title="Aún no tienes diseños"
+          text="Empieza sobre una prenda del catálogo o en blanco: dibuja, pinta y prueba colores y tejidos, y mírala en 3D mientras la diseñas."
+          action={{ label: 'Empezar el primero', to: '/disenador' }}
+        />
       )}
       {all.length > 0 && list.length === 0 && <p className="muted small">Ningún diseño coincide con la búsqueda.</p>}
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { api, useApi } from '../../api/client'
-import { PageHeader, Status } from '../../components/ui'
+import { PageHeader, Status, EmptyState } from '../../components/ui'
 import { MEASUREMENT_GROUPS } from '../../shared/clients'
 
 const TOTAL_MEASUREMENTS = MEASUREMENT_GROUPS.reduce((n, g) => n + g.items.length, 0)
@@ -34,18 +34,17 @@ export function ClientsList() {
       <Status loading={loading && !data} error={error} />
 
       {data && data.length === 0 && (
-        <div className="card empty">
-          {q ? (
+        q ? (
+          <div className="card empty">
             <p>No hay clientes que coincidan con «{q}».</p>
-          ) : (
-            <>
-              <p>Todavía no hay clientes.</p>
-              <Link to="/clientes/nuevo" className="button primary">
-                Crear el primero
-              </Link>
-            </>
-          )}
-        </div>
+          </div>
+        ) : (
+          <EmptyState
+            title="Todavía no hay clientes"
+            text="Guarda aquí a cada cliente con sus medidas: el maniquí 3D, el patrón y la ficha técnica las usan para hacer su ropa a medida."
+            action={{ label: 'Crear el primero', to: '/clientes/nuevo' }}
+          />
+        )
       )}
 
       {data && data.length > 0 && (

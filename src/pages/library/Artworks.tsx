@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, useApi } from '../../api/client'
-import { PageHeader, Status } from '../../components/ui'
+import { PageHeader, Status, EmptyState } from '../../components/ui'
 import { fileUrl } from '../../shared/library'
 import { LibraryTabs } from './LibraryTabs'
 import './creator.css'
@@ -54,12 +54,11 @@ export function ArtworksList() {
       <Status loading={loading && !data} error={error} />
 
       {data && data.length === 0 && (
-        <div className="card empty">
-          <p>Todavía no hay gráficos.</p>
-          <Link to="/biblioteca/graficos/nuevo" className="button primary">
-            Crear el primero
-          </Link>
-        </div>
+        <EmptyState
+          title="Todavía no hay gráficos"
+          text="Logos, textos y estampados para tus prendas: créalos desde una plantilla o en blanco, o sube una imagen y vectorízala."
+          action={{ label: 'Crear el primero', to: '/biblioteca/graficos/nuevo' }}
+        />
       )}
 
       {data && data.length > 0 && (

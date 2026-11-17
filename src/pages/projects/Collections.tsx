@@ -2,7 +2,7 @@ import { deleteWithUndo } from '../../components/undo'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { api, useApi } from '../../api/client'
-import { Field, PageHeader, Status } from '../../components/ui'
+import { Field, PageHeader, Status, EmptyState } from '../../components/ui'
 import type { Collection, CollectionInput } from '../../shared/projects'
 import { ProjectsTabs } from './common'
 import './projects.css'
@@ -78,7 +78,9 @@ export function CollectionsPage() {
       </section>
 
       <Status loading={loading && !data} error={error} />
-      {data && data.length === 0 && <p className="muted">Todavía no hay colecciones.</p>}
+      {data && data.length === 0 && (
+        <EmptyState title="Todavía no hay colecciones" text="Agrupa proyectos en colecciones o drops (p. ej. «Drop 01 · SS27») para ver su rentabilidad juntos. Créala con el formulario de arriba." />
+      )}
       <div className="client-grid">
         {data?.map((c) => (
           <div key={c.id} className="card collection-card">
